@@ -16,7 +16,7 @@ define('BP_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('BP_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Cargar módulos
-require_ ката_once BP_PLUGIN_DIR . 'includes/class-cpt.php';
+require_once BP_PLUGIN_DIR . 'includes/class-cpt.php';
 
 class BosquePatitas {
 
