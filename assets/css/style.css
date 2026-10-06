@@ -1,11 +1,28 @@
+html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    background-color: #d3dfea;
+}
+
+/* Ocultar margen superior forzado de la barra de administración de WordPress */
+html {
+    margin-top: 0 !important;
+}
+
 #bp-canvas-container {
-    width: 100%;
-    height: 650px;
-    position: relative;
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 99999;
     background: linear-gradient(135deg, #1e2630 0%, #0f141a 100%);
-    border-radius: 12px;
+    border-radius: 0;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    box-shadow: none;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 }
 
