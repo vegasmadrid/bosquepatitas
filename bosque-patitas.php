@@ -29,11 +29,14 @@ class BosquePatitas {
         // Cargar Three.js desde CDN para rendimiento
         wp_register_script('threejs', 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', array(), '128', true);
 
+        // Cargar OrbitControls de Three.js
+        wp_register_script('three-orbitcontrols', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', array('threejs'), '128', true);
+
         // Cargar nuestro script 3D principal
         wp_register_script(
             'bp-main-3d',
             BP_PLUGIN_URL . 'assets/js/main-3d.js',
-            array('threejs'),
+            array('threejs', 'three-orbitcontrols'),
             '1.0.0',
             true
         );
