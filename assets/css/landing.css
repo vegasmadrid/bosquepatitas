@@ -53,7 +53,7 @@ html {
 
 .bp-section-header {
     text-align: center;
-    max-width: 700px;
+    max-width: 750px;
     margin: 0 auto 3rem auto;
 }
 
@@ -102,12 +102,12 @@ html {
 
 .bp-hero-badge {
     display: inline-block;
-    background-color: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.25);
+    background-color: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     color: #f2f7f4;
-    padding: 0.4rem 1.2rem;
+    padding: 0.45rem 1.25rem;
     border-radius: 50px;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 600;
     margin-bottom: 1.5rem;
     backdrop-filter: blur(5px);
@@ -125,7 +125,7 @@ html {
 .bp-hero-subtitle {
     font-size: 1.2rem;
     line-height: 1.6;
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.92);
     margin: 0 auto 2.5rem auto;
     max-width: 720px;
 }
@@ -157,31 +157,47 @@ html {
 .bp-btn-primary {
     background-color: var(--bp-accent);
     color: var(--bp-primary-dark);
-    box-shadow: 0 4px 15px rgba(212, 163, 89, 0.3);
+    box-shadow: 0 4px 15px rgba(212, 163, 89, 0.35);
 }
 
 .bp-btn-primary:hover,
 .bp-btn-primary:focus {
     background-color: var(--bp-accent-hover);
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(212, 163, 89, 0.4);
+    box-shadow: 0 6px 20px rgba(212, 163, 89, 0.45);
     color: var(--bp-primary-dark);
     text-decoration: none;
 }
 
 .bp-btn-secondary {
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.18);
     color: #ffffff;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.35);
     backdrop-filter: blur(5px);
 }
 
 .bp-btn-secondary:hover,
 .bp-btn-secondary:focus {
-    background-color: rgba(255, 255, 255, 0.25);
-    border-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.28);
+    border-color: rgba(255, 255, 255, 0.55);
     color: #ffffff;
     transform: translateY(-2px);
+    text-decoration: none;
+}
+
+.bp-btn-account {
+    background-color: var(--bp-primary);
+    color: #ffffff;
+    border: 1px solid var(--bp-primary-dark);
+    box-shadow: 0 4px 12px rgba(45, 74, 62, 0.2);
+}
+
+.bp-btn-account:hover,
+.bp-btn-account:focus {
+    background-color: var(--bp-primary-dark);
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(45, 74, 62, 0.3);
     text-decoration: none;
 }
 
@@ -247,11 +263,70 @@ html {
     margin: 0;
 }
 
-/* Steps Section */
-.bp-steps-section {
+/* Stories Section */
+.bp-stories-section {
     background-color: var(--bp-bg-secondary);
     border-top: 1px solid var(--bp-border);
     border-bottom: 1px solid var(--bp-border);
+}
+
+.bp-stories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.bp-story-card {
+    background-color: var(--bp-bg-card);
+    border-radius: var(--bp-radius);
+    padding: 2.25rem 2rem;
+    border: 1px solid var(--bp-border);
+    box-shadow: var(--bp-shadow);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.bp-story-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--bp-shadow-hover);
+}
+
+.bp-story-avatar {
+    font-size: 2.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.bp-story-badge {
+    background-color: rgba(212, 163, 89, 0.15);
+    color: #a0722a;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 0.25rem 0.9rem;
+    border-radius: 50px;
+    margin-bottom: 1rem;
+}
+
+.bp-story-quote {
+    font-style: italic;
+    color: var(--bp-text-dark);
+    font-size: 0.98rem;
+    line-height: 1.6;
+    margin: 0 0 1.25rem 0;
+    flex-grow: 1;
+}
+
+.bp-story-author {
+    font-weight: 700;
+    color: var(--bp-primary-dark);
+    font-size: 0.9rem;
+}
+
+/* Steps Section */
+.bp-steps-section {
+    background-color: var(--bp-bg-main);
 }
 
 .bp-steps-grid {
@@ -299,7 +374,8 @@ html {
 
 /* Auth / Register Section */
 .bp-auth-section {
-    background-color: var(--bp-bg-main);
+    background-color: var(--bp-bg-secondary);
+    border-top: 1px solid var(--bp-border);
 }
 
 .bp-auth-container {
@@ -396,7 +472,7 @@ html {
 
 /* FAQ Section */
 .bp-faq-section {
-    background-color: var(--bp-bg-secondary);
+    background-color: var(--bp-bg-main);
     border-top: 1px solid var(--bp-border);
 }
 
