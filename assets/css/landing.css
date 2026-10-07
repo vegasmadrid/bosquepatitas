@@ -79,7 +79,7 @@ html {
 .bp-hero-section {
     background: linear-gradient(135deg, var(--bp-primary-dark) 0%, var(--bp-primary) 60%, var(--bp-primary-light) 100%);
     color: #ffffff;
-    padding: 5.5rem 1.5rem;
+    padding: 4.5rem 1.5rem 5.5rem 1.5rem;
     text-align: center;
     position: relative;
     overflow: hidden;
@@ -98,6 +98,21 @@ html {
     margin: 0 auto;
     position: relative;
     z-index: 1;
+}
+
+.bp-hero-image-wrapper {
+    margin: 0 auto 2rem auto;
+    max-width: 380px;
+}
+
+.bp-hero-image {
+    width: 100%;
+    height: auto;
+    max-height: 280px;
+    object-fit: cover;
+    border-radius: 20px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+    border: 3px solid rgba(255, 255, 255, 0.3);
 }
 
 .bp-hero-badge {
@@ -531,7 +546,11 @@ html {
     }
 
     .bp-hero-section {
-        padding: 4rem 1.25rem;
+        padding: 3.5rem 1.25rem 4rem 1.25rem;
+    }
+
+    .bp-hero-image-wrapper {
+        max-width: 280px;
     }
 
     .bp-hero-title {

@@ -25,6 +25,9 @@ class BP_Landing_Page {
             <!-- Hero Section -->
             <header class="bp-hero-section">
                 <div class="bp-hero-container">
+                    <div class="bp-hero-image-wrapper">
+                        <img src="https://bosquepatitas.com/wp-content/uploads/2026/10/06d16685-4ba9-438c-9e19-bd374227e1fa.jpg" alt="Mascotas amadas en BosquePatitas" class="bp-hero-image" />
+                    </div>
                     <span class="bp-hero-badge">🐶 🐱 🐰 Cementerio Virtual 3D para Mascotas 🌈</span>
                     <h1 class="bp-hero-title">Un santuario de amor eterno para recordar a tu compañero inolvidable 🐾</h1>
                     <p class="bp-hero-subtitle">
