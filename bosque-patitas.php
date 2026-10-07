@@ -17,6 +17,7 @@ define('BP_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Cargar módulos
 require_once BP_PLUGIN_DIR . 'includes/class-cpt.php';
+require_once BP_PLUGIN_DIR . 'includes/class-landing.php';
 
 class BosquePatitas {
 
@@ -46,6 +47,7 @@ class BosquePatitas {
 
         // Cargar CSS
         wp_register_style('bp-style', BP_PLUGIN_URL . 'assets/css/style.css', array(), '1.0.0');
+        wp_register_style('bp-landing-style', BP_PLUGIN_URL . 'assets/css/landing.css', array(), '1.0.0');
     }
 
     public function render_shortcode() {
