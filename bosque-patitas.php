@@ -21,6 +21,9 @@ require_once BP_PLUGIN_DIR . 'includes/class-cpt.php';
 class BosquePatitas {
 
     public function __construct() {
+        // Desactivar admin bar de WordPress para todos los usuarios
+        add_filter('show_admin_bar', '__return_false');
+
         add_action('wp_enqueue_scripts', array($this, 'enqueue_assets'));
         add_shortcode('bosque_patitas_3d', array($this, 'render_shortcode'));
     }
