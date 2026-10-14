@@ -1,6 +1,7 @@
 /* BosquePatitas Auth & Profile CSS - Modern + Minecraft Vibe */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
+/* Main Container Centering */
 .bp-auth-wrapper, .bp-profile-wrapper {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     color: #2d3748;
@@ -10,6 +11,7 @@
     padding: 40px 15px;
     box-sizing: border-box;
     width: 100%;
+    margin: 0 auto;
 }
 
 /* Auth Card Box */
@@ -17,88 +19,113 @@
     background: #ffffff;
     border: 4px solid #2d3748;
     box-shadow: 8px 8px 0px #2d3748;
-    border-radius: 8px;
-    padding: 35px 30px;
+    border-radius: 12px;
+    padding: 35px 25px;
     width: 100%;
-    max-width: 440px;
+    max-width: 460px;
+    margin: 0 auto;
     box-sizing: border-box;
     position: relative;
     transition: all 0.2s ease;
 }
 
+/* Header */
 .bp-auth-header {
     text-align: center;
     margin-bottom: 25px;
 }
 
 .bp-auth-icon {
-    font-size: 38px;
+    font-size: 36px;
     line-height: 1;
     margin-bottom: 8px;
+    display: block;
 }
 
 .bp-auth-header h2 {
-    font-family: 'Press Start 2P', monospace, sans-serif;
-    font-size: 18px;
+    font-family: 'Press Start 2P', cursive, monospace;
+    font-size: clamp(14px, 4.5vw, 20px);
     color: #2b5329;
-    margin: 8px 0;
+    margin: 10px 0;
     text-transform: uppercase;
     letter-spacing: -0.5px;
+    line-height: 1.4;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 .bp-auth-header p {
     color: #718096;
     font-size: 14px;
-    margin: 0;
+    margin: 6px 0 0 0;
 }
 
 /* Tabs */
 .bp-auth-tabs {
     display: flex;
+    gap: 8px;
     background: #edf2f7;
-    padding: 4px;
-    border-radius: 6px;
+    padding: 6px;
+    border-radius: 8px;
     border: 2px solid #2d3748;
-    margin-bottom: 20px;
+    margin-bottom: 22px;
+    box-sizing: border-box;
 }
 
 .bp-tab-btn {
     flex: 1;
-    padding: 10px 12px;
-    font-weight: 600;
+    padding: 11px 10px;
+    font-weight: 700;
     font-size: 14px;
-    border: none;
+    border: 2px solid transparent;
     background: transparent;
     color: #4a5568;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 6px;
     transition: all 0.15s ease;
+    text-align: center;
 }
 
 .bp-tab-btn.active {
     background: #38a169;
     color: #ffffff;
+    border-color: #1a4d31;
     box-shadow: 2px 2px 0px #1a4d31;
 }
 
-/* Google Social Login */
+/* Google Social Login Override & Container */
 .bp-google-social-login {
-    margin-bottom: 18px;
+    margin-bottom: 20px;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+}
+
+/* Override Nextend Social Login plugin styles if present */
+.bp-google-social-login .nsl-container,
+.bp-google-social-login .nsl-container-buttons,
+.bp-google-social-login .nsl-button {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
 }
 
 .bp-google-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
     padding: 12px 16px;
     background: #ffffff;
-    border: 2px solid #cbd5e0;
-    box-shadow: 3px 3px 0px #cbd5e0;
-    border-radius: 6px;
+    border: 2px solid #2d3748;
+    box-shadow: 3px 3px 0px #2d3748;
+    border-radius: 8px;
     color: #2d3748;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 14px;
     text-decoration: none;
     transition: all 0.15s ease;
@@ -108,16 +135,18 @@
 .bp-google-btn:hover {
     border-color: #4285F4;
     box-shadow: 3px 3px 0px #4285F4;
-    background: #f7fafc;
+    background: #f8fafc;
     color: #2d3748;
     text-decoration: none;
+    transform: translate(-1px, -1px);
 }
 
 /* Divider */
 .bp-auth-divider {
     text-align: center;
-    margin: 20px 0;
+    margin: 22px 0;
     position: relative;
+    width: 100%;
 }
 
 .bp-auth-divider::before {
@@ -127,7 +156,7 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: #e2e8f0;
+    background: #cbd5e0;
 }
 
 .bp-auth-divider span {
@@ -135,13 +164,14 @@
     background: #ffffff;
     padding: 0 12px;
     color: #a0aec0;
-    font-size: 12px;
-    text-transform: lowercase;
+    font-size: 13px;
+    font-weight: 500;
 }
 
-/* Form Styles */
+/* Form Controls */
 .bp-tab-content {
     display: none;
+    width: 100%;
 }
 
 .bp-tab-content.active {
@@ -149,12 +179,14 @@
 }
 
 .bp-form-group {
-    margin-bottom: 16px;
+    margin-bottom: 18px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .bp-form-group label {
     display: block;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 13px;
     color: #2d3748;
     margin-bottom: 6px;
@@ -162,21 +194,21 @@
 
 .bp-input {
     width: 100%;
-    padding: 11px 14px;
+    padding: 12px 14px;
     font-size: 14px;
-    border: 2px solid #cbd5e0;
+    border: 2px solid #2d3748;
     border-radius: 6px;
     background: #f8fafc;
     color: #1a202c;
     box-sizing: border-box;
-    transition: border-color 0.15s ease;
+    transition: all 0.15s ease;
 }
 
 .bp-input:focus {
     outline: none;
     border-color: #38a169;
     background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.15);
+    box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.2);
 }
 
 .bp-form-options {
@@ -184,18 +216,21 @@
     justify-content: space-between;
     align-items: center;
     font-size: 13px;
-    margin-bottom: 20px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .bp-form-options label {
     color: #4a5568;
     cursor: pointer;
+    font-weight: 500;
 }
 
 .bp-toggle-lost, .bp-cancel-lost {
     color: #2b6cb0;
     text-decoration: none;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .bp-toggle-lost:hover, .bp-cancel-lost:hover {
@@ -204,14 +239,14 @@
 
 /* Buttons */
 .bp-btn {
-    display: inline-block;
+    display: block;
     width: 100%;
-    padding: 12px 20px;
+    padding: 14px 20px;
     font-size: 15px;
     font-weight: 700;
     text-align: center;
     text-decoration: none;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
     box-sizing: border-box;
     transition: all 0.15s ease;
@@ -276,9 +311,10 @@
     padding: 12px 15px;
     border-radius: 6px;
     font-size: 13px;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
     font-weight: 600;
     border: 2px solid;
+    text-align: center;
 }
 
 .bp-auth-feedback.bp-error {
@@ -301,6 +337,7 @@
     border-radius: 12px;
     width: 100%;
     max-width: 800px;
+    margin: 0 auto;
     overflow: hidden;
 }
 
