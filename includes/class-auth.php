@@ -32,7 +32,15 @@ class BP_Auth {
 
         // If user is logged in and trying to access Login page
         if ($login_page_id > 0 && $current_page_id === $login_page_id && is_user_logged_in()) {
-            $redirect_target = ($profile_page_id > 0) ? get_permalink($profile_page_id) : get_option('bp_redirect_url', home_url('/'));
+            $configured_login_redirect = get_option('bp_redirect_url', '');
+            if (!empty($configured_login_redirect)) {
+                $redirect_target = $configured_login_redirect;
+            } elseif ($profile_page_id > 0) {
+                $redirect_target = get_permalink($profile_page_id);
+            } else {
+                $redirect_target = home_url('/');
+            }
+
             wp_safe_redirect($redirect_target);
             exit;
         }
@@ -69,6 +77,7 @@ class BP_Auth {
      */
     public function render_auth_form() {
         ob_start();
+        $redirect_url = get_option('bp_redirect_url', 'https://bosquepatitas.com/bosque-patitas/');
         ?>
         <div class="bp-auth-wrapper">
             <div class="bp-auth-box">
@@ -89,14 +98,14 @@ class BP_Auth {
                 <div class="bp-google-social-login">
                     <?php
                     if (shortcode_exists('nextend_social_login')) {
-                        echo do_shortcode('[nextend_social_login provider="google"]');
+                        echo do_shortcode('[nextend_social_login provider="google" redirect="' . esc_url($redirect_url) . '"]');
                     } else {
                         $google_url = site_url('/wp-login.php?loginSocial=google');
                         ?>
                         <a href="<?php echo esc_url($google_url); ?>"
                            data-plugin="nsl"
                            data-action="connect"
-                           data-redirect="current"
+                           data-redirect="<?php echo esc_url($redirect_url); ?>"
                            data-provider="google"
                            data-popupwidth="600"
                            data-popupheight="600"
