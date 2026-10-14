@@ -1,0 +1,532 @@
+/* BosquePatitas Auth & Profile CSS - Elegant Modern Minecraft Theme */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+/* Main Container Centering */
+body .bp-auth-wrapper,
+body .bp-profile-wrapper {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+    color: #1e293b !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 40px 20px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+}
+
+/* Auth Card Box */
+body .bp-auth-wrapper .bp-auth-box {
+    background: #ffffff !important;
+    border: 3px solid #1e293b !important;
+    box-shadow: 6px 6px 0px #1e293b !important;
+    border-radius: 12px !important;
+    padding: 40px 36px !important;
+    width: 100% !important;
+    max-width: 500px !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    transition: all 0.2s ease !important;
+    container-type: inline-size !important;
+    container-name: authbox !important;
+}
+
+/* Header */
+body .bp-auth-wrapper .bp-auth-header {
+    text-align: center !important;
+    margin-bottom: 26px !important;
+    padding: 0 10px !important;
+}
+
+body .bp-auth-wrapper .bp-auth-icon {
+    font-size: 36px !important;
+    line-height: 1 !important;
+    margin-bottom: 10px !important;
+    display: block !important;
+}
+
+body .bp-auth-wrapper .bp-auth-header h2 {
+    font-family: 'Press Start 2P', cursive, monospace !important;
+    font-size: clamp(10px, 3.2cqi, 13px) !important;
+    color: #2d6a4f !important;
+    margin: 12px 0 !important;
+    padding: 0 10px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0px !important;
+    line-height: 1.4 !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-align: center !important;
+    width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+}
+
+body .bp-auth-wrapper .bp-auth-header p {
+    color: #64748b !important;
+    font-size: 13.5px !important;
+    margin: 6px 0 0 0 !important;
+    font-weight: 500 !important;
+}
+
+/* Tabs */
+body .bp-auth-wrapper .bp-auth-tabs {
+    display: flex !important;
+    gap: 8px !important;
+    background: #f1f5f9 !important;
+    padding: 5px !important;
+    border-radius: 8px !important;
+    border: 2px solid #1e293b !important;
+    margin-bottom: 24px !important;
+    box-sizing: border-box !important;
+}
+
+body .bp-auth-wrapper .bp-tab-btn {
+    flex: 1 !important;
+    padding: 11px 14px !important;
+    font-weight: 700 !important;
+    font-size: 13.5px !important;
+    border: 2px solid transparent !important;
+    background: transparent !important;
+    color: #64748b !important;
+    cursor: pointer !important;
+    border-radius: 6px !important;
+    transition: all 0.15s ease !important;
+    text-align: center !important;
+    box-shadow: none !important;
+}
+
+body .bp-auth-wrapper .bp-tab-btn.active {
+    background: #2d6a4f !important;
+    color: #ffffff !important;
+    border-color: #1b4332 !important;
+    box-shadow: 2px 2px 0px #1b4332 !important;
+}
+
+/* Google Social Login Override & Container */
+body .bp-auth-wrapper .bp-google-social-login {
+    margin-bottom: 22px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: center !important;
+}
+
+/* Override Nextend Social Login plugin styles if present */
+body .bp-auth-wrapper .bp-google-social-login .nsl-container,
+body .bp-auth-wrapper .bp-google-social-login .nsl-container-buttons,
+body .bp-auth-wrapper .bp-google-social-login .nsl-button {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+body .bp-auth-wrapper .bp-google-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    padding: 12px 16px !important;
+    background: #ffffff !important;
+    border: 2px solid #1e293b !important;
+    box-shadow: 3px 3px 0px #1e293b !important;
+    border-radius: 8px !important;
+    color: #1e293b !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    text-decoration: none !important;
+    transition: all 0.15s ease !important;
+    box-sizing: border-box !important;
+}
+
+body .bp-auth-wrapper .bp-google-btn:hover {
+    border-color: #4285F4 !important;
+    box-shadow: 3px 3px 0px #4285F4 !important;
+    background: #f8fafc !important;
+    color: #1e293b !important;
+    text-decoration: none !important;
+    transform: translate(-1px, -1px) !important;
+}
+
+/* Divider */
+body .bp-auth-wrapper .bp-auth-divider {
+    text-align: center !important;
+    margin: 24px 0 !important;
+    position: relative !important;
+    width: 100% !important;
+}
+
+body .bp-auth-wrapper .bp-auth-divider::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 1px !important;
+    background: #e2e8f0 !important;
+}
+
+body .bp-auth-wrapper .bp-auth-divider span {
+    position: relative !important;
+    background: #ffffff !important;
+    padding: 0 14px !important;
+    color: #94a3b8 !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+}
+
+/* Form Controls */
+body .bp-auth-wrapper .bp-tab-content {
+    display: none;
+    width: 100% !important;
+}
+
+body .bp-auth-wrapper .bp-tab-content.active {
+    display: block !important;
+}
+
+body .bp-auth-wrapper .bp-form-group {
+    margin-bottom: 20px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+body .bp-auth-wrapper .bp-form-group label {
+    display: block !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    color: #1e293b !important;
+    margin-bottom: 7px !important;
+}
+
+body .bp-auth-wrapper .bp-input {
+    width: 100% !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    border: 2px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    box-sizing: border-box !important;
+    transition: all 0.15s ease !important;
+}
+
+body .bp-auth-wrapper .bp-input:focus {
+    outline: none !important;
+    border-color: #2d6a4f !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15) !important;
+}
+
+body .bp-auth-wrapper .bp-form-options {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    font-size: 13px !important;
+    margin-bottom: 24px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+}
+
+body .bp-auth-wrapper .bp-form-options label {
+    color: #475569 !important;
+    cursor: pointer !important;
+    font-weight: 500 !important;
+}
+
+body .bp-auth-wrapper .bp-toggle-lost,
+body .bp-auth-wrapper .bp-cancel-lost {
+    color: #2563eb !important;
+    text-decoration: none !important;
+    font-weight: 600 !important;
+}
+
+body .bp-auth-wrapper .bp-toggle-lost:hover,
+body .bp-auth-wrapper .bp-cancel-lost:hover {
+    text-decoration: underline !important;
+}
+
+/* Buttons */
+body .bp-auth-wrapper .bp-btn,
+body .bp-profile-wrapper .bp-btn {
+    display: block !important;
+    width: 100% !important;
+    padding: 14px 20px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+    transition: all 0.15s ease !important;
+    border: 2px solid #1e293b !important;
+}
+
+body .bp-auth-wrapper .bp-btn-primary,
+body .bp-profile-wrapper .bp-btn-primary {
+    background: #2d6a4f !important;
+    color: #ffffff !important;
+    box-shadow: 4px 4px 0px #1b4332 !important;
+}
+
+body .bp-auth-wrapper .bp-btn-primary:hover,
+body .bp-profile-wrapper .bp-btn-primary:hover {
+    background: #1b4332 !important;
+    transform: translate(-1px, -1px) !important;
+    box-shadow: 5px 5px 0px #081c15 !important;
+    color: #ffffff !important;
+}
+
+body .bp-profile-wrapper .bp-btn-green {
+    background: #2d6a4f !important;
+    color: #ffffff !important;
+    box-shadow: 3px 3px 0px #1b4332 !important;
+}
+
+body .bp-profile-wrapper .bp-btn-green:hover {
+    background: #1b4332 !important;
+    color: #ffffff !important;
+}
+
+body .bp-profile-wrapper .bp-btn-danger {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    box-shadow: 3px 3px 0px #991b1b !important;
+}
+
+body .bp-profile-wrapper .bp-btn-danger:hover {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+}
+
+body .bp-profile-wrapper .bp-btn-outline {
+    background: #ffffff !important;
+    color: #1e293b !important;
+    border: 2px solid #1e293b !important;
+    box-shadow: 2px 2px 0px #1e293b !important;
+}
+
+body .bp-profile-wrapper .bp-btn-outline:hover {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+}
+
+body .bp-profile-wrapper .bp-btn-sm {
+    width: auto !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+}
+
+/* Feedback Messages */
+body .bp-auth-wrapper .bp-auth-feedback {
+    padding: 12px 15px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    margin-bottom: 20px !important;
+    font-weight: 600 !important;
+    border: 2px solid !important;
+    text-align: center !important;
+}
+
+body .bp-auth-wrapper .bp-auth-feedback.bp-error {
+    background: #fef2f2 !important;
+    color: #991b1b !important;
+    border-color: #fca5a5 !important;
+}
+
+body .bp-auth-wrapper .bp-auth-feedback.bp-success {
+    background: #f0fdf4 !important;
+    color: #166534 !important;
+    border-color: #86efac !important;
+}
+
+/* PROFILE CARD STYLES */
+body .bp-profile-wrapper .bp-profile-card {
+    background: #ffffff !important;
+    border: 3px solid #1e293b !important;
+    box-shadow: 6px 6px 0px #1e293b !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    max-width: 800px !important;
+    margin: 0 auto !important;
+    overflow: hidden !important;
+}
+
+body .bp-profile-wrapper .bp-profile-header {
+    background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%) !important;
+    color: #ffffff !important;
+    padding: 30px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 20px !important;
+    flex-wrap: wrap !important;
+}
+
+body .bp-profile-wrapper .bp-profile-avatar img {
+    border-radius: 50% !important;
+    border: 3px solid #ffffff !important;
+    box-shadow: 3px 3px 0px #081c15 !important;
+}
+
+body .bp-profile-wrapper .bp-profile-info {
+    flex: 1 !important;
+    min-width: 200px !important;
+}
+
+body .bp-profile-wrapper .bp-profile-info h2 {
+    font-family: 'Press Start 2P', monospace, sans-serif !important;
+    font-size: 15px !important;
+    margin: 0 0 8px 0 !important;
+    color: #ffffff !important;
+}
+
+body .bp-profile-wrapper .bp-user-email {
+    margin: 0 0 4px 0 !important;
+    font-size: 14px !important;
+    opacity: 0.9 !important;
+}
+
+body .bp-profile-wrapper .bp-user-role {
+    margin: 0 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    background: rgba(255, 255, 255, 0.2) !important;
+    display: inline-block !important;
+    padding: 2px 8px !important;
+    border-radius: 4px !important;
+}
+
+body .bp-profile-wrapper .bp-profile-actions {
+    display: flex !important;
+    gap: 10px !important;
+    flex-direction: column !important;
+}
+
+body .bp-profile-wrapper .bp-profile-actions .bp-btn {
+    width: auto !important;
+}
+
+/* Profile Content & Graves Grid */
+body .bp-profile-wrapper .bp-profile-content {
+    padding: 30px !important;
+}
+
+body .bp-profile-wrapper .bp-section-title h3 {
+    font-size: 18px !important;
+    color: #1e293b !important;
+    margin: 0 0 20px 0 !important;
+    border-bottom: 2px dashed #cbd5e1 !important;
+    padding-bottom: 10px !important;
+}
+
+body .bp-profile-wrapper .bp-graves-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+    gap: 20px !important;
+}
+
+body .bp-profile-wrapper .bp-grave-card {
+    background: #f8fafc !important;
+    border: 2px solid #1e293b !important;
+    box-shadow: 4px 4px 0px #1e293b !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+body .bp-profile-wrapper .bp-grave-image {
+    height: 130px !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-color: #cbd5e1 !important;
+    position: relative !important;
+}
+
+body .bp-profile-wrapper .bp-status-badge {
+    position: absolute !important;
+    top: 8px !important;
+    right: 8px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    text-transform: uppercase !important;
+    color: #fff !important;
+    background: #1e293b !important;
+}
+
+body .bp-profile-wrapper .bp-status-badge.bp-status-publish {
+    background: #2d6a4f !important;
+}
+
+body .bp-profile-wrapper .bp-status-badge.bp-status-pending {
+    background: #d97706 !important;
+}
+
+body .bp-profile-wrapper .bp-grave-details {
+    padding: 15px !important;
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+body .bp-profile-wrapper .bp-grave-details h4 {
+    margin: 0 0 6px 0 !important;
+    font-size: 16px !important;
+    color: #1e293b !important;
+}
+
+body .bp-profile-wrapper .bp-grave-coords {
+    font-size: 11px !important;
+    color: #64748b !important;
+    margin: 0 0 8px 0 !important;
+    font-family: monospace !important;
+}
+
+body .bp-profile-wrapper .bp-grave-excerpt {
+    font-size: 12px !important;
+    color: #475569 !important;
+    margin-bottom: 15px !important;
+    flex: 1 !important;
+}
+
+body .bp-profile-wrapper .bp-empty-state {
+    text-align: center !important;
+    padding: 40px 20px !important;
+    background: #f8fafc !important;
+    border: 2px dashed #cbd5e1 !important;
+    border-radius: 8px !important;
+}
+
+body .bp-profile-wrapper .bp-empty-state p {
+    font-size: 15px !important;
+    color: #64748b !important;
+    margin-bottom: 15px !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    body .bp-auth-wrapper .bp-auth-box {
+        padding: 25px 18px !important;
+    }
+
+    body .bp-profile-wrapper .bp-profile-header {
+        flex-direction: column !important;
+        text-align: center !important;
+    }
+
+    body .bp-profile-wrapper .bp-profile-actions {
+        width: 100% !important;
+    }
+
+    body .bp-profile-wrapper .bp-profile-actions .bp-btn {
+        width: 100% !important;
+    }
+}

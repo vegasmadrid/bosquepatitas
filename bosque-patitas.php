@@ -17,6 +17,9 @@ define('BP_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Cargar módulos
 require_once BP_PLUGIN_DIR . 'includes/class-cpt.php';
+require_once BP_PLUGIN_DIR . 'includes/class-settings.php';
+require_once BP_PLUGIN_DIR . 'includes/class-auth.php';
+require_once BP_PLUGIN_DIR . 'includes/class-profile.php';
 
 class BosquePatitas {
 
@@ -44,8 +47,25 @@ class BosquePatitas {
             true
         );
 
-        // Cargar CSS
+        // Cargar CSS principal 3D
         wp_register_style('bp-style', BP_PLUGIN_URL . 'assets/css/style.css', array(), '1.0.0');
+
+        // Styles and scripts for Auth & Profile pages
+        wp_register_style('bp-auth-profile-css', BP_PLUGIN_URL . 'assets/css/auth-profile.css', array(), '1.0.0');
+        wp_register_script('bp-auth-profile-js', BP_PLUGIN_URL . 'assets/js/auth-profile.js', array(), '1.0.0', true);
+
+        $login_page_id   = (int) get_option('bp_login_page_id', 0);
+        $profile_page_id = (int) get_option('bp_profile_page_id', 0);
+
+        if (is_page($login_page_id) || is_page($profile_page_id)) {
+            wp_enqueue_style('bp-auth-profile-css');
+            wp_enqueue_script('bp-auth-profile-js');
+
+            wp_localize_script('bp-auth-profile-js', 'BP_Auth_Data', array(
+                'ajaxurl' => admin_url('admin-ajax.php'),
+                'nonce'   => wp_create_nonce('bp_auth_nonce')
+            ));
+        }
     }
 
     public function render_shortcode() {
