@@ -69,7 +69,6 @@ class BP_Auth {
      */
     public function render_auth_form() {
         ob_start();
-        $redirect_url = get_option('bp_redirect_url', 'https://bosquepatitas.com/bosque-patitas/');
         ?>
         <div class="bp-auth-wrapper">
             <div class="bp-auth-box">
@@ -255,10 +254,10 @@ class BP_Auth {
         wp_set_current_user($user_id);
         wp_set_auth_cookie($user_id);
 
-        $redirect_url = get_option('bp_redirect_url', 'https://bosquepatitas.com/bosque-patitas/');
+        $register_redirect_url = get_option('bp_register_redirect_url', get_option('bp_redirect_url', 'https://bosquepatitas.com/bosque-patitas/'));
         wp_send_json_success(array(
-            'message'  => '¡Registro completado con éxito! Entrando al bosque...',
-            'redirect' => $redirect_url
+            'message'  => '¡Registro completado con éxito! Redirigiendo...',
+            'redirect' => $register_redirect_url
         ));
     }
 

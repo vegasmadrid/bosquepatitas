@@ -37,6 +37,12 @@ class BP_Admin_Settings {
             'sanitize_callback' => 'esc_url_raw',
             'default' => 'https://bosquepatitas.com/bosque-patitas/'
         ));
+
+        register_setting('bp_settings_group', 'bp_register_redirect_url', array(
+            'type' => 'string',
+            'sanitize_callback' => 'esc_url_raw',
+            'default' => 'https://bosquepatitas.com/bosque-patitas/'
+        ));
     }
 
     public function render_settings_page() {
@@ -44,9 +50,10 @@ class BP_Admin_Settings {
             return;
         }
 
-        $login_page_id   = get_option('bp_login_page_id', 0);
-        $profile_page_id = get_option('bp_profile_page_id', 0);
-        $redirect_url    = get_option('bp_redirect_url', 'https://bosquepatitas.com/bosque-patitas/');
+        $login_page_id          = get_option('bp_login_page_id', 0);
+        $profile_page_id        = get_option('bp_profile_page_id', 0);
+        $redirect_url           = get_option('bp_redirect_url', 'https://bosquepatitas.com/bosque-patitas/');
+        $register_redirect_url  = get_option('bp_register_redirect_url', 'https://bosquepatitas.com/bosque-patitas/');
 
         $pages = get_pages();
         ?>
@@ -94,7 +101,15 @@ class BP_Admin_Settings {
                         <th scope="row">URL de Redirección tras Login</th>
                         <td>
                             <input type="url" name="bp_redirect_url" value="<?php echo esc_url($redirect_url); ?>" class="regular-text" />
-                            <p class="description">Dirección URL a la que serán redirigidos los usuarios tras iniciar sesión con éxito (ej: el bosque 3D).</p>
+                            <p class="description">Dirección URL a la que serán redirigidos los usuarios existentes tras iniciar sesión con éxito (ej: el bosque 3D).</p>
+                        </td>
+                    </tr>
+
+                    <tr valign="top">
+                        <th scope="row">URL de Redirección tras Registro</th>
+                        <td>
+                            <input type="url" name="bp_register_redirect_url" value="<?php echo esc_url($register_redirect_url); ?>" class="regular-text" />
+                            <p class="description">Dirección URL a la que serán redirigidos los nuevos usuarios inmediatamente tras registrarse.</p>
                         </td>
                     </tr>
                 </table>
