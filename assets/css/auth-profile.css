@@ -1,10 +1,10 @@
-/* BosquePatitas Auth & Profile CSS - Modern + Minecraft Vibe */
+/* BosquePatitas Auth & Profile CSS - Elegant Minecraft Vibe */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
 /* Main Container Centering */
 .bp-auth-wrapper, .bp-profile-wrapper {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    color: #2d3748;
+    color: #1e293b;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -17,12 +17,12 @@
 /* Auth Card Box */
 .bp-auth-box {
     background: #ffffff;
-    border: 4px solid #2d3748;
-    box-shadow: 8px 8px 0px #2d3748;
+    border: 3px solid #1e293b;
+    box-shadow: 6px 6px 0px #1e293b;
     border-radius: 12px;
-    padding: 35px 25px;
+    padding: 35px 28px;
     width: 100%;
-    max-width: 460px;
+    max-width: 440px;
     margin: 0 auto;
     box-sizing: border-box;
     position: relative;
@@ -36,50 +36,53 @@
 }
 
 .bp-auth-icon {
-    font-size: 36px;
+    font-size: 34px;
     line-height: 1;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     display: block;
 }
 
 .bp-auth-header h2 {
     font-family: 'Press Start 2P', cursive, monospace;
-    font-size: clamp(14px, 4.5vw, 20px);
-    color: #2b5329;
+    font-size: clamp(12px, 3.2vw, 15px);
+    color: #2d6a4f;
     margin: 10px 0;
     text-transform: uppercase;
-    letter-spacing: -0.5px;
-    line-height: 1.4;
-    word-break: break-word;
-    overflow-wrap: break-word;
+    letter-spacing: 0px;
+    line-height: 1.5;
+    word-break: keep-all;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .bp-auth-header p {
-    color: #718096;
-    font-size: 14px;
+    color: #64748b;
+    font-size: 13.5px;
     margin: 6px 0 0 0;
+    font-weight: 500;
 }
 
 /* Tabs */
 .bp-auth-tabs {
     display: flex;
     gap: 8px;
-    background: #edf2f7;
-    padding: 6px;
+    background: #f1f5f9;
+    padding: 5px;
     border-radius: 8px;
-    border: 2px solid #2d3748;
+    border: 2px solid #1e293b;
     margin-bottom: 22px;
     box-sizing: border-box;
 }
 
 .bp-tab-btn {
     flex: 1;
-    padding: 11px 10px;
+    padding: 10px 12px;
     font-weight: 700;
-    font-size: 14px;
+    font-size: 13.5px;
     border: 2px solid transparent;
     background: transparent;
-    color: #4a5568;
+    color: #64748b;
     cursor: pointer;
     border-radius: 6px;
     transition: all 0.15s ease;
@@ -87,10 +90,10 @@
 }
 
 .bp-tab-btn.active {
-    background: #38a169;
+    background: #2d6a4f;
     color: #ffffff;
-    border-color: #1a4d31;
-    box-shadow: 2px 2px 0px #1a4d31;
+    border-color: #1b4332;
+    box-shadow: 2px 2px 0px #1b4332;
 }
 
 /* Google Social Login Override & Container */
@@ -121,10 +124,10 @@
     width: 100%;
     padding: 12px 16px;
     background: #ffffff;
-    border: 2px solid #2d3748;
-    box-shadow: 3px 3px 0px #2d3748;
+    border: 2px solid #1e293b;
+    box-shadow: 3px 3px 0px #1e293b;
     border-radius: 8px;
-    color: #2d3748;
+    color: #1e293b;
     font-weight: 700;
     font-size: 14px;
     text-decoration: none;
@@ -136,7 +139,7 @@
     border-color: #4285F4;
     box-shadow: 3px 3px 0px #4285F4;
     background: #f8fafc;
-    color: #2d3748;
+    color: #1e293b;
     text-decoration: none;
     transform: translate(-1px, -1px);
 }
@@ -156,15 +159,15 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: #cbd5e0;
+    background: #e2e8f0;
 }
 
 .bp-auth-divider span {
     position: relative;
     background: #ffffff;
     padding: 0 12px;
-    color: #a0aec0;
-    font-size: 13px;
+    color: #94a3b8;
+    font-size: 12.5px;
     font-weight: 500;
 }
 
@@ -188,27 +191,27 @@
     display: block;
     font-weight: 700;
     font-size: 13px;
-    color: #2d3748;
+    color: #1e293b;
     margin-bottom: 6px;
 }
 
 .bp-input {
     width: 100%;
-    padding: 12px 14px;
+    padding: 11px 14px;
     font-size: 14px;
-    border: 2px solid #2d3748;
+    border: 2px solid #cbd5e1;
     border-radius: 6px;
     background: #f8fafc;
-    color: #1a202c;
+    color: #0f172a;
     box-sizing: border-box;
     transition: all 0.15s ease;
 }
 
 .bp-input:focus {
     outline: none;
-    border-color: #38a169;
+    border-color: #2d6a4f;
     background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.2);
+    box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
 }
 
 .bp-form-options {
@@ -222,13 +225,13 @@
 }
 
 .bp-form-options label {
-    color: #4a5568;
+    color: #475569;
     cursor: pointer;
     font-weight: 500;
 }
 
 .bp-toggle-lost, .bp-cancel-lost {
-    color: #2b6cb0;
+    color: #2563eb;
     text-decoration: none;
     font-weight: 600;
 }
@@ -241,7 +244,7 @@
 .bp-btn {
     display: block;
     width: 100%;
-    padding: 14px 20px;
+    padding: 13px 20px;
     font-size: 15px;
     font-weight: 700;
     text-align: center;
@@ -250,54 +253,54 @@
     cursor: pointer;
     box-sizing: border-box;
     transition: all 0.15s ease;
-    border: 2px solid #2d3748;
+    border: 2px solid #1e293b;
 }
 
 .bp-btn-primary {
-    background: #38a169;
+    background: #2d6a4f;
     color: #ffffff;
-    box-shadow: 4px 4px 0px #1a4d31;
+    box-shadow: 4px 4px 0px #1b4332;
 }
 
 .bp-btn-primary:hover {
-    background: #2f855a;
+    background: #1b4332;
     transform: translate(-1px, -1px);
-    box-shadow: 5px 5px 0px #1a4d31;
+    box-shadow: 5px 5px 0px #081c15;
     color: #ffffff;
 }
 
 .bp-btn-green {
-    background: #2f855a;
+    background: #2d6a4f;
     color: #ffffff;
-    box-shadow: 3px 3px 0px #1a4d31;
+    box-shadow: 3px 3px 0px #1b4332;
 }
 
 .bp-btn-green:hover {
-    background: #276749;
+    background: #1b4332;
     color: #ffffff;
 }
 
 .bp-btn-danger {
-    background: #e53e3e;
+    background: #ef4444;
     color: #ffffff;
-    box-shadow: 3px 3px 0px #9b2c2c;
+    box-shadow: 3px 3px 0px #991b1b;
 }
 
 .bp-btn-danger:hover {
-    background: #c53030;
+    background: #dc2626;
     color: #ffffff;
 }
 
 .bp-btn-outline {
     background: #ffffff;
-    color: #2d3748;
-    border: 2px solid #2d3748;
-    box-shadow: 2px 2px 0px #2d3748;
+    color: #1e293b;
+    border: 2px solid #1e293b;
+    box-shadow: 2px 2px 0px #1e293b;
 }
 
 .bp-btn-outline:hover {
-    background: #edf2f7;
-    color: #2d3748;
+    background: #f1f5f9;
+    color: #1e293b;
 }
 
 .bp-btn-sm {
@@ -318,22 +321,22 @@
 }
 
 .bp-auth-feedback.bp-error {
-    background: #fff5f5;
-    color: #c53030;
-    border-color: #feb2b2;
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fca5a5;
 }
 
 .bp-auth-feedback.bp-success {
-    background: #f0fff4;
-    color: #276749;
-    border-color: #9ae6b4;
+    background: #f0fdf4;
+    color: #166534;
+    border-color: #86efac;
 }
 
 /* PROFILE CARD STYLES */
 .bp-profile-card {
     background: #ffffff;
-    border: 4px solid #2d3748;
-    box-shadow: 8px 8px 0px #2d3748;
+    border: 3px solid #1e293b;
+    box-shadow: 6px 6px 0px #1e293b;
     border-radius: 12px;
     width: 100%;
     max-width: 800px;
@@ -342,7 +345,7 @@
 }
 
 .bp-profile-header {
-    background: linear-gradient(135deg, #2b5329 0%, #1e3a1c 100%);
+    background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
     color: #ffffff;
     padding: 30px;
     display: flex;
@@ -353,8 +356,8 @@
 
 .bp-profile-avatar img {
     border-radius: 50%;
-    border: 4px solid #ffffff;
-    box-shadow: 3px 3px 0px #000000;
+    border: 3px solid #ffffff;
+    box-shadow: 3px 3px 0px #081c15;
 }
 
 .bp-profile-info {
@@ -364,7 +367,7 @@
 
 .bp-profile-info h2 {
     font-family: 'Press Start 2P', monospace, sans-serif;
-    font-size: 16px;
+    font-size: 15px;
     margin: 0 0 8px 0;
     color: #ffffff;
 }
@@ -377,7 +380,7 @@
 
 .bp-user-role {
     margin: 0;
-    font-size: 12px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 1px;
     background: rgba(255, 255, 255, 0.2);
@@ -403,9 +406,9 @@
 
 .bp-section-title h3 {
     font-size: 18px;
-    color: #2d3748;
+    color: #1e293b;
     margin: 0 0 20px 0;
-    border-bottom: 2px dashed #cbd5e0;
+    border-bottom: 2px dashed #cbd5e1;
     padding-bottom: 10px;
 }
 
@@ -417,8 +420,8 @@
 
 .bp-grave-card {
     background: #f8fafc;
-    border: 3px solid #2d3748;
-    box-shadow: 4px 4px 0px #2d3748;
+    border: 2px solid #1e293b;
+    box-shadow: 4px 4px 0px #1e293b;
     border-radius: 8px;
     overflow: hidden;
     display: flex;
@@ -429,7 +432,7 @@
     height: 130px;
     background-size: cover;
     background-position: center;
-    background-color: #cbd5e0;
+    background-color: #cbd5e1;
     position: relative;
 }
 
@@ -443,15 +446,15 @@
     border-radius: 4px;
     text-transform: uppercase;
     color: #fff;
-    background: #2d3748;
+    background: #1e293b;
 }
 
 .bp-status-badge.bp-status-publish {
-    background: #38a169;
+    background: #2d6a4f;
 }
 
 .bp-status-badge.bp-status-pending {
-    background: #dd6b20;
+    background: #d97706;
 }
 
 .bp-grave-details {
@@ -464,19 +467,19 @@
 .bp-grave-details h4 {
     margin: 0 0 6px 0;
     font-size: 16px;
-    color: #2d3748;
+    color: #1e293b;
 }
 
 .bp-grave-coords {
     font-size: 11px;
-    color: #718096;
+    color: #64748b;
     margin: 0 0 8px 0;
     font-family: monospace;
 }
 
 .bp-grave-excerpt {
     font-size: 12px;
-    color: #4a5568;
+    color: #475569;
     margin-bottom: 15px;
     flex: 1;
 }
@@ -485,13 +488,13 @@
     text-align: center;
     padding: 40px 20px;
     background: #f8fafc;
-    border: 2px dashed #cbd5e0;
+    border: 2px dashed #cbd5e1;
     border-radius: 8px;
 }
 
 .bp-empty-state p {
     font-size: 15px;
-    color: #718096;
+    color: #64748b;
     margin-bottom: 15px;
 }
 
