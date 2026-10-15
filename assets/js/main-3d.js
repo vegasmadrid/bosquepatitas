@@ -23,23 +23,20 @@ document.addEventListener('DOMContentLoaded', () => {
         container.appendChild(tooltip);
     }
 
-    // Greeting Banner & Top Controls
+    // Top-Left Controls & Dynamic Modal Header Greeting
     const topBar = document.createElement('div');
     topBar.className = 'bp-top-controls bp-ui-element';
 
     const greetingText = settings.isLoggedIn
-        ? `🐾 ¡Hola, <strong>${settings.userName}</strong>!`
-        : `🌲 Bienvenido a <strong>BosquePatitas</strong>`;
+        ? `¡Hola, ${settings.userName}!`
+        : `Bienvenido a BosquePatitas`;
 
     const accountBtnText = settings.isLoggedIn ? '👤 Mi Perfil' : '🔑 Acceder / Registro';
     const accountBtnUrl = settings.isLoggedIn ? settings.profileUrl : settings.loginUrl;
 
     topBar.innerHTML = `
-        <div class="bp-greeting-badge">
-            <span>${greetingText}</span>
-        </div>
-        <button id="bp-inventory-btn" class="bp-btn bp-btn-emerald" title="Abrir Inventario de Opciones">
-            <span>🎒 Menú</span>
+        <button id="bp-inventory-btn" class="bp-btn bp-btn-emerald" title="Abrir Menú de Opciones">
+            <span>🧭 Menú</span>
         </button>
     `;
     container.appendChild(topBar);
@@ -52,13 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="bp-inventory-card">
             <div class="bp-inventory-header">
                 <div class="bp-inventory-title">
-                    <span class="bp-inventory-icon">🎒</span>
+                    <span class="bp-inventory-icon">🧭</span>
                     <div>
-                        <h3>Inventario BosquePatitas</h3>
+                        <h3>${greetingText}</h3>
                         <small>Panel de Configuración y Navegación</small>
                     </div>
                 </div>
-                <button id="bp-inventory-close" class="bp-modal-close">&times;</button>
             </div>
             <div class="bp-inventory-grid">
                 <div id="bp-slot-account" class="bp-inventory-slot" title="Cuenta de Usuario">
@@ -87,6 +83,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <button id="bp-inv-open-help" class="bp-slot-action">Ver Guía</button>
                 </div>
+            </div>
+            <div class="bp-inventory-footer">
+                <button id="bp-inventory-close" class="bp-modal-close-round" title="Cerrar Menú">✖</button>
             </div>
         </div>
     `;
