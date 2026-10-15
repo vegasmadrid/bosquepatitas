@@ -147,25 +147,28 @@ html {
     pointer-events: auto;
 }
 
-.bp-menu-trigger-circular {
-    width: 44px;
-    height: 44px;
+.bp-menu-trigger-yellow {
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     padding: 0;
+    background: linear-gradient(180deg, #ffeb3b 0%, #fbc02d 100%);
+    border: 2.5px solid #111111;
+    color: #000000;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 -3px 0 rgba(0, 0, 0, 0.2);
 }
 
-.bp-menu-trigger:hover {
-    background: rgba(16, 185, 129, 0.95);
-    border-color: #34d399;
-    color: #064e3b;
+.bp-menu-trigger-yellow:hover {
+    background: linear-gradient(180deg, #fff176 0%, #fdd835 100%);
+    border-color: #000000;
     transform: translateY(-2px) scale(1.08);
-    box-shadow: 0 14px 30px rgba(16, 185, 129, 0.5);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55), inset 0 -3px 0 rgba(0, 0, 0, 0.25);
 }
 
-.bp-trigger-hamburger {
-    font-size: 22px;
-    line-height: 1;
-    font-weight: bold;
+.bp-menu-icon-yellow {
+    display: block;
+    width: 26px;
+    height: 26px;
 }
 
 /* D-Pad Controles Táctiles Ergonómicos Móviles (Sleek Modern Emerald Translucent) */
