@@ -42,46 +42,51 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     container.appendChild(topBar);
 
-    // Modal de Navegación Sleek & Modern Emerald
+    // Modal de Navegación Sleek & Compact Options List
     const inventoryModal = document.createElement('div');
     inventoryModal.id = 'bp-inventory-modal';
     inventoryModal.className = 'bp-modal-overlay hidden bp-ui-element';
     inventoryModal.innerHTML = `
-        <div class="bp-modal-panel">
-            <div class="bp-modal-header-modern">
-                <div class="bp-header-badge">🌲 BosquePatitas 3D</div>
-                <h3 class="bp-header-greeting">${greetingText}</h3>
-                <p class="bp-header-sub">Explora el bosque conmemorativo y gestiona la memoria de tus mascotas</p>
-                <button id="bp-inventory-close-top" class="bp-btn-close-corner" title="Cerrar">&times;</button>
-            </div>
-            <div class="bp-modal-grid">
-                <div class="bp-card-slot">
-                    <div class="bp-card-icon-wrap">${settings.isLoggedIn ? '👤' : '🔑'}</div>
-                    <div class="bp-card-content">
-                        <h4>${settings.isLoggedIn ? 'Mi Perfil' : 'Cuenta y Acceso'}</h4>
-                        <p>${settings.isLoggedIn ? 'Administra tus recuerdos y parcelas' : 'Accede a tu cuenta o crea una nueva'}</p>
-                    </div>
-                    <a href="${accountBtnUrl}" class="bp-card-btn bp-btn-primary">${accountBtnText}</a>
+        <div class="bp-modal-panel bp-modal-panel-compact">
+            <div class="bp-modal-header-compact">
+                <div class="bp-header-top-row">
+                    <span class="bp-brand-badge">🌲 BosquePatitas 3D</span>
+                    <button id="bp-inventory-close-top" class="bp-btn-close-corner" title="Cerrar">&times;</button>
                 </div>
-
-                <div class="bp-card-slot">
-                    <div class="bp-card-icon-wrap">🛰️</div>
-                    <div class="bp-card-content">
-                        <h4>Modo de Cámara</h4>
-                        <p id="bp-slot-view-desc">Alternar a Vista Aérea Libre</p>
-                    </div>
-                    <button id="bp-inv-toggle-view" class="bp-card-btn bp-btn-secondary">Cambiar Vista</button>
-                </div>
-
-                <div class="bp-card-slot">
-                    <div class="bp-card-icon-wrap">🧭</div>
-                    <div class="bp-card-content">
-                        <h4>Guía de Controles</h4>
-                        <p>Atajos de teclado, ratón y pantalla táctil</p>
-                    </div>
-                    <button id="bp-inv-open-help" class="bp-card-btn bp-btn-secondary">Ver Guía</button>
+                <div class="bp-user-greeting-box">
+                    <span class="bp-greeting-icon">👋</span>
+                    <span class="bp-header-greeting-text">${greetingText}</span>
                 </div>
             </div>
+
+            <ul class="bp-menu-list">
+                <li class="bp-menu-item" id="bp-menu-item-account" data-url="${accountBtnUrl}">
+                    <div class="bp-menu-icon">${settings.isLoggedIn ? '👤' : '🔑'}</div>
+                    <div class="bp-menu-text">
+                        <span class="bp-menu-title">${settings.isLoggedIn ? 'Mi Perfil' : 'Cuenta y Acceso'}</span>
+                        <span class="bp-menu-desc">${settings.isLoggedIn ? 'Administra tus recuerdos y parcelas' : 'Inicia sesión o regístrate'}</span>
+                    </div>
+                    <div class="bp-menu-chevron">➔</div>
+                </li>
+
+                <li class="bp-menu-item" id="bp-menu-item-camera">
+                    <div class="bp-menu-icon">🛰️</div>
+                    <div class="bp-menu-text">
+                        <span class="bp-menu-title">Modo de Cámara</span>
+                        <span class="bp-menu-desc" id="bp-slot-view-desc">Alternar a Vista Aérea</span>
+                    </div>
+                    <div class="bp-menu-chevron">➔</div>
+                </li>
+
+                <li class="bp-menu-item" id="bp-menu-item-help">
+                    <div class="bp-menu-icon">🧭</div>
+                    <div class="bp-menu-text">
+                        <span class="bp-menu-title">Guía de Controles</span>
+                        <span class="bp-menu-desc">Atajos de teclado, ratón y táctil</span>
+                    </div>
+                    <div class="bp-menu-chevron">➔</div>
+                </li>
+            </ul>
         </div>
     `;
     container.appendChild(inventoryModal);
@@ -910,13 +915,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ----------------------------------------------------
-    // MANEJO DE MÓDALES E INVENTARIO
+    // MANEJO DE MÓDALES E INVENTARIO (LIST-BASED)
     // ----------------------------------------------------
     const inventoryBtn = document.getElementById('bp-inventory-btn');
     const inventoryCloseTopBtn = document.getElementById('bp-inventory-close-top');
-    const invToggleViewBtn = document.getElementById('bp-inv-toggle-view');
+    const menuItemAccount = document.getElementById('bp-menu-item-account');
+    const menuItemCamera = document.getElementById('bp-menu-item-camera');
+    const menuItemHelp = document.getElementById('bp-menu-item-help');
     const slotViewDesc = document.getElementById('bp-slot-view-desc');
-    const invOpenHelpBtn = document.getElementById('bp-inv-open-help');
 
     const helpModalCloseBtn = document.getElementById('bp-modal-close');
     const helpModalOkBtn = document.getElementById('bp-modal-ok');
@@ -932,7 +938,6 @@ document.addEventListener('DOMContentLoaded', () => {
             camera.lookAt(controls ? controls.target : new THREE.Vector3(0, 0, 0));
 
             if (slotViewDesc) slotViewDesc.textContent = 'Alternar a Modo Paseo 3D';
-            if (invToggleViewBtn) invToggleViewBtn.textContent = 'Modo Paseo';
             dpadContainer.style.display = 'none';
         } else {
             if (controls) {
@@ -946,7 +951,6 @@ document.addEventListener('DOMContentLoaded', () => {
             camera.rotation.set(0, cameraYaw, 0, 'YXZ');
 
             if (slotViewDesc) slotViewDesc.textContent = 'Alternar a Vista Aérea Orbit';
-            if (invToggleViewBtn) invToggleViewBtn.textContent = 'Vista Aérea';
             if (isMobile) {
                 dpadContainer.style.display = 'block';
             }
@@ -965,15 +969,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (invToggleViewBtn) {
-        invToggleViewBtn.addEventListener('click', () => {
+    if (menuItemAccount) {
+        menuItemAccount.addEventListener('click', () => {
+            const url = menuItemAccount.dataset.url;
+            if (url && url !== '#') {
+                window.location.href = url;
+            }
+        });
+    }
+
+    if (menuItemCamera) {
+        menuItemCamera.addEventListener('click', () => {
             setMode(currentMode === MODE_GROUND ? MODE_AERIAL : MODE_GROUND);
             inventoryModal.classList.add('hidden');
         });
     }
 
-    if (invOpenHelpBtn) {
-        invOpenHelpBtn.addEventListener('click', () => {
+    if (menuItemHelp) {
+        menuItemHelp.addEventListener('click', () => {
             inventoryModal.classList.add('hidden');
             helpModal.classList.remove('hidden');
         });
