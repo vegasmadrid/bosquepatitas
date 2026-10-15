@@ -2,27 +2,111 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('bp-canvas-container');
     if (!container) return;
 
-    // Crear elemento UI para Tooltip Flotante / Card de Información
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+
+    // ----------------------------------------------------
+    // ELEMENTOS UI
+    // ----------------------------------------------------
     let tooltip = document.getElementById('bp-tooltip');
     if (!tooltip) {
         tooltip = document.createElement('div');
         tooltip.id = 'bp-tooltip';
-        tooltip.className = 'bp-tooltip-card hidden';
+        tooltip.className = 'bp-tooltip-card hidden bp-ui-element';
         container.appendChild(tooltip);
     }
 
-    // 1. Escena, Cámara y Renderer con tono de Atardecer Poético
+    // Contenedor de Controles UI Superior
+    const topBar = document.createElement('div');
+    topBar.className = 'bp-top-controls bp-ui-element';
+    topBar.innerHTML = `
+        <button id="bp-toggle-view" class="bp-btn bp-btn-emerald" title="Cambiar vista">
+            <span>🛰️ Vista Aérea</span>
+        </button>
+        <button id="bp-help-btn" class="bp-btn bp-btn-icon" title="Ayuda de controles">
+            <span>❓</span>
+        </button>
+    `;
+    container.appendChild(topBar);
+
+    // Contenedor de Modal de Ayuda
+    const helpModal = document.createElement('div');
+    helpModal.id = 'bp-help-modal';
+    helpModal.className = 'bp-modal-overlay hidden bp-ui-element';
+    helpModal.innerHTML = `
+        <div class="bp-modal-card">
+            <div class="bp-modal-header">
+                <h3>🌲 Controles de Navegación</h3>
+                <button id="bp-modal-close" class="bp-modal-close">&times;</button>
+            </div>
+            <div class="bp-modal-body">
+                <div class="bp-control-section">
+                    <h4>💻 Teclado y Ratón (PC)</h4>
+                    <ul>
+                        <li><kbd>▲</kbd> <kbd>▼</kbd> <kbd>◄</kbd> <kbd>►</kbd> o <kbd>W</kbd> <kbd>S</kbd> <kbd>A</kbd> <kbd>D</kbd> : Moverse y girar por el bosque.</li>
+                        <li><strong>Clic y Arrastrar:</strong> Orientar la mirada suavemente.</li>
+                        <li><strong>Clic en Tumba / Parcela:</strong> Caminar automáticamente hacia ella.</li>
+                    </ul>
+                </div>
+                <div class="bp-control-section">
+                    <h4>📱 Pantalla Táctil (Móvil)</h4>
+                    <ul>
+                        <li><strong>Cruceta Táctil:</strong> Usar la botonera inferior para avanzar, retroceder y girar.</li>
+                        <li><strong>Deslizar Pantalla:</strong> Orientar la vista libremente.</li>
+                        <li><strong>Toque en Tumba:</strong> Acercarse automáticamente a la tumba.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="bp-modal-footer">
+                <button id="bp-modal-ok" class="bp-btn bp-btn-emerald">¡Entendido!</button>
+            </div>
+        </div>
+    `;
+    container.appendChild(helpModal);
+
+    // D-Pad Controles Táctiles en Pantalla
+    const dpadContainer = document.createElement('div');
+    dpadContainer.id = 'bp-dpad';
+    dpadContainer.className = 'bp-dpad-container bp-ui-element';
+    dpadContainer.innerHTML = `
+        <div class="bp-dpad-grid">
+            <button class="bp-dpad-btn bp-dpad-up" data-action="forward" title="Avanzar">▲</button>
+            <button class="bp-dpad-btn bp-dpad-left" data-action="turnLeft" title="Girar Izquierda">◄</button>
+            <button class="bp-dpad-btn bp-dpad-down" data-action="backward" title="Retroceder">▼</button>
+            <button class="bp-dpad-btn bp-dpad-right" data-action="turnRight" title="Girar Derecha">►</button>
+        </div>
+        <div class="bp-dpad-strafe">
+            <button class="bp-dpad-btn bp-dpad-sleft" data-action="strafeLeft" title="Desplazamiento Izquierda">◄◄</button>
+            <button class="bp-dpad-btn bp-dpad-sright" data-action="strafeRight" title="Desplazamiento Derecha">►►</button>
+        </div>
+    `;
+    container.appendChild(dpadContainer);
+
+    // ----------------------------------------------------
+    // 1. ESCENA, CÁMARA Y RENDERER
+    // ----------------------------------------------------
     const scene = new THREE.Scene();
     const fogColor = new THREE.Color(0xd3dfea);
     scene.background = fogColor;
     scene.fog = new THREE.FogExp2(fogColor, 0.018);
 
     const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 14, 28);
+
+    // Estado del motor First-Person Ground
+    const MODE_GROUND = 'ground';
+    const MODE_AERIAL = 'aerial';
+    let currentMode = MODE_GROUND;
+
+    const PLAYER_HEIGHT = 1.6;
+    const MAP_LIMIT = 33.0; // Límite del cementerio (terreno 70x70)
+
+    let cameraYaw = 0; // Ángulo de rotación horizontal
+    let cameraPitch = 0; // Ángulo de rotación vertical
+    camera.position.set(0, PLAYER_HEIGHT, 15);
+    camera.rotation.order = 'YXZ';
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if ('sRGBEncoding' in THREE) {
@@ -30,27 +114,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     container.appendChild(renderer.domElement);
 
-    // 2. OrbitControls
+    // OrbitControls para Vista Aérea
     let controls = null;
     if (typeof THREE.OrbitControls !== 'undefined') {
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 - 0.02; // Evitar bajar del suelo
-        controls.minDistance = 3;
+        controls.maxPolarAngle = Math.PI / 2 - 0.02;
+        controls.minDistance = 4;
         controls.maxDistance = 55;
         controls.target.set(0, 1.2, 0);
+        controls.enabled = false; // Desactivado por defecto en Modo Paseo
     }
 
-    // 3. Luces (Atardecer cálido)
+    // ----------------------------------------------------
+    // 2. LUCES DE ATARDECER CÁLIDO
+    // ----------------------------------------------------
     const ambientLight = new THREE.AmbientLight(0xffebcf, 0.55);
     scene.add(ambientLight);
 
     const sunLight = new THREE.DirectionalLight(0xffd699, 1.0);
     sunLight.position.set(25, 30, -20);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
+    const shadowMapRes = isMobile ? 1024 : 2048;
+    sunLight.shadow.mapSize.width = shadowMapRes;
+    sunLight.shadow.mapSize.height = shadowMapRes;
     sunLight.shadow.camera.near = 0.5;
     sunLight.shadow.camera.far = 90;
     const d = 35;
@@ -60,11 +148,12 @@ document.addEventListener('DOMContentLoaded', () => {
     sunLight.shadow.camera.bottom = -d;
     scene.add(sunLight);
 
-    // 4. Generación de Texturas Procedurales
+    // ----------------------------------------------------
+    // 3. TERRENO Y TEXTURAS PROCEDURALES
+    // ----------------------------------------------------
     const grassTexture = createGrassTexture();
     const cobblestoneTexture = createCobblestoneTexture();
 
-    // Terreno Base Verde Césped
     const groundGeo = new THREE.PlaneGeometry(70, 70);
     const groundMat = new THREE.MeshStandardMaterial({
         map: grassTexture,
@@ -76,10 +165,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // ==========================================
-    // GENERADORES DE ELEMENTOS 3D
-    // ==========================================
-
+    // ----------------------------------------------------
+    // GENERADORES 3D (Árboles, Farolas, Bancos, Plaza, Tumbas)
+    // ----------------------------------------------------
     function createTreeModel(type = 'oak') {
         const group = new THREE.Group();
         const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9, metalness: 0.1 });
@@ -352,10 +440,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return group;
     }
 
-    // ==========================================
-    // TEXTURAS PROCEDURALES CANVAS
-    // ==========================================
-
     function createGrassTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
@@ -429,10 +513,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return texture;
     }
 
-    // ==========================================
+    // ----------------------------------------------------
     // CLASE GESTORA DE PARCELAS (PLOT MANAGER)
-    // ==========================================
-
+    // ----------------------------------------------------
     class PlotManager {
         constructor(scene) {
             this.scene = scene;
@@ -555,10 +638,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ==========================================
-    // CONSTRUCCIÓN DEL BOSQUE Y CAMINOS
-    // ==========================================
-
+    // ----------------------------------------------------
+    // CONSTRUCCIÓN DEL BOSQUE
+    // ----------------------------------------------------
     const memorialPlaza = createMemorialPlazaModel();
     memorialPlaza.position.set(0, 0, 0);
     scene.add(memorialPlaza);
@@ -614,10 +696,9 @@ document.addEventListener('DOMContentLoaded', () => {
         scene.add(tree);
     });
 
-    // ==========================================
+    // ----------------------------------------------------
     // CONSUMO REST API DE WORDPRESS
-    // ==========================================
-
+    // ----------------------------------------------------
     if (typeof BP_Settings !== 'undefined') {
         fetch(BP_Settings.apiUrl)
             .then(res => res.json())
@@ -628,7 +709,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const x = (typeof meta.posicion_x === 'number') ? meta.posicion_x : parseFloat(meta.posicion_x) || 0;
                         const z = (typeof meta.posicion_z === 'number') ? meta.posicion_z : parseFloat(meta.posicion_z) || 0;
 
-                        // Buscar parcela por coordenadas o tomar la siguiente libre
                         let plot = plotManager.findPlotByCoords(x, z);
                         if (!plot || plot.occupied) {
                             plot = plotManager.findAvailablePlot();
@@ -644,26 +724,217 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.error('Error cargando tumbas:', err));
     }
 
-    // ==========================================
-    // INTERACTIVIDAD RAYCASTER & TOOLTIP
-    // ==========================================
+    // ----------------------------------------------------
+    // CONTROLADOR DE MOVIMIENTO (TECLADO, MÓVIL, AUTO-WALK)
+    // ----------------------------------------------------
+    const keyState = {
+        forward: false,
+        backward: false,
+        turnLeft: false,
+        turnRight: false,
+        strafeLeft: false,
+        strafeRight: false
+    };
 
+    const touchState = {
+        forward: false,
+        backward: false,
+        turnLeft: false,
+        turnRight: false,
+        strafeLeft: false,
+        strafeRight: false
+    };
+
+    let isAutoWalking = false;
+    let autoWalkTarget = null;
+
+    function stopAutoWalk() {
+        isAutoWalking = false;
+        autoWalkTarget = null;
+    }
+
+    // Escuchadores Teclado
+    window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        let handled = true;
+        switch (e.code) {
+            case 'ArrowUp':
+            case 'KeyW':
+                keyState.forward = true;
+                break;
+            case 'ArrowDown':
+            case 'KeyS':
+                keyState.backward = true;
+                break;
+            case 'ArrowLeft':
+                keyState.turnLeft = true;
+                break;
+            case 'ArrowRight':
+                keyState.turnRight = true;
+                break;
+            case 'KeyA':
+                keyState.strafeLeft = true;
+                break;
+            case 'KeyD':
+                keyState.strafeRight = true;
+                break;
+            default:
+                handled = false;
+        }
+        if (handled) stopAutoWalk();
+    });
+
+    window.addEventListener('keyup', (e) => {
+        switch (e.code) {
+            case 'ArrowUp':
+            case 'KeyW':
+                keyState.forward = false;
+                break;
+            case 'ArrowDown':
+            case 'KeyS':
+                keyState.backward = false;
+                break;
+            case 'ArrowLeft':
+                keyState.turnLeft = false;
+                break;
+            case 'ArrowRight':
+                keyState.turnRight = false;
+                break;
+            case 'KeyA':
+                keyState.strafeLeft = false;
+                break;
+            case 'KeyD':
+                keyState.strafeRight = false;
+                break;
+        }
+    });
+
+    // Escuchadores D-Pad Táctil
+    dpadContainer.querySelectorAll('.bp-dpad-btn').forEach(btn => {
+        const action = btn.dataset.action;
+
+        const startAction = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            touchState[action] = true;
+            stopAutoWalk();
+            btn.classList.add('active');
+        };
+
+        const stopAction = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            touchState[action] = false;
+            btn.classList.remove('active');
+        };
+
+        btn.addEventListener('touchstart', startAction, { passive: false });
+        btn.addEventListener('touchend', stopAction, { passive: false });
+        btn.addEventListener('mousedown', startAction);
+        btn.addEventListener('mouseup', stopAction);
+        btn.addEventListener('mouseleave', stopAction);
+    });
+
+    // ----------------------------------------------------
+    // CAMBIO DE MODO (PASEO FP VS VISTA AÉREA)
+    // ----------------------------------------------------
+    const toggleViewBtn = document.getElementById('bp-toggle-view');
+    const helpBtn = document.getElementById('bp-help-btn');
+    const modalCloseBtn = document.getElementById('bp-modal-close');
+    const modalOkBtn = document.getElementById('bp-modal-ok');
+
+    function setMode(mode) {
+        currentMode = mode;
+        if (currentMode === MODE_AERIAL) {
+            if (controls) {
+                controls.enabled = true;
+                controls.target.set(camera.position.x, 0.8, camera.position.z);
+            }
+            camera.position.set(camera.position.x, 22, camera.position.z + 18);
+            camera.lookAt(controls ? controls.target : new THREE.Vector3(0, 0, 0));
+
+            toggleViewBtn.innerHTML = `<span>🌲 Modo Paseo</span>`;
+            toggleViewBtn.classList.add('aerial-active');
+            dpadContainer.style.display = 'none';
+        } else {
+            if (controls) {
+                controls.enabled = false;
+            }
+            const targetX = controls ? controls.target.x : camera.position.x;
+            const targetZ = controls ? controls.target.z : camera.position.z;
+
+            camera.position.set(targetX, PLAYER_HEIGHT, targetZ);
+            cameraPitch = 0;
+            camera.rotation.set(0, cameraYaw, 0, 'YXZ');
+
+            toggleViewBtn.innerHTML = `<span>🛰️ Vista Aérea</span>`;
+            toggleViewBtn.classList.remove('aerial-active');
+            if (isMobile) {
+                dpadContainer.style.display = 'flex';
+            }
+        }
+    }
+
+    if (toggleViewBtn) {
+        toggleViewBtn.addEventListener('click', () => {
+            setMode(currentMode === MODE_GROUND ? MODE_AERIAL : MODE_GROUND);
+        });
+    }
+
+    if (helpBtn) {
+        helpBtn.addEventListener('click', () => {
+            helpModal.classList.remove('hidden');
+        });
+    }
+
+    const closeModal = () => helpModal.classList.add('hidden');
+    if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
+    if (modalOkBtn) modalOkBtn.addEventListener('click', closeModal);
+
+    // Mostrar modal automáticamente la primera vez en móviles
+    if (isMobile && !localStorage.getItem('bp_help_shown')) {
+        helpModal.classList.remove('hidden');
+        localStorage.setItem('bp_help_shown', 'true');
+    }
+
+    // ----------------------------------------------------
+    // RAYCASTER, INTERACCIÓN Y DRAG DE CÁMARA
+    // ----------------------------------------------------
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    let hoveredObject = null;
-    let originalColor = null;
+
+    let isPointerDown = false;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+    let totalPointerMove = 0;
 
     function getIntersections(event) {
         const rect = renderer.domElement.getBoundingClientRect();
-        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        let clientX = event.clientX;
+        let clientY = event.clientY;
+
+        if (typeof clientX !== 'number') {
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else if (event.changedTouches && event.changedTouches.length > 0) {
+                clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
+            } else {
+                clientX = 0;
+                clientY = 0;
+            }
+        }
+
+        mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 
         raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(scene.children, true);
-        return intersects;
+        return raycaster.intersectObjects(scene.children, true);
     }
 
-    function onPointerMove(event) {
+    function checkHover(event) {
         const intersects = getIntersections(event);
         let foundData = null;
 
@@ -680,8 +951,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (foundData) {
             const ud = foundData.userData;
             const rect = container.getBoundingClientRect();
-            const posX = event.clientX - rect.left;
-            const posY = event.clientY - rect.top;
+            let clientX = event.clientX;
+            let clientY = event.clientY;
+
+            if (typeof clientX !== 'number') {
+                if (event.touches && event.touches.length > 0) {
+                    clientX = event.touches[0].clientX;
+                    clientY = event.touches[0].clientY;
+                } else if (event.changedTouches && event.changedTouches.length > 0) {
+                    clientX = event.changedTouches[0].clientX;
+                    clientY = event.changedTouches[0].clientY;
+                } else {
+                    clientX = 0;
+                    clientY = 0;
+                }
+            }
+
+            const posX = clientX - rect.left;
+            const posY = clientY - rect.top;
 
             tooltip.style.left = `${posX + 15}px`;
             tooltip.style.top = `${posY + 15}px`;
@@ -691,7 +978,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tumba = ud.tombData || {};
                 const title = (tumba.title && typeof tumba.title === 'object') ? tumba.title.rendered : (tumba.title || 'Mascota Recordada');
                 const contentRaw = (tumba.content && typeof tumba.content === 'object') ? tumba.content.rendered : (tumba.content || '');
-                // Limpiar HTML simple de la dedicatoria
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = contentRaw;
                 const textExcerpt = tempDiv.textContent || tempDiv.innerText || 'En memoria eterna de nuestra amada mascota.';
@@ -726,19 +1012,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function onClick(event) {
+    function handlePlotClick(event) {
         const intersects = getIntersections(event);
         if (intersects.length > 0) {
             for (let i = 0; i < intersects.length; i++) {
                 const obj = intersects[i].object;
                 if (obj.userData && (obj.userData.type === 'plot' || obj.userData.type === 'tombstone')) {
                     const plotGroup = obj.userData.plotGroup || obj.parent;
-                    if (plotGroup && controls) {
+                    if (plotGroup) {
                         const targetPos = new THREE.Vector3();
                         plotGroup.getWorldPosition(targetPos);
 
-                        // Animación suave del punto focal de la cámara
-                        controls.target.set(targetPos.x, targetPos.y + 0.8, targetPos.z);
+                        if (currentMode === MODE_AERIAL) {
+                            if (controls) controls.target.set(targetPos.x, targetPos.y + 0.8, targetPos.z);
+                        } else {
+                            // En Modo Paseo Ground FPS: Caminar automáticamente de frente a la tumba
+                            const dx = camera.position.x - targetPos.x;
+                            const dz = camera.position.z - targetPos.z;
+                            const len = Math.hypot(dx, dz) || 1;
+                            const approachDist = 2.4;
+
+                            const targetX = targetPos.x + (dx / len) * approachDist;
+                            const targetZ = targetPos.z + (dz / len) * approachDist;
+
+                            autoWalkTarget = {
+                                x: Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetX)),
+                                z: Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetZ)),
+                                targetPlotPos: targetPos
+                            };
+                            isAutoWalking = true;
+                        }
                     }
                     break;
                 }
@@ -746,10 +1049,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    renderer.domElement.addEventListener('pointermove', onPointerMove);
-    renderer.domElement.addEventListener('click', onClick);
+    const onPointerDown = (event) => {
+        if (event.target.closest('.bp-ui-element')) return;
+        isPointerDown = true;
+        totalPointerMove = 0;
 
-    // Remover loader visual si aún estuviera
+        let clientX = event.clientX;
+        let clientY = event.clientY;
+
+        if (typeof clientX !== 'number') {
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else if (event.changedTouches && event.changedTouches.length > 0) {
+                clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
+            } else {
+                clientX = 0;
+                clientY = 0;
+            }
+        }
+
+        lastPointerX = clientX;
+        lastPointerY = clientY;
+    };
+
+    const onPointerMove = (event) => {
+        checkHover(event);
+
+        if (!isPointerDown) return;
+        if (currentMode !== MODE_GROUND) return;
+
+        let clientX = event.clientX;
+        let clientY = event.clientY;
+
+        if (typeof clientX !== 'number') {
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else if (event.changedTouches && event.changedTouches.length > 0) {
+                clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
+            } else {
+                clientX = 0;
+                clientY = 0;
+            }
+        }
+
+        const dx = clientX - lastPointerX;
+        const dy = clientY - lastPointerY;
+        totalPointerMove += Math.hypot(dx, dy);
+
+        lastPointerX = clientX;
+        lastPointerY = clientY;
+
+        if (totalPointerMove > 5) {
+            stopAutoWalk();
+        }
+
+        const sensitivity = 0.0032;
+        cameraYaw -= dx * sensitivity;
+        cameraPitch -= dy * sensitivity;
+
+        const maxPitch = Math.PI / 3;
+        cameraPitch = Math.max(-maxPitch, Math.min(maxPitch, cameraPitch));
+    };
+
+    const onPointerUp = (event) => {
+        if (!isPointerDown) return;
+        isPointerDown = false;
+
+        if (totalPointerMove < 6) {
+            handlePlotClick(event);
+        }
+    };
+
+    renderer.domElement.addEventListener('mousedown', onPointerDown);
+    renderer.domElement.addEventListener('mousemove', onPointerMove);
+    renderer.domElement.addEventListener('mouseup', onPointerUp);
+
+    renderer.domElement.addEventListener('touchstart', onPointerDown, { passive: true });
+    renderer.domElement.addEventListener('touchmove', onPointerMove, { passive: true });
+    renderer.domElement.addEventListener('touchend', onPointerUp, { passive: true });
+
+    // Quitar loader
     const loader = document.getElementById('bp-loading');
     if (loader) loader.remove();
 
@@ -763,11 +1146,86 @@ document.addEventListener('DOMContentLoaded', () => {
         renderer.setSize(width, height);
     });
 
-    // Loop de renderizado
+    // ----------------------------------------------------
+    // LOOP PRINCIPAL DE ANIMACIÓN
+    // ----------------------------------------------------
+    const clock = new THREE.Clock();
+
     function animate() {
         requestAnimationFrame(animate);
-        if (controls) controls.update();
+
+        const delta = clock.getDelta();
+
+        if (currentMode === MODE_GROUND) {
+            const moveSpeed = 8.5 * delta;
+            const turnSpeed = 2.2 * delta;
+
+            if (isAutoWalking && autoWalkTarget) {
+                const dx = autoWalkTarget.x - camera.position.x;
+                const dz = autoWalkTarget.z - camera.position.z;
+                const dist = Math.hypot(dx, dz);
+
+                if (dist > 0.25) {
+                    camera.position.x += (dx / dist) * Math.min(dist, moveSpeed * 1.3);
+                    camera.position.z += (dz / dist) * Math.min(dist, moveSpeed * 1.3);
+
+                    // Orientar mirada progresivamente hacia la parcela
+                    if (autoWalkTarget.targetPlotPos) {
+                        const lookDx = autoWalkTarget.targetPlotPos.x - camera.position.x;
+                        const lookDz = autoWalkTarget.targetPlotPos.z - camera.position.z;
+                        let targetYaw = Math.atan2(-lookDx, -lookDz);
+                        let diffYaw = targetYaw - cameraYaw;
+                        diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
+                        cameraYaw += diffYaw * 0.12;
+                    }
+                } else {
+                    stopAutoWalk();
+                }
+            } else {
+                // Rotación por teclado o D-pad
+                if (keyState.turnLeft || touchState.turnLeft) cameraYaw += turnSpeed;
+                if (keyState.turnRight || touchState.turnRight) cameraYaw -= turnSpeed;
+
+                let moveX = 0;
+                let moveZ = 0;
+
+                if (keyState.forward || touchState.forward) moveZ -= 1;
+                if (keyState.backward || touchState.backward) moveZ += 1;
+                if (keyState.strafeLeft || touchState.strafeLeft) moveX -= 1;
+                if (keyState.strafeRight || touchState.strafeRight) moveX += 1;
+
+                if (moveX !== 0 || moveZ !== 0) {
+                    const len = Math.hypot(moveX, moveZ);
+                    moveX /= len;
+                    moveZ /= len;
+
+                    const sinY = Math.sin(cameraYaw);
+                    const cosY = Math.cos(cameraYaw);
+
+                    const dx = (moveX * cosY + moveZ * sinY) * moveSpeed;
+                    const dz = (-moveX * sinY + moveZ * cosY) * moveSpeed;
+
+                    camera.position.x += dx;
+                    camera.position.z += dz;
+                }
+            }
+
+            // Clampar posición dentro de los límites del bosque
+            camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
+            camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
+            camera.position.y = PLAYER_HEIGHT;
+
+            // Aplicar rotación Euler
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = cameraYaw;
+            camera.rotation.x = cameraPitch;
+            camera.rotation.z = 0;
+        } else if (controls) {
+            controls.update();
+        }
+
         renderer.render(scene, camera);
     }
+
     animate();
 });
