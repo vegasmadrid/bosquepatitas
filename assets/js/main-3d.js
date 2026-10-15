@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.appendChild(tooltip);
     }
 
-    // Top-Left Controls & Dynamic Modal Header Greeting
+    // Top-Left Floating Controls & Dynamic Modal Header Greeting
     const topBar = document.createElement('div');
     topBar.className = 'bp-top-controls bp-ui-element';
 
@@ -31,61 +31,56 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `¡Hola, ${settings.userName}!`
         : `Bienvenido a BosquePatitas`;
 
-    const accountBtnText = settings.isLoggedIn ? '👤 Mi Perfil' : '🔑 Acceder / Registro';
+    const accountBtnText = settings.isLoggedIn ? 'Ver Perfil' : 'Entrar';
     const accountBtnUrl = settings.isLoggedIn ? settings.profileUrl : settings.loginUrl;
 
     topBar.innerHTML = `
-        <button id="bp-inventory-btn" class="bp-btn bp-btn-emerald" title="Abrir Menú de Opciones">
-            <span>🧭 Menú</span>
+        <button id="bp-inventory-btn" class="bp-menu-trigger" title="Abrir Menú de Opciones">
+            <span class="bp-trigger-icon">🐾</span>
+            <span class="bp-trigger-text">Menú</span>
         </button>
     `;
     container.appendChild(topBar);
 
-    // Modal de Inventario
+    // Modal de Navegación Sleek & Modern Emerald
     const inventoryModal = document.createElement('div');
     inventoryModal.id = 'bp-inventory-modal';
     inventoryModal.className = 'bp-modal-overlay hidden bp-ui-element';
     inventoryModal.innerHTML = `
-        <div class="bp-inventory-card">
-            <div class="bp-inventory-header">
-                <div class="bp-inventory-title">
-                    <span class="bp-inventory-icon">🧭</span>
-                    <div>
-                        <h3>${greetingText}</h3>
-                        <small>Panel de Configuración y Navegación</small>
-                    </div>
-                </div>
+        <div class="bp-modal-panel">
+            <div class="bp-modal-header-modern">
+                <div class="bp-header-badge">🌲 BosquePatitas 3D</div>
+                <h3 class="bp-header-greeting">${greetingText}</h3>
+                <p class="bp-header-sub">Explora el bosque conmemorativo y gestiona la memoria de tus mascotas</p>
+                <button id="bp-inventory-close-top" class="bp-btn-close-corner" title="Cerrar">&times;</button>
             </div>
-            <div class="bp-inventory-grid">
-                <div id="bp-slot-account" class="bp-inventory-slot" title="Cuenta de Usuario">
-                    <div class="bp-slot-icon">${settings.isLoggedIn ? '👤' : '🔑'}</div>
-                    <div class="bp-slot-info">
-                        <h4>${settings.isLoggedIn ? 'Perfil de Usuario' : 'Cuenta de Acceso'}</h4>
-                        <p>${settings.isLoggedIn ? 'Gestionar tus mascotas y tumbas' : 'Inicia sesión o regístrate en el cementerio'}</p>
+            <div class="bp-modal-grid">
+                <div class="bp-card-slot">
+                    <div class="bp-card-icon-wrap">${settings.isLoggedIn ? '👤' : '🔑'}</div>
+                    <div class="bp-card-content">
+                        <h4>${settings.isLoggedIn ? 'Mi Perfil' : 'Cuenta y Acceso'}</h4>
+                        <p>${settings.isLoggedIn ? 'Administra tus recuerdos y parcelas' : 'Accede a tu cuenta o crea una nueva'}</p>
                     </div>
-                    <a href="${accountBtnUrl}" class="bp-slot-action">${settings.isLoggedIn ? 'Ver Perfil' : 'Entrar'}</a>
+                    <a href="${accountBtnUrl}" class="bp-card-btn bp-btn-primary">${accountBtnText}</a>
                 </div>
 
-                <div id="bp-slot-view" class="bp-inventory-slot" title="Cambiar Perspectiva">
-                    <div class="bp-slot-icon">🛰️</div>
-                    <div class="bp-slot-info">
-                        <h4>Perspectiva de Cámara</h4>
-                        <p id="bp-slot-view-desc">Alternar a Vista Aérea Orbit</p>
+                <div class="bp-card-slot">
+                    <div class="bp-card-icon-wrap">🛰️</div>
+                    <div class="bp-card-content">
+                        <h4>Modo de Cámara</h4>
+                        <p id="bp-slot-view-desc">Alternar a Vista Aérea Libre</p>
                     </div>
-                    <button id="bp-inv-toggle-view" class="bp-slot-action">Cambiar Vista</button>
+                    <button id="bp-inv-toggle-view" class="bp-card-btn bp-btn-secondary">Cambiar Vista</button>
                 </div>
 
-                <div id="bp-slot-help" class="bp-inventory-slot" title="Guía de Controles">
-                    <div class="bp-slot-icon">❓</div>
-                    <div class="bp-slot-info">
+                <div class="bp-card-slot">
+                    <div class="bp-card-icon-wrap">🧭</div>
+                    <div class="bp-card-content">
                         <h4>Guía de Controles</h4>
-                        <p>Cómo moverse en PC y Pantalla Táctil</p>
+                        <p>Atajos de teclado, ratón y pantalla táctil</p>
                     </div>
-                    <button id="bp-inv-open-help" class="bp-slot-action">Ver Guía</button>
+                    <button id="bp-inv-open-help" class="bp-card-btn bp-btn-secondary">Ver Guía</button>
                 </div>
-            </div>
-            <div class="bp-inventory-footer">
-                <button id="bp-inventory-close" class="bp-modal-close-round" title="Cerrar Menú">✖</button>
             </div>
         </div>
     `;
@@ -918,7 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // MANEJO DE MÓDALES E INVENTARIO
     // ----------------------------------------------------
     const inventoryBtn = document.getElementById('bp-inventory-btn');
-    const inventoryCloseBtn = document.getElementById('bp-inventory-close');
+    const inventoryCloseTopBtn = document.getElementById('bp-inventory-close-top');
     const invToggleViewBtn = document.getElementById('bp-inv-toggle-view');
     const slotViewDesc = document.getElementById('bp-slot-view-desc');
     const invOpenHelpBtn = document.getElementById('bp-inv-open-help');
@@ -964,8 +959,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (inventoryCloseBtn) {
-        inventoryCloseBtn.addEventListener('click', () => {
+    if (inventoryCloseTopBtn) {
+        inventoryCloseTopBtn.addEventListener('click', () => {
             inventoryModal.classList.add('hidden');
         });
     }

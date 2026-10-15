@@ -121,57 +121,50 @@ html {
     font-size: 11px;
 }
 
-/* Barra Superior UI (Top-Left Menu Toggle) */
+/* Barra Superior UI (Sleek Top-Left Menu Trigger) */
 .bp-top-controls {
     position: absolute;
-    top: 18px;
-    left: 18px;
+    top: 20px;
+    left: 20px;
     display: flex;
     align-items: center;
     z-index: 1000;
     pointer-events: none;
 }
 
-.bp-btn {
-    background: linear-gradient(180deg, #2a1f18 0%, #17100b 100%);
-    border: 2px solid #d4af37;
-    color: #fce38a;
+.bp-menu-trigger {
+    background: rgba(11, 23, 17, 0.75);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #ecfdf5;
     padding: 10px 20px;
-    border-radius: 24px;
+    border-radius: 30px;
     font-size: 15px;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 223, 128, 0.4);
-    transition: all 0.2s ease;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), 0 0 15px rgba(16, 185, 129, 0.15);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
+    gap: 8px;
     pointer-events: auto;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    letter-spacing: 0.3px;
 }
 
-.bp-btn:hover {
-    background: linear-gradient(180deg, #3d2d22 0%, #241912 100%);
-    border-color: #f7d774;
-    color: #ffffff;
+.bp-menu-trigger:hover {
+    background: rgba(16, 185, 129, 0.9);
+    border-color: #34d399;
+    color: #064e3b;
     transform: translateY(-2px) scale(1.03);
-    box-shadow: 0 8px 22px rgba(212, 175, 55, 0.35);
+    box-shadow: 0 14px 30px rgba(16, 185, 129, 0.4);
 }
 
-.bp-btn-emerald {
-    background: linear-gradient(180deg, #1c382b 0%, #0f2219 100%);
-    border: 2px solid #3b9b73;
-    color: #a3e6c5;
+.bp-trigger-icon {
+    font-size: 17px;
 }
 
-.bp-btn-emerald:hover {
-    background: linear-gradient(180deg, #28503d 0%, #163326 100%);
-    border-color: #6ee7b7;
-    color: #ffffff;
-}
-
-/* D-Pad Controles Táctiles Ergonómicos Móviles (Bottom-Right, Semi-transparent) */
+/* D-Pad Controles Táctiles Ergonómicos Móviles (Sleek Modern Emerald Translucent) */
 .bp-dpad-container {
     position: absolute;
     bottom: 28px;
@@ -184,23 +177,23 @@ html {
     position: relative;
     width: 130px;
     height: 130px;
-    background: rgba(20, 15, 10, 0.35);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(8, 18, 13, 0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-radius: 50%;
-    border: 1.5px solid rgba(212, 175, 55, 0.35);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .bp-dpad-btn {
     position: absolute;
     width: 42px;
     height: 42px;
-    background: rgba(30, 22, 16, 0.55);
-    border: 1.5px solid rgba(212, 175, 55, 0.5);
-    color: #fce38a;
+    background: rgba(15, 32, 24, 0.7);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #a7f3d0;
     border-radius: 12px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
     display: flex;
     align-items: center;
@@ -208,16 +201,16 @@ html {
     cursor: pointer;
     touch-action: manipulation;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    transition: background 0.15s, transform 0.1s, border-color 0.15s;
+    transition: all 0.15s ease;
     user-select: none;
 }
 
 .bp-dpad-btn:active, .bp-dpad-btn.active {
-    background: rgba(212, 175, 55, 0.85);
-    color: #1a110a;
-    border-color: #ffffff;
+    background: #10b981;
+    color: #064e3b;
+    border-color: #6ee7b7;
     transform: scale(0.92);
-    box-shadow: 0 0 16px rgba(212, 175, 55, 0.8);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
 }
 
 .bp-dpad-up { top: 4px; left: 44px; }
@@ -225,22 +218,22 @@ html {
 .bp-dpad-right { top: 44px; right: 4px; }
 .bp-dpad-down { bottom: 4px; left: 44px; }
 
-/* MODAL / MENÚ INVENTARIO TIPO VIDEOJUEGO (Wood & Gold RPG Aesthetic) */
+/* MODAL / MENÚ TIPO VIRTUAL BOARD (Glassmorphism Deep Forest Emerald) */
 .bp-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(10, 15, 12, 0.82);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(6, 12, 9, 0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100000;
     opacity: 1;
-    transition: opacity 0.22s ease;
+    transition: opacity 0.25s ease;
 }
 
 .bp-modal-overlay.hidden {
@@ -248,170 +241,171 @@ html {
     pointer-events: none;
 }
 
-/* Wood Board & Gold Ornate Frame */
-.bp-inventory-card {
-    background: radial-gradient(circle at center, #2e2118 0%, #1c130d 100%);
-    border: 4px solid #d4af37;
-    outline: 2px solid #5a4023;
-    border-radius: 18px;
+/* Modern Panel Card */
+.bp-modal-panel {
+    background: linear-gradient(165deg, rgba(16, 28, 22, 0.95) 0%, rgba(9, 16, 12, 0.98) 100%);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    border-radius: 24px;
     width: 90%;
-    max-width: 460px;
-    padding: 24px;
-    color: #f7e8cf;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), inset 0 0 20px rgba(0, 0, 0, 0.7), 0 0 25px rgba(212, 175, 55, 0.25);
+    max-width: 480px;
+    padding: 28px;
+    color: #ecfdf5;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8), 0 0 35px rgba(16, 185, 129, 0.15);
     position: relative;
     box-sizing: border-box;
 }
 
-.bp-inventory-header {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    background: linear-gradient(180deg, #d4af37 0%, #997a22 100%);
-    border: 2px solid #fce38a;
-    border-radius: 12px;
-    padding: 10px 16px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+.bp-modal-header-modern {
+    position: relative;
+    margin-bottom: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 18px;
 }
 
-.bp-inventory-title {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
+.bp-header-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 10px;
 }
 
-.bp-inventory-icon {
-    font-size: 26px;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
-}
-
-.bp-inventory-title h3 {
-    margin: 0;
-    font-size: 19px;
+.bp-header-greeting {
+    margin: 0 0 6px 0;
+    font-size: 22px;
     font-weight: 800;
-    color: #1a110a;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
-    letter-spacing: 0.5px;
+    color: #ffffff;
+    letter-spacing: -0.3px;
 }
 
-.bp-inventory-title small {
-    color: #3b2812;
-    font-size: 12px;
-    font-weight: 600;
+.bp-header-sub {
+    margin: 0;
+    font-size: 13px;
+    color: #9ca3af;
+    line-height: 1.4;
 }
 
-.bp-inventory-grid {
+.bp-btn-close-corner {
+    position: absolute;
+    top: -4px;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 50%;
+    color: #9ca3af;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.bp-btn-close-corner:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fca5a5;
+    transform: rotate(90deg);
+}
+
+.bp-modal-grid {
     display: flex;
     flex-direction: column;
     gap: 14px;
 }
 
-/* Slot Containers (Item Slots) */
-.bp-inventory-slot {
-    background: linear-gradient(180deg, rgba(20, 14, 10, 0.85) 0%, rgba(35, 25, 18, 0.85) 100%);
-    border: 2px solid #8c6a2d;
-    border-radius: 12px;
-    padding: 14px;
+/* Feature Slot Cards */
+.bp-card-slot {
+    background: rgba(20, 35, 27, 0.6);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 16px;
+    padding: 16px;
     display: flex;
     align-items: center;
-    gap: 14px;
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7);
+    gap: 16px;
     transition: all 0.2s ease;
 }
 
-.bp-inventory-slot:hover {
-    border-color: #d4af37;
-    background: linear-gradient(180deg, rgba(30, 20, 14, 0.95) 0%, rgba(48, 34, 24, 0.95) 100%);
-    box-shadow: 0 0 12px rgba(212, 175, 55, 0.3), inset 0 2px 6px rgba(0, 0, 0, 0.5);
+.bp-card-slot:hover {
+    background: rgba(26, 46, 35, 0.85);
+    border-color: rgba(52, 211, 153, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
 }
 
-.bp-slot-icon {
-    font-size: 24px;
-    width: 44px;
-    height: 44px;
-    background: radial-gradient(circle, #2d2016 0%, #150d08 100%);
-    border: 2px solid #b89335;
-    border-radius: 10px;
+.bp-card-icon-wrap {
+    font-size: 22px;
+    width: 46px;
+    height: 46px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.8);
     flex-shrink: 0;
 }
 
-.bp-slot-info {
+.bp-card-content {
     flex: 1;
 }
 
-.bp-slot-info h4 {
+.bp-card-content h4 {
     margin: 0 0 3px 0;
     font-size: 15px;
     font-weight: 700;
-    color: #ffe8b6;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    color: #ffffff;
 }
 
-.bp-slot-info p {
+.bp-card-content p {
     margin: 0;
     font-size: 12px;
-    color: #c9b08f;
+    color: #9ca3af;
 }
 
-/* Pill Action Buttons inside Modal */
-.bp-slot-action {
-    background: linear-gradient(180deg, #1f4734 0%, #0d241a 100%);
-    border: 2px solid #3b9b73;
-    color: #a3e6c5;
+.bp-card-btn {
     padding: 8px 16px;
     border-radius: 20px;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
     text-decoration: none;
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
-.bp-slot-action:hover {
-    background: linear-gradient(180deg, #2a5f46 0%, #153828 100%);
-    border-color: #6ee7b7;
-    color: #ffffff;
+.bp-btn-primary {
+    background: #10b981;
+    border: 1px solid #34d399;
+    color: #064e3b;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.bp-btn-primary:hover {
+    background: #34d399;
+    color: #022c22;
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(46, 117, 89, 0.5);
+    box-shadow: 0 6px 16px rgba(52, 211, 153, 0.4);
 }
 
-.bp-inventory-footer {
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
+.bp-btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #e5e7eb;
 }
 
-.bp-modal-close-round {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: linear-gradient(180deg, #8a2424 0%, #4a1010 100%);
-    border: 2px solid #e06d6d;
+.bp-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.3);
     color: #ffffff;
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.3);
-    transition: all 0.2s ease;
-}
-
-.bp-modal-close-round:hover {
-    background: linear-gradient(180deg, #b03232 0%, #631717 100%);
-    border-color: #ff9e9e;
-    transform: scale(1.08);
-    box-shadow: 0 8px 20px rgba(224, 109, 109, 0.5);
 }
 
 /* Modal de Ayuda */
