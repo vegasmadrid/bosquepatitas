@@ -141,29 +141,37 @@ html {
     cursor: pointer;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 18px rgba(16, 185, 129, 0.2);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: auto !important;
+    box-sizing: border-box !important;
 }
 
-.bp-menu-trigger-yellow {
-    width: 62px;
-    height: 38px;
-    border-radius: 14px;
-    padding: 0;
-    background: #ffd600;
-    background: linear-gradient(180deg, #ffeb3b 0%, #fbc02d 100%);
-    border: 3px solid #000000;
-    color: #000000;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+button.bp-menu-trigger.bp-menu-trigger-yellow {
+    width: 62px !important;
+    height: 38px !important;
+    min-width: 62px !important;
+    min-height: 38px !important;
+    max-width: 62px !important;
+    max-height: 38px !important;
+    border-radius: 14px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffd600 !important;
+    background: linear-gradient(180deg, #ffeb3b 0%, #fbc02d 100%) !important;
+    border: 3px solid #000000 !important;
+    color: #000000 !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 -2px 0 rgba(0, 0, 0, 0.2) !important;
+    outline: none !important;
+    line-height: 1 !important;
 }
 
-.bp-menu-trigger-yellow:hover {
-    background: linear-gradient(180deg, #fff176 0%, #fdd835 100%);
-    border-color: #000000;
-    transform: translateY(-2px) scale(1.05);
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.55), inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+button.bp-menu-trigger.bp-menu-trigger-yellow:hover {
+    background: linear-gradient(180deg, #fff176 0%, #fdd835 100%) !important;
+    border-color: #000000 !important;
+    transform: translateY(-2px) scale(1.05) !important;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.55), inset 0 -2px 0 rgba(0, 0, 0, 0.25) !important;
 }
 
 .bp-menu-icon-yellow {
