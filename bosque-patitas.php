@@ -72,10 +72,23 @@ class BosquePatitas {
         wp_enqueue_script('bp-main-3d');
         wp_enqueue_style('bp-style');
 
+        $is_logged_in = is_user_logged_in();
+        $current_user = $is_logged_in ? wp_get_current_user() : null;
+
+        $login_page_id   = (int) get_option('bp_login_page_id', 0);
+        $profile_page_id = (int) get_option('bp_profile_page_id', 0);
+
+        $login_url   = $login_page_id ? get_permalink($login_page_id) : wp_login_url();
+        $profile_url = $profile_page_id ? get_permalink($profile_page_id) : admin_url('profile.php');
+
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
-            'apiUrl' => esc_url_raw(rest_url('wp/v2/tumbas')),
-            'nonce'  => wp_create_nonce('wp_rest')
+            'apiUrl'     => esc_url_raw(rest_url('wp/v2/tumbas')),
+            'nonce'      => wp_create_nonce('wp_rest'),
+            'isLoggedIn' => $is_logged_in,
+            'userName'   => $is_logged_in ? esc_html($current_user->display_name ?: $current_user->user_login) : '',
+            'loginUrl'   => esc_url($login_url),
+            'profileUrl' => esc_url($profile_url)
         ));
 
         return '<div id="bp-canvas-container"><div id="bp-loading">Cargando BosquePatitas...</div></div>';

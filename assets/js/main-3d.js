@@ -4,8 +4,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
+    const settings = (typeof BP_Settings !== 'undefined') ? BP_Settings : {
+        apiUrl: '/wp-json/wp/v2/tumbas',
+        isLoggedIn: false,
+        userName: '',
+        loginUrl: '#',
+        profileUrl: '#'
+    };
+
     // ----------------------------------------------------
-    // ELEMENTOS UI
+    // ELEMENTOS UI & MENÚ INVENTARIO TIPO VIDEOJUEGO
     // ----------------------------------------------------
     let tooltip = document.getElementById('bp-tooltip');
     if (!tooltip) {
@@ -15,18 +23,74 @@ document.addEventListener('DOMContentLoaded', () => {
         container.appendChild(tooltip);
     }
 
-    // Contenedor de Controles UI Superior
+    // Greeting Banner & Top Controls
     const topBar = document.createElement('div');
     topBar.className = 'bp-top-controls bp-ui-element';
+
+    const greetingText = settings.isLoggedIn
+        ? `🐾 ¡Hola, <strong>${settings.userName}</strong>!`
+        : `🌲 Bienvenido a <strong>BosquePatitas</strong>`;
+
+    const accountBtnText = settings.isLoggedIn ? '👤 Mi Perfil' : '🔑 Acceder / Registro';
+    const accountBtnUrl = settings.isLoggedIn ? settings.profileUrl : settings.loginUrl;
+
     topBar.innerHTML = `
-        <button id="bp-toggle-view" class="bp-btn bp-btn-emerald" title="Cambiar vista">
-            <span>🛰️ Vista Aérea</span>
-        </button>
-        <button id="bp-help-btn" class="bp-btn bp-btn-icon" title="Ayuda de controles">
-            <span>❓</span>
+        <div class="bp-greeting-badge">
+            <span>${greetingText}</span>
+        </div>
+        <button id="bp-inventory-btn" class="bp-btn bp-btn-emerald" title="Abrir Inventario de Opciones">
+            <span>🎒 Menú</span>
         </button>
     `;
     container.appendChild(topBar);
+
+    // Modal de Inventario
+    const inventoryModal = document.createElement('div');
+    inventoryModal.id = 'bp-inventory-modal';
+    inventoryModal.className = 'bp-modal-overlay hidden bp-ui-element';
+    inventoryModal.innerHTML = `
+        <div class="bp-inventory-card">
+            <div class="bp-inventory-header">
+                <div class="bp-inventory-title">
+                    <span class="bp-inventory-icon">🎒</span>
+                    <div>
+                        <h3>Inventario BosquePatitas</h3>
+                        <small>Panel de Configuración y Navegación</small>
+                    </div>
+                </div>
+                <button id="bp-inventory-close" class="bp-modal-close">&times;</button>
+            </div>
+            <div class="bp-inventory-grid">
+                <div id="bp-slot-account" class="bp-inventory-slot" title="Cuenta de Usuario">
+                    <div class="bp-slot-icon">${settings.isLoggedIn ? '👤' : '🔑'}</div>
+                    <div class="bp-slot-info">
+                        <h4>${settings.isLoggedIn ? 'Perfil de Usuario' : 'Cuenta de Acceso'}</h4>
+                        <p>${settings.isLoggedIn ? 'Gestionar tus mascotas y tumbas' : 'Inicia sesión o regístrate en el cementerio'}</p>
+                    </div>
+                    <a href="${accountBtnUrl}" class="bp-slot-action">${settings.isLoggedIn ? 'Ver Perfil' : 'Entrar'}</a>
+                </div>
+
+                <div id="bp-slot-view" class="bp-inventory-slot" title="Cambiar Perspectiva">
+                    <div class="bp-slot-icon">🛰️</div>
+                    <div class="bp-slot-info">
+                        <h4>Perspectiva de Cámara</h4>
+                        <p id="bp-slot-view-desc">Alternar a Vista Aérea Orbit</p>
+                    </div>
+                    <button id="bp-inv-toggle-view" class="bp-slot-action">Cambiar Vista</button>
+                </div>
+
+                <div id="bp-slot-help" class="bp-inventory-slot" title="Guía de Controles">
+                    <div class="bp-slot-icon">❓</div>
+                    <div class="bp-slot-info">
+                        <h4>Guía de Controles</h4>
+                        <p>Cómo moverse en PC y Pantalla Táctil</p>
+                    </div>
+                    <button id="bp-inv-open-help" class="bp-slot-action">Ver Guía</button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(inventoryModal);
 
     // Contenedor de Modal de Ayuda
     const helpModal = document.createElement('div');
@@ -40,9 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="bp-modal-body">
                 <div class="bp-control-section">
-                    <h4>💻 Teclado y Ratón (PC)</h4>
+                    <h4>💻 Teclado, Ratón y Rueda (PC)</h4>
                     <ul>
-                        <li><kbd>▲</kbd> <kbd>▼</kbd> <kbd>◄</kbd> <kbd>►</kbd> o <kbd>W</kbd> <kbd>S</kbd> <kbd>A</kbd> <kbd>D</kbd> : Moverse y girar por el bosque.</li>
+                        <li><kbd>▲</kbd> <kbd>▼</kbd> <kbd>◄</kbd> <kbd>►</kbd> o <kbd>W</kbd> <kbd>S</kbd> <kbd>A</kbd> <kbd>D</kbd> : Moverse y girar.</li>
+                        <li><strong>Rueda del Ratón:</strong> Scroll arriba para avanzar, scroll abajo para retroceder.</li>
                         <li><strong>Clic y Arrastrar:</strong> Orientar la mirada suavemente.</li>
                         <li><strong>Clic en Tumba / Parcela:</strong> Caminar automáticamente hacia ella.</li>
                     </ul>
@@ -50,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="bp-control-section">
                     <h4>📱 Pantalla Táctil (Móvil)</h4>
                     <ul>
-                        <li><strong>Cruceta Táctil:</strong> Usar la botonera inferior para avanzar, retroceder y girar.</li>
+                        <li><strong>Cruceta Táctil:</strong> Usar los botones limpios en esquina inferior izquierda.</li>
                         <li><strong>Deslizar Pantalla:</strong> Orientar la vista libremente.</li>
                         <li><strong>Toque en Tumba:</strong> Acercarse automáticamente a la tumba.</li>
                     </ul>
@@ -68,15 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
     dpadContainer.id = 'bp-dpad';
     dpadContainer.className = 'bp-dpad-container bp-ui-element';
     dpadContainer.innerHTML = `
-        <div class="bp-dpad-grid">
+        <div class="bp-dpad-cross">
             <button class="bp-dpad-btn bp-dpad-up" data-action="forward" title="Avanzar">▲</button>
             <button class="bp-dpad-btn bp-dpad-left" data-action="turnLeft" title="Girar Izquierda">◄</button>
             <button class="bp-dpad-btn bp-dpad-down" data-action="backward" title="Retroceder">▼</button>
             <button class="bp-dpad-btn bp-dpad-right" data-action="turnRight" title="Girar Derecha">►</button>
-        </div>
-        <div class="bp-dpad-strafe">
-            <button class="bp-dpad-btn bp-dpad-sleft" data-action="strafeLeft" title="Desplazamiento Izquierda">◄◄</button>
-            <button class="bp-dpad-btn bp-dpad-sright" data-action="strafeRight" title="Desplazamiento Derecha">►►</button>
         </div>
     `;
     container.appendChild(dpadContainer);
@@ -91,16 +152,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
 
-    // Estado del motor First-Person Ground
     const MODE_GROUND = 'ground';
     const MODE_AERIAL = 'aerial';
     let currentMode = MODE_GROUND;
 
     const PLAYER_HEIGHT = 1.6;
-    const MAP_LIMIT = 33.0; // Límite del cementerio (terreno 70x70)
+    const MAP_LIMIT = 33.0; // Límite del terreno
 
-    let cameraYaw = 0; // Ángulo de rotación horizontal
-    let cameraPitch = 0; // Ángulo de rotación vertical
+    let cameraYaw = 0;
+    let cameraPitch = 0;
     camera.position.set(0, PLAYER_HEIGHT, 15);
     camera.rotation.order = 'YXZ';
 
@@ -114,7 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     container.appendChild(renderer.domElement);
 
-    // OrbitControls para Vista Aérea
     let controls = null;
     if (typeof THREE.OrbitControls !== 'undefined') {
         controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -124,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         controls.minDistance = 4;
         controls.maxDistance = 55;
         controls.target.set(0, 1.2, 0);
-        controls.enabled = false; // Desactivado por defecto en Modo Paseo
+        controls.enabled = false;
     }
 
     // ----------------------------------------------------
@@ -166,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     scene.add(ground);
 
     // ----------------------------------------------------
-    // GENERADORES 3D (Árboles, Farolas, Bancos, Plaza, Tumbas)
+    // GENERADORES 3D
     // ----------------------------------------------------
     function createTreeModel(type = 'oak') {
         const group = new THREE.Group();
@@ -699,8 +758,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // CONSUMO REST API DE WORDPRESS
     // ----------------------------------------------------
-    if (typeof BP_Settings !== 'undefined') {
-        fetch(BP_Settings.apiUrl)
+    if (settings.apiUrl) {
+        fetch(settings.apiUrl)
             .then(res => res.json())
             .then(tumbas => {
                 if (Array.isArray(tumbas)) {
@@ -725,7 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // CONTROLADOR DE MOVIMIENTO (TECLADO, MÓVIL, AUTO-WALK)
+    // CONTROLADOR DE MOVIMIENTO (TECLADO, RUEDA RATÓN, MÓVIL, AUTO-WALK)
     // ----------------------------------------------------
     const keyState = {
         forward: false,
@@ -740,9 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
         forward: false,
         backward: false,
         turnLeft: false,
-        turnRight: false,
-        strafeLeft: false,
-        strafeRight: false
+        turnRight: false
     };
 
     let isAutoWalking = false;
@@ -810,6 +867,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Avanzar / Retroceder con Rueda del Ratón en Modo Paseo Ground
+    container.addEventListener('wheel', (e) => {
+        if (currentMode !== MODE_GROUND) return;
+        e.preventDefault();
+        stopAutoWalk();
+
+        const scrollSpeed = 1.2;
+        const moveZ = e.deltaY > 0 ? 1 : -1; // deltaY > 0 es scroll hacia abajo (retroceder), < 0 avance
+
+        const sinY = Math.sin(cameraYaw);
+        const cosY = Math.cos(cameraYaw);
+
+        const dx = moveZ * sinY * scrollSpeed;
+        const dz = moveZ * cosY * scrollSpeed;
+
+        camera.position.x += dx;
+        camera.position.z += dz;
+
+        camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
+        camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
+    }, { passive: false });
+
     // Escuchadores D-Pad Táctil
     dpadContainer.querySelectorAll('.bp-dpad-btn').forEach(btn => {
         const action = btn.dataset.action;
@@ -837,12 +916,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ----------------------------------------------------
-    // CAMBIO DE MODO (PASEO FP VS VISTA AÉREA)
+    // MANEJO DE MÓDALES E INVENTARIO
     // ----------------------------------------------------
-    const toggleViewBtn = document.getElementById('bp-toggle-view');
-    const helpBtn = document.getElementById('bp-help-btn');
-    const modalCloseBtn = document.getElementById('bp-modal-close');
-    const modalOkBtn = document.getElementById('bp-modal-ok');
+    const inventoryBtn = document.getElementById('bp-inventory-btn');
+    const inventoryCloseBtn = document.getElementById('bp-inventory-close');
+    const invToggleViewBtn = document.getElementById('bp-inv-toggle-view');
+    const slotViewDesc = document.getElementById('bp-slot-view-desc');
+    const invOpenHelpBtn = document.getElementById('bp-inv-open-help');
+
+    const helpModalCloseBtn = document.getElementById('bp-modal-close');
+    const helpModalOkBtn = document.getElementById('bp-modal-ok');
 
     function setMode(mode) {
         currentMode = mode;
@@ -854,8 +937,8 @@ document.addEventListener('DOMContentLoaded', () => {
             camera.position.set(camera.position.x, 22, camera.position.z + 18);
             camera.lookAt(controls ? controls.target : new THREE.Vector3(0, 0, 0));
 
-            toggleViewBtn.innerHTML = `<span>🌲 Modo Paseo</span>`;
-            toggleViewBtn.classList.add('aerial-active');
+            if (slotViewDesc) slotViewDesc.textContent = 'Alternar a Modo Paseo 3D';
+            if (invToggleViewBtn) invToggleViewBtn.textContent = 'Modo Paseo';
             dpadContainer.style.display = 'none';
         } else {
             if (controls) {
@@ -868,31 +951,45 @@ document.addEventListener('DOMContentLoaded', () => {
             cameraPitch = 0;
             camera.rotation.set(0, cameraYaw, 0, 'YXZ');
 
-            toggleViewBtn.innerHTML = `<span>🛰️ Vista Aérea</span>`;
-            toggleViewBtn.classList.remove('aerial-active');
+            if (slotViewDesc) slotViewDesc.textContent = 'Alternar a Vista Aérea Orbit';
+            if (invToggleViewBtn) invToggleViewBtn.textContent = 'Vista Aérea';
             if (isMobile) {
-                dpadContainer.style.display = 'flex';
+                dpadContainer.style.display = 'block';
             }
         }
     }
 
-    if (toggleViewBtn) {
-        toggleViewBtn.addEventListener('click', () => {
-            setMode(currentMode === MODE_GROUND ? MODE_AERIAL : MODE_GROUND);
+    if (inventoryBtn) {
+        inventoryBtn.addEventListener('click', () => {
+            inventoryModal.classList.remove('hidden');
         });
     }
 
-    if (helpBtn) {
-        helpBtn.addEventListener('click', () => {
+    if (inventoryCloseBtn) {
+        inventoryCloseBtn.addEventListener('click', () => {
+            inventoryModal.classList.add('hidden');
+        });
+    }
+
+    if (invToggleViewBtn) {
+        invToggleViewBtn.addEventListener('click', () => {
+            setMode(currentMode === MODE_GROUND ? MODE_AERIAL : MODE_GROUND);
+            inventoryModal.classList.add('hidden');
+        });
+    }
+
+    if (invOpenHelpBtn) {
+        invOpenHelpBtn.addEventListener('click', () => {
+            inventoryModal.classList.add('hidden');
             helpModal.classList.remove('hidden');
         });
     }
 
-    const closeModal = () => helpModal.classList.add('hidden');
-    if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
-    if (modalOkBtn) modalOkBtn.addEventListener('click', closeModal);
+    const closeHelpModal = () => helpModal.classList.add('hidden');
+    if (helpModalCloseBtn) helpModalCloseBtn.addEventListener('click', closeHelpModal);
+    if (helpModalOkBtn) helpModalOkBtn.addEventListener('click', closeHelpModal);
 
-    // Mostrar modal automáticamente la primera vez en móviles
+    // Mostrar modal de ayuda automáticamente la primera vez en móviles
     if (isMobile && !localStorage.getItem('bp_help_shown')) {
         helpModal.classList.remove('hidden');
         localStorage.setItem('bp_help_shown', 'true');
@@ -1026,7 +1123,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (currentMode === MODE_AERIAL) {
                             if (controls) controls.target.set(targetPos.x, targetPos.y + 0.8, targetPos.z);
                         } else {
-                            // En Modo Paseo Ground FPS: Caminar automáticamente de frente a la tumba
                             const dx = camera.position.x - targetPos.x;
                             const dz = camera.position.z - targetPos.z;
                             const len = Math.hypot(dx, dz) || 1;
@@ -1169,7 +1265,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     camera.position.x += (dx / dist) * Math.min(dist, moveSpeed * 1.3);
                     camera.position.z += (dz / dist) * Math.min(dist, moveSpeed * 1.3);
 
-                    // Orientar mirada progresivamente hacia la parcela
                     if (autoWalkTarget.targetPlotPos) {
                         const lookDx = autoWalkTarget.targetPlotPos.x - camera.position.x;
                         const lookDz = autoWalkTarget.targetPlotPos.z - camera.position.z;
@@ -1182,7 +1277,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     stopAutoWalk();
                 }
             } else {
-                // Rotación por teclado o D-pad
                 if (keyState.turnLeft || touchState.turnLeft) cameraYaw += turnSpeed;
                 if (keyState.turnRight || touchState.turnRight) cameraYaw -= turnSpeed;
 
@@ -1191,8 +1285,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (keyState.forward || touchState.forward) moveZ -= 1;
                 if (keyState.backward || touchState.backward) moveZ += 1;
-                if (keyState.strafeLeft || touchState.strafeLeft) moveX -= 1;
-                if (keyState.strafeRight || touchState.strafeRight) moveX += 1;
+                if (keyState.strafeLeft) moveX -= 1;
+                if (keyState.strafeRight) moveX += 1;
 
                 if (moveX !== 0 || moveZ !== 0) {
                     const len = Math.hypot(moveX, moveZ);
@@ -1210,12 +1304,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Clampar posición dentro de los límites del bosque
             camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
             camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
             camera.position.y = PLAYER_HEIGHT;
 
-            // Aplicar rotación Euler
             camera.rotation.order = 'YXZ';
             camera.rotation.y = cameraYaw;
             camera.rotation.x = cameraPitch;
