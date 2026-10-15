@@ -133,35 +133,39 @@ html {
 }
 
 .bp-menu-trigger {
-    background: rgba(11, 23, 17, 0.75);
+    background: rgba(11, 23, 17, 0.82);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(16, 185, 129, 0.4);
+    border: 1.5px solid rgba(16, 185, 129, 0.45);
     color: #ecfdf5;
-    padding: 10px 20px;
-    border-radius: 30px;
-    font-size: 15px;
-    font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), 0 0 15px rgba(16, 185, 129, 0.15);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 18px rgba(16, 185, 129, 0.2);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
     pointer-events: auto;
-    letter-spacing: 0.3px;
+}
+
+.bp-menu-trigger-circular {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    padding: 0;
 }
 
 .bp-menu-trigger:hover {
-    background: rgba(16, 185, 129, 0.9);
+    background: rgba(16, 185, 129, 0.95);
     border-color: #34d399;
     color: #064e3b;
-    transform: translateY(-2px) scale(1.03);
-    box-shadow: 0 14px 30px rgba(16, 185, 129, 0.4);
+    transform: translateY(-2px) scale(1.08);
+    box-shadow: 0 14px 30px rgba(16, 185, 129, 0.5);
 }
 
-.bp-trigger-icon {
-    font-size: 17px;
+.bp-trigger-hamburger {
+    font-size: 22px;
+    line-height: 1;
+    font-weight: bold;
 }
 
 /* D-Pad Controles Táctiles Ergonómicos Móviles (Sleek Modern Emerald Translucent) */

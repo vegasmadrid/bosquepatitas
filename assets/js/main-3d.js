@@ -35,9 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const accountBtnUrl = settings.isLoggedIn ? settings.profileUrl : settings.loginUrl;
 
     topBar.innerHTML = `
-        <button id="bp-inventory-btn" class="bp-menu-trigger" title="Abrir Menú de Opciones">
-            <span class="bp-trigger-icon">🐾</span>
-            <span class="bp-trigger-text">Menú</span>
+        <button id="bp-inventory-btn" class="bp-menu-trigger bp-menu-trigger-circular" title="Menú de Opciones" aria-label="Abrir Menú">
+            <span class="bp-trigger-hamburger">☰</span>
         </button>
     `;
     container.appendChild(topBar);
