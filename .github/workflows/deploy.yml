@@ -12,12 +12,7 @@ jobs:
     - name: Get latest code
       uses: actions/checkout@v4
 
-    - name: Sync files
-      uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-      with:
-        server: ftp.bosquepatitas.com
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: ./
-        protocol: ftps
-        security: loose
+    - name: Deploy via Git-FTP
+      run: |
+        sudo apt update && sudo apt install -y git-ftp
+        git ftp push --auto-init --insecure -u "${{ secrets.FTP_USERNAME }}" -p "${{ secrets.FTP_PASSWORD }}" ftps://ftp.bosquepatitas.com/
