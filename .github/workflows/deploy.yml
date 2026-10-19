@@ -15,4 +15,4 @@ jobs:
     - name: Deploy via Git-FTP
       run: |
         sudo apt update && sudo apt install -y git-ftp
-        git ftp push --auto-init --insecure -u "${{ secrets.FTP_USERNAME }}" -p "${{ secrets.FTP_PASSWORD }}" ftps://ftp.bosquepatitas.com/
+        git ftp push --auto-init --insecure --ssl -u "${{ secrets.FTP_USERNAME }}" -p "${{ secrets.FTP_PASSWORD }}" ftp://213.158.84.67:21/
