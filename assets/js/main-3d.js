@@ -148,9 +148,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. ESCENA, CÁMARA Y RENDERER
     // ----------------------------------------------------
     const scene = new THREE.Scene();
-    const fogColor = new THREE.Color(0xd3dfea);
-    scene.background = fogColor;
-    scene.fog = new THREE.FogExp2(fogColor, 0.018);
+    const skyColor = new THREE.Color(0x7ec0ee); // Cielo azul claro y radiante
+    scene.background = skyColor;
+    scene.fog = new THREE.FogExp2(0x9bd0f9, 0.0045); // Niebla atmosférica suave que se funde con el cielo azul
 
     const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
 
@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMode = MODE_GROUND;
 
     const PLAYER_HEIGHT = 1.6;
-    const MAP_LIMIT = 33.0; // Límite del terreno
+    const MAP_LIMIT = 32.2; // Límite de movimiento interno dentro de la verja victoriana (33.0)
 
     let cameraYaw = 0;
     let cameraPitch = 0;
@@ -189,13 +189,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // 2. LUCES DE ATARDECER CÁLIDO
+    // 2. LUCES CELESTIALES
     // ----------------------------------------------------
-    const ambientLight = new THREE.AmbientLight(0xffebcf, 0.55);
+    const ambientLight = new THREE.AmbientLight(0xfff5ea, 0.75);
     scene.add(ambientLight);
 
-    const sunLight = new THREE.DirectionalLight(0xffd699, 1.0);
-    sunLight.position.set(25, 30, -20);
+    const sunLight = new THREE.DirectionalLight(0xffe8c2, 1.1);
+    sunLight.position.set(25, 35, -20);
     sunLight.castShadow = true;
     const shadowMapRes = isMobile ? 1024 : 2048;
     sunLight.shadow.mapSize.width = shadowMapRes;
@@ -700,8 +700,378 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
+    // GENERADOR DE VERJA VICTORIANA Y PORTÓN PÈRE LACHAISE
+    // ----------------------------------------------------
+    function createVictorianFencePerimeter() {
+        const fenceGroup = new THREE.Group();
+
+        const ironMat = new THREE.MeshStandardMaterial({ color: 0x111315, roughness: 0.35, metalness: 0.85 });
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
+        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.8, metalness: 0.1 });
+        const capMat = new THREE.MeshStandardMaterial({ color: 0x2d3033, roughness: 0.7, metalness: 0.2 });
+
+        function createPillar() {
+            const pillar = new THREE.Group();
+
+            const baseGeo = new THREE.BoxGeometry(0.65, 0.3, 0.65);
+            const base = new THREE.Mesh(baseGeo, stoneMat);
+            base.position.y = 0.15;
+            base.castShadow = true;
+            base.receiveShadow = true;
+            pillar.add(base);
+
+            const bodyGeo = new THREE.BoxGeometry(0.52, 2.3, 0.52);
+            const body = new THREE.Mesh(bodyGeo, stoneMat);
+            body.position.y = 1.45;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            pillar.add(body);
+
+            const trimGeo = new THREE.BoxGeometry(0.6, 0.1, 0.6);
+            const trim = new THREE.Mesh(trimGeo, capMat);
+            trim.position.y = 2.65;
+            trim.castShadow = true;
+            pillar.add(trim);
+
+            const capGeo = new THREE.ConeGeometry(0.42, 0.35, 4);
+            const cap = new THREE.Mesh(capGeo, capMat);
+            cap.rotation.y = Math.PI / 4;
+            cap.position.y = 2.875;
+            cap.castShadow = true;
+            pillar.add(cap);
+
+            const finialGeo = new THREE.SphereGeometry(0.1, 8, 8);
+            const finial = new THREE.Mesh(finialGeo, goldMat);
+            finial.position.y = 3.12;
+            finial.castShadow = true;
+            pillar.add(finial);
+
+            return pillar;
+        }
+
+        function createFencePanel(length) {
+            const panel = new THREE.Group();
+            const barSpacing = 0.22;
+            const barCount = Math.floor(length / barSpacing);
+            const startX = -length / 2 + (length - (barCount - 1) * barSpacing) / 2;
+
+            const railTopGeo = new THREE.BoxGeometry(length, 0.05, 0.05);
+            const railTop = new THREE.Mesh(railTopGeo, ironMat);
+            railTop.position.set(0, 2.1, 0);
+            railTop.castShadow = true;
+            panel.add(railTop);
+
+            const railMidGeo = new THREE.BoxGeometry(length, 0.04, 0.04);
+            const railMid = new THREE.Mesh(railMidGeo, ironMat);
+            railMid.position.set(0, 1.15, 0);
+            railMid.castShadow = true;
+            panel.add(railMid);
+
+            const railBotGeo = new THREE.BoxGeometry(length, 0.05, 0.05);
+            const railBot = new THREE.Mesh(railBotGeo, ironMat);
+            railBot.position.set(0, 0.25, 0);
+            railBot.castShadow = true;
+            panel.add(railBot);
+
+            const barGeo = new THREE.CylinderGeometry(0.018, 0.018, 2.2, 6);
+            const spearGeo = new THREE.ConeGeometry(0.038, 0.2, 6);
+
+            for (let i = 0; i < barCount; i++) {
+                const x = startX + i * barSpacing;
+
+                const bar = new THREE.Mesh(barGeo, ironMat);
+                bar.position.set(x, 1.15, 0);
+                bar.castShadow = true;
+                panel.add(bar);
+
+                const spear = new THREE.Mesh(spearGeo, (i % 2 === 0) ? goldMat : ironMat);
+                spear.position.set(x, 2.35, 0);
+                spear.castShadow = true;
+                panel.add(spear);
+            }
+
+            return panel;
+        }
+
+        function createVictorianGate() {
+            const gateGroup = new THREE.Group();
+
+            const leftPillar = createPillar();
+            leftPillar.position.set(-2.2, 0, 0);
+            leftPillar.scale.set(1.2, 1.25, 1.2);
+            gateGroup.add(leftPillar);
+
+            const rightPillar = createPillar();
+            rightPillar.position.set(2.2, 0, 0);
+            rightPillar.scale.set(1.2, 1.25, 1.2);
+            gateGroup.add(rightPillar);
+
+            const archRadius = 2.2;
+            const archTube = 0.06;
+            const archGeo = new THREE.TorusGeometry(archRadius, archTube, 8, 24, Math.PI);
+            const arch = new THREE.Mesh(archGeo, ironMat);
+            arch.position.set(0, 3.2, 0);
+            arch.castShadow = true;
+            gateGroup.add(arch);
+
+            const crestGeo = new THREE.OctahedronGeometry(0.22);
+            const crest = new THREE.Mesh(crestGeo, goldMat);
+            crest.position.set(0, 5.5, 0);
+            crest.castShadow = true;
+            gateGroup.add(crest);
+
+            function createGateLeaf(isOpenLeft) {
+                const leaf = new THREE.Group();
+                const width = 1.95;
+
+                const frameT = new THREE.Mesh(new THREE.BoxGeometry(width, 0.06, 0.06), ironMat);
+                frameT.position.set(width / 2, 2.2, 0);
+                leaf.add(frameT);
+
+                const frameB = new THREE.Mesh(new THREE.BoxGeometry(width, 0.06, 0.06), ironMat);
+                frameB.position.set(width / 2, 0.2, 0);
+                leaf.add(frameB);
+
+                const frameSide1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 8), ironMat);
+                frameSide1.position.set(0.05, 1.2, 0);
+                leaf.add(frameSide1);
+
+                const frameSide2 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 8), ironMat);
+                frameSide2.position.set(width - 0.05, 1.2, 0);
+                leaf.add(frameSide2);
+
+                const barSpacing = 0.22;
+                const bars = Math.floor(width / barSpacing);
+                const barG = new THREE.CylinderGeometry(0.018, 0.018, 2.0, 6);
+                const spearG = new THREE.ConeGeometry(0.04, 0.22, 6);
+
+                for (let i = 1; i < bars; i++) {
+                    const bx = i * barSpacing;
+                    const bar = new THREE.Mesh(barG, ironMat);
+                    bar.position.set(bx, 1.2, 0);
+                    leaf.add(bar);
+
+                    const spear = new THREE.Mesh(spearG, goldMat);
+                    spear.position.set(bx, 2.31, 0);
+                    leaf.add(spear);
+                }
+
+                leaf.rotation.y = isOpenLeft ? Math.PI / 3.5 : -Math.PI / 3.5;
+                return leaf;
+            }
+
+            const leftLeaf = createGateLeaf(true);
+            leftLeaf.position.set(-2.0, 0, 0);
+            gateGroup.add(leftLeaf);
+
+            const rightLeaf = createGateLeaf(false);
+            rightLeaf.position.set(2.0, 0, 0);
+            rightLeaf.rotation.y = -Math.PI / 3.5;
+            gateGroup.add(rightLeaf);
+
+            return gateGroup;
+        }
+
+        const limit = 33.0;
+        const gateWidth = 4.4;
+        const step = 5.2;
+
+        function buildSide(rotationY, hasMainGate = false) {
+            const sideGroup = new THREE.Group();
+            sideGroup.rotation.y = rotationY;
+
+            if (hasMainGate) {
+                const gate = createVictorianGate();
+                gate.position.set(0, 0, limit);
+                sideGroup.add(gate);
+
+                const halfGate = gateWidth / 2;
+                for (let x = halfGate; x <= limit; x += step) {
+                    const nextX = Math.min(x + step, limit);
+                    const length = nextX - x;
+                    if (length < 0.5) continue;
+
+                    const pillarRight = createPillar();
+                    pillarRight.position.set(nextX, 0, limit);
+                    sideGroup.add(pillarRight);
+
+                    const panelRight = createFencePanel(length);
+                    panelRight.position.set(x + length / 2, 0, limit);
+                    sideGroup.add(panelRight);
+
+                    const pillarLeft = createPillar();
+                    pillarLeft.position.set(-nextX, 0, limit);
+                    sideGroup.add(pillarLeft);
+
+                    const panelLeft = createFencePanel(length);
+                    panelLeft.position.set(-(x + length / 2), 0, limit);
+                    sideGroup.add(panelLeft);
+                }
+            } else {
+                const centerPillar = createPillar();
+                centerPillar.position.set(0, 0, limit);
+                sideGroup.add(centerPillar);
+
+                for (let x = 0; x <= limit; x += step) {
+                    const nextX = Math.min(x + step, limit);
+                    const length = nextX - x;
+                    if (length < 0.5) continue;
+
+                    const pillarRight = createPillar();
+                    pillarRight.position.set(nextX, 0, limit);
+                    sideGroup.add(pillarRight);
+
+                    const panelRight = createFencePanel(length);
+                    panelRight.position.set(x + length / 2, 0, limit);
+                    sideGroup.add(panelRight);
+
+                    const pillarLeft = createPillar();
+                    pillarLeft.position.set(-nextX, 0, limit);
+                    sideGroup.add(pillarLeft);
+
+                    const panelLeft = createFencePanel(length);
+                    panelLeft.position.set(-(x + length / 2), 0, limit);
+                    sideGroup.add(panelLeft);
+                }
+            }
+
+            return sideGroup;
+        }
+
+        fenceGroup.add(buildSide(0, true));          // Sur (Entrada Principal)
+        fenceGroup.add(buildSide(Math.PI / 2, true));  // Este (Entrada Secundaria)
+        fenceGroup.add(buildSide(Math.PI, true));     // Norte (Entrada Secundaria)
+        fenceGroup.add(buildSide(-Math.PI / 2, true));// Oeste (Entrada Secundaria)
+
+        return fenceGroup;
+    }
+
+    // ----------------------------------------------------
+    // GENERADOR DE MAR DE NUBES ESPONJOSAS 3D (CELESTIAL CLOUD BED)
+    // ----------------------------------------------------
+    function createCloudBed() {
+        const cloudGroup = new THREE.Group();
+
+        const cloudMat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.35, // Blanco brillante celestialmente radiante
+            roughness: 0.9,
+            metalness: 0.0,
+            flatShading: false,
+            transparent: true,
+            opacity: 0.98
+        });
+
+        // Geometrías esféricas suaves para nubes redondas y mulliditas
+        const cloudPuffGeos = [
+            new THREE.SphereGeometry(2.5, 24, 18),
+            new THREE.SphereGeometry(3.2, 24, 18),
+            new THREE.SphereGeometry(2.8, 24, 18)
+        ];
+
+        // Función matemática exacta para verificar que NINGUNA esfera/copo penetre en el área del cementerio
+        const CEMETERY_SAFE_BOX = 35.5; // El terreno del cementerio mide 35x35 desde el centro, la verja en 33.0
+
+        function isOverlappingCemetery(x, z, radius) {
+            const absX = Math.abs(x);
+            const absZ = Math.abs(z);
+
+            let dx = 0;
+            if (absX > CEMETERY_SAFE_BOX) {
+                dx = absX - CEMETERY_SAFE_BOX;
+            }
+
+            let dz = 0;
+            if (absZ > CEMETERY_SAFE_BOX) {
+                dz = absZ - CEMETERY_SAFE_BOX;
+            }
+
+            if (absX <= CEMETERY_SAFE_BOX && absZ <= CEMETERY_SAFE_BOX) return true;
+            if (absX <= CEMETERY_SAFE_BOX) return dz < radius;
+            if (absZ <= CEMETERY_SAFE_BOX) return dx < radius;
+            return (dx * dx + dz * dz) < (radius * radius);
+        }
+
+        const totalClouds = isMobile ? 180 : 320;
+        const MIN_CLUSTER_DIST = 38.0;
+
+        for (let i = 0; i < totalClouds; i++) {
+            const sector = Math.floor(Math.random() * 4);
+            let cx, cz;
+
+            const distFromEdge = Math.random() * 110.0;
+            const u = MIN_CLUSTER_DIST + distFromEdge;
+            const v = (Math.random() - 0.5) * 300.0;
+
+            if (sector === 0) {       // Sur
+                cx = v; cz = u;
+            } else if (sector === 1) { // Norte
+                cx = v; cz = -u;
+            } else if (sector === 2) { // Este
+                cx = u; cz = v;
+            } else {                  // Oeste
+                cx = -u; cz = v;
+            }
+
+            const dist = Math.hypot(cx, cz);
+            const scale = 0.9 + Math.random() * 1.4 + Math.min(2.5, dist / 45.0);
+
+            // Posición Y baja para formar el suelo de nubes bajo el cementerio
+            const cy = -6.2 + (Math.random() - 0.5) * 1.0;
+
+            const cluster = new THREE.Group();
+            cluster.position.set(cx, cy, cz);
+
+            const puffCount = Math.floor(5 + Math.random() * 5);
+            let validCluster = false;
+
+            for (let p = 0; p < puffCount; p++) {
+                const baseRadius = 2.8;
+                const geoIndex = Math.floor(Math.random() * cloudPuffGeos.length);
+                const geo = cloudPuffGeos[geoIndex];
+                const puff = new THREE.Mesh(geo, cloudMat);
+
+                const px = (Math.random() - 0.5) * 6.5 * scale;
+                const py = (Math.random() - 0.5) * 1.2 * scale;
+                const pz = (Math.random() - 0.5) * 6.5 * scale;
+
+                const pScale = (0.85 + Math.random() * 0.75) * scale;
+                const puffRadius = baseRadius * pScale * 1.15;
+
+                const worldX = cx + px;
+                const worldZ = cz + pz;
+
+                // Verificación matemática estricta contra el cuadro del cementerio
+                if (isOverlappingCemetery(worldX, worldZ, puffRadius)) {
+                    continue;
+                }
+
+                puff.position.set(px, py, pz);
+                // Proporciones redondas y mulliditas (curvas esponjosas)
+                puff.scale.set(pScale * 1.15, pScale * 0.85, pScale * 1.15);
+                puff.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+
+                cluster.add(puff);
+                validCluster = true;
+            }
+
+            if (validCluster) {
+                cloudGroup.add(cluster);
+            }
+        }
+
+        return cloudGroup;
+    }
+
+    // ----------------------------------------------------
     // CONSTRUCCIÓN DEL BOSQUE
     // ----------------------------------------------------
+    const cloudBed = createCloudBed();
+    scene.add(cloudBed);
+    const victorianFence = createVictorianFencePerimeter();
+    scene.add(victorianFence);
+
     const memorialPlaza = createMemorialPlazaModel();
     memorialPlaza.position.set(0, 0, 0);
     scene.add(memorialPlaza);
