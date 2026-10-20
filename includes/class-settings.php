@@ -43,6 +43,18 @@ class BP_Admin_Settings {
             'sanitize_callback' => 'esc_url_raw',
             'default' => 'https://bosquepatitas.com/bosque-patitas/'
         ));
+
+        register_setting('bp_settings_group', 'bp_email_approval_subject', array(
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => '¡Enhorabuena! Tu mascota {nombre_mascota} ha sido validada 🐾'
+        ));
+
+        register_setting('bp_settings_group', 'bp_email_approval_body', array(
+            'type' => 'string',
+            'sanitize_callback' => 'wp_kses_post',
+            'default' => "¡Hola {nombre_usuario}!\n\nNos alegra informarte de que la ficha de tu querida mascota \"{nombre_mascota}\" ha sido revisada y aprobada por nuestro equipo.\n\nAhora tu mascota cuenta con el distintivo de verificación verde ✔ y ya puedes asignarle una parcela libre en el cementerio 3D de BosquePatitas.\n\nAccede a tu perfil o al cementerio 3D para colocar su tumba:\n{link_bosque}\n\nUn cálido abrazo,\nEl equipo de BosquePatitas"
+        ));
     }
 
     public function render_settings_page() {
@@ -110,6 +122,25 @@ class BP_Admin_Settings {
                         <td>
                             <input type="url" name="bp_register_redirect_url" value="<?php echo esc_url($register_redirect_url); ?>" class="regular-text" />
                             <p class="description">Dirección URL a la que serán redirigidos los nuevos usuarios inmediatamente tras registrarse.</p>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2>Plantilla de Correo de Aprobación de Mascota</h2>
+                <p>Configura el mensaje automático que se enviará al usuario cuando su mascota sea aprobada por el administrador.</p>
+
+                <table class="form-table">
+                    <tr valign="top">
+                        <th scope="row">Asunto del Correo</th>
+                        <td>
+                            <input type="text" name="bp_email_approval_subject" value="<?php echo esc_attr(get_option('bp_email_approval_subject', '¡Enhorabuena! Tu mascota {nombre_mascota} ha sido validada 🐾')); ?>" class="large-text" />
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Cuerpo del Correo</th>
+                        <td>
+                            <textarea name="bp_email_approval_body" rows="8" class="large-text"><?php echo esc_textarea(get_option('bp_email_approval_body', "¡Hola {nombre_usuario}!\n\nNos alegra informarte de que la ficha de tu querida mascota \"{nombre_mascota}\" ha sido revisada y aprobada por nuestro equipo.\n\nAhora tu mascota cuenta con el distintivo de verificación verde ✔ y ya puedes asignarle una parcela libre en el cementerio 3D de BosquePatitas.\n\nAccede a tu perfil o al cementerio 3D para colocar su tumba:\n{link_bosque}\n\nUn cálido abrazo,\nEl equipo de BosquePatitas")); ?></textarea>
+                            <p class="description">Puedes usar las siguientes etiquetas automáticas: <code>{nombre_mascota}</code>, <code>{nombre_usuario}</code>, <code>{link_perfil}</code>, <code>{link_bosque}</code>.</p>
                         </td>
                     </tr>
                 </table>

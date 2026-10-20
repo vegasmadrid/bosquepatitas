@@ -63,6 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <ul class="bp-menu-list">
+                <li class="bp-menu-item" id="bp-menu-item-pets" data-url="${settings.profileUrl}">
+                    <div class="bp-menu-icon">🐾</div>
+                    <div class="bp-menu-text">
+                        <span class="bp-menu-title">Mis Mascotas</span>
+                        <span class="bp-menu-desc">Registra y gestiona tus mascotas</span>
+                    </div>
+                    <div class="bp-menu-chevron">➔</div>
+                </li>
+
                 <li class="bp-menu-item" id="bp-menu-item-account" data-url="${accountBtnUrl}">
                     <div class="bp-menu-icon">${settings.isLoggedIn ? '👤' : '🔑'}</div>
                     <div class="bp-menu-text">
@@ -129,6 +138,33 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
     `;
     container.appendChild(helpModal);
+
+    // Modal para Solicitar / Asignar Parcela
+    const claimModal = document.createElement('div');
+    claimModal.id = 'bp-claim-modal';
+    claimModal.className = 'bp-modal-overlay hidden bp-ui-element';
+    claimModal.innerHTML = `
+        <div class="bp-modal-card">
+            <div class="bp-modal-header">
+                <h3 id="bp-claim-title">📍 Parcela Disponible</h3>
+                <button id="bp-claim-close" class="bp-modal-close">&times;</button>
+            </div>
+            <div class="bp-modal-body" id="bp-claim-body"></div>
+        </div>
+    `;
+    container.appendChild(claimModal);
+
+    // Modal Ficha Completa de Mascota
+    const petSheetModal = document.createElement('div');
+    petSheetModal.id = 'bp-pet-sheet-modal';
+    petSheetModal.className = 'bp-modal-overlay hidden bp-ui-element';
+    petSheetModal.innerHTML = `
+        <div class="bp-modal-pet-sheet">
+            <button id="bp-sheet-close" class="bp-btn-close-corner" style="position:absolute; top:16px; right:16px;">&times;</button>
+            <div id="bp-sheet-content"></div>
+        </div>
+    `;
+    container.appendChild(petSheetModal);
 
     // D-Pad Controles Táctiles en Pantalla
     const dpadContainer = document.createElement('div');
@@ -1292,6 +1328,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     const inventoryBtn = document.getElementById('bp-inventory-btn');
     const inventoryCloseTopBtn = document.getElementById('bp-inventory-close-top');
+    const menuItemPets = document.getElementById('bp-menu-item-pets');
     const menuItemAccount = document.getElementById('bp-menu-item-account');
     const menuItemCamera = document.getElementById('bp-menu-item-camera');
     const menuItemHelp = document.getElementById('bp-menu-item-help');
@@ -1342,6 +1379,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (menuItemPets) {
+        menuItemPets.addEventListener('click', () => {
+            const url = menuItemPets.dataset.url;
+            if (url && url !== '#') {
+                window.location.href = url;
+            }
+        });
+    }
+
     if (menuItemAccount) {
         menuItemAccount.addEventListener('click', () => {
             const url = menuItemAccount.dataset.url;
@@ -1368,6 +1414,377 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeHelpModal = () => helpModal.classList.add('hidden');
     if (helpModalCloseBtn) helpModalCloseBtn.addEventListener('click', closeHelpModal);
     if (helpModalOkBtn) helpModalOkBtn.addEventListener('click', closeHelpModal);
+
+    const claimModalCloseBtn = document.getElementById('bp-claim-close');
+    if (claimModalCloseBtn) claimModalCloseBtn.addEventListener('click', () => claimModal.classList.add('hidden'));
+
+    const sheetModalCloseBtn = document.getElementById('bp-sheet-close');
+    if (sheetModalCloseBtn) sheetModalCloseBtn.addEventListener('click', () => petSheetModal.classList.add('hidden'));
+
+    // ----------------------------------------------------
+    // FUNCIONES MANEJADORAS DE MODALES DE PARCELA Y MASCOTA
+    // ----------------------------------------------------
+    function openModalForObject(userData, plotGroup) {
+        if (userData.type === 'tombstone' || (userData.type === 'plot' && userData.occupied)) {
+            showPetSheetModal(userData.tombData);
+        } else {
+            showClaimModal(userData, plotGroup);
+        }
+    }
+
+    function showClaimModal(userData, plotGroup) {
+        const claimTitle = document.getElementById('bp-claim-title');
+        const claimBody = document.getElementById('bp-claim-body');
+        if (!claimTitle || !claimBody) return;
+
+        claimTitle.textContent = `📍 Parcela ${userData.plotId || 'Disponible'}`;
+
+        if (!settings.isLoggedIn) {
+            claimBody.innerHTML = `
+                <p style="color:#cbd5e1; font-size:14px; margin-bottom:16px;">
+                    Esta parcela está libre para honrar a una mascota especial. Debes iniciar sesión o registrarte para solicitarla.
+                </p>
+                <div style="text-align:center;">
+                    <a href="${settings.loginUrl}" class="bp-btn bp-btn-primary" style="display:inline-block; background:#2d6a4f; color:#ffffff; padding:12px 20px; border-radius:8px; font-weight:700; text-decoration:none;">
+                        🔑 Iniciar Sesión / Registrarse
+                    </a>
+                </div>
+            `;
+        } else if (!settings.approvedPets || settings.approvedPets.length === 0) {
+            claimBody.innerHTML = `
+                <p style="color:#cbd5e1; font-size:14px; margin-bottom:16px;">
+                    Para solicitar una parcela necesitas tener al menos una mascota validada con el tik verde ✔ por el equipo de BosquePatitas.
+                </p>
+                <div style="text-align:center;">
+                    <a href="${settings.profileUrl}" class="bp-btn bp-btn-primary" style="display:inline-block; background:#2d6a4f; color:#ffffff; padding:12px 20px; border-radius:8px; font-weight:700; text-decoration:none;">
+                        🐾 Registrar y Validar Mascota
+                    </a>
+                </div>
+            `;
+        } else {
+            let optionsHtml = '';
+            settings.approvedPets.forEach(pet => {
+                optionsHtml += `<option value="${pet.id}">${pet.nombre} (${pet.especie})</option>`;
+            });
+
+            claimBody.innerHTML = `
+                <p style="color:#cbd5e1; font-size:14px; margin-bottom:14px;">
+                    ¡Tienes mascotas validadas listas para ocupar su lugar en el Bosque 3D! Selecciona la mascota que deseas enterrar en esta parcela:
+                </p>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block; font-size:12px; font-weight:700; color:#a7f3d0; margin-bottom:6px;">Seleccionar Mascota Validada:</label>
+                    <select id="bp-select-claim-pet" style="width:100%; padding:10px; border-radius:8px; border:1px solid #10b981; background:#0f172a; color:#ffffff; font-size:14px;">
+                        ${optionsHtml}
+                    </select>
+                </div>
+                <div id="bp-claim-feedback" style="display:none; margin-bottom:12px; font-size:13px; color:#f87171;"></div>
+                <button id="bp-btn-confirm-claim" class="bp-btn" style="width:100%; background:#27ae60; color:#ffffff; padding:12px; border:none; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer;">
+                    ✨ Asignar Parcela y Colocar Lápida
+                </button>
+            `;
+
+            const confirmBtn = document.getElementById('bp-btn-confirm-claim');
+            const selectPet = document.getElementById('bp-select-claim-pet');
+            const feedbackBox = document.getElementById('bp-claim-feedback');
+
+            if (confirmBtn && selectPet) {
+                confirmBtn.addEventListener('click', () => {
+                    const petId = parseInt(selectPet.value, 10);
+                    if (!petId) return;
+
+                    confirmBtn.disabled = true;
+                    confirmBtn.textContent = 'Colocando Lápida...';
+
+                    const pos = plotGroup.position;
+                    const restUrl = (settings.restRoot || '/wp-json/') + 'bosquepatitas/v1/asignar-tumba';
+
+                    fetch(restUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-WP-Nonce': settings.nonce
+                        },
+                        body: JSON.stringify({
+                            mascota_id: petId,
+                            plot_id: userData.plotId,
+                            pos_x: pos.x,
+                            pos_y: pos.y,
+                            pos_z: pos.z
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Find plot object
+                            const plot = plotManager.plots.find(p => p.id === userData.plotId);
+                            if (plot) {
+                                const tombstoneMesh = createTombstoneModel();
+                                const tombData = {
+                                    id: data.tumba_id,
+                                    title: { rendered: 'Tumba de ' + data.mascota_data.nombre },
+                                    content: { rendered: data.mascota_data.historia },
+                                    meta: { posicion_x: pos.x, posicion_y: pos.y, posicion_z: pos.z },
+                                    mascota_data: data.mascota_data
+                                };
+                                plotManager.assignTombToPlot(plot, tombstoneMesh, tombData);
+                            }
+
+                            // Remove pet from approved list in JS
+                            settings.approvedPets = settings.approvedPets.filter(p => p.id !== petId);
+
+                            claimModal.classList.add('hidden');
+                        } else {
+                            confirmBtn.disabled = false;
+                            confirmBtn.textContent = '✨ Asignar Parcela y Colocar Lápida';
+                            if (feedbackBox) {
+                                feedbackBox.style.display = 'block';
+                                feedbackBox.textContent = data.message || 'Error al asignar la tumba.';
+                            }
+                        }
+                    })
+                    .catch(err => {
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = '✨ Asignar Parcela y Colocar Lápida';
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.textContent = 'Error de conexión.';
+                        }
+                    });
+                });
+            }
+        }
+
+        claimModal.classList.remove('hidden');
+    }
+
+    function showPetSheetModal(tombData) {
+        const sheetContent = document.getElementById('bp-sheet-content');
+        if (!sheetContent) return;
+
+        const mData = tombData ? (tombData.mascota_data || {}) : {};
+        const title = mData.nombre || (tombData.title ? (tombData.title.rendered || tombData.title) : 'Mascota Querida');
+        const imgUrl = mData.imagen_url || '';
+        const honor = mData.titulo_honor || '';
+        const apodos = mData.apodos || '';
+        const especie = mData.especie_raza || '';
+        const fLlegada = mData.fecha_llegada || '';
+        const fDespedida = mData.fecha_despedida || '';
+
+        // Shared years calculation
+        let yearsText = '';
+        if (fLlegada && fDespedida) {
+            const d1 = new Date(fLlegada);
+            const d2 = new Date(fDespedida);
+            if (!isNaN(d1) && !isNaN(d2)) {
+                const diffTime = Math.abs(d2 - d1);
+                const diffYears = (diffTime / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1);
+                yearsText = ` (${diffYears} años de felicidad compartida)`;
+            }
+        }
+
+        const carino = mData.stat_carino || 10;
+        const travesura = mData.stat_travesura || 5;
+        const bano = mData.stat_bano || 5;
+        const pena = mData.stat_pena || 10;
+
+        const superpoder = mData.superpoder || '';
+        const archienemigo = mData.archienemigo || '';
+        const comida = mData.comida_favorita || '';
+        const travesuraEpica = mData.travesura_epica || '';
+        const lugar = mData.lugar_favorito || '';
+        const juguete = mData.juguete_estrella || '';
+
+        const historia = mData.historia || (tombData.content ? (tombData.content.rendered || tombData.content) : 'En memoria eterna de nuestra amada mascota.');
+        const carta = mData.carta_despedida || '';
+        const soundtrack = mData.soundtrack_url || '';
+
+        let velasCount = mData.count_velas || 0;
+        let floresCount = mData.count_flores || 0;
+        let premiosCount = mData.count_premios || 0;
+
+        const muro = mData.muro_recuerdos || [];
+
+        let muroCommentsHtml = '';
+        if (muro && muro.length > 0) {
+            muro.forEach(c => {
+                muroCommentsHtml += `
+                    <div class="bp-muro-comment">
+                        <span class="bp-muro-author">${c.autor}</span>
+                        <span class="bp-muro-date">${c.fecha}</span>
+                        <div class="bp-muro-text">${c.mensaje}</div>
+                    </div>
+                `;
+            });
+        } else {
+            muroCommentsHtml = '<p style="font-size:12px; color:#94a3b8; font-style:italic; margin:0;">Sé el primero en dejar palabras de apoyo o recuerdos...</p>';
+        }
+
+        sheetContent.innerHTML = `
+            <div class="bp-pet-sheet-header">
+                ${imgUrl ? `<img src="${imgUrl}" class="bp-pet-sheet-avatar" />` : `<div class="bp-pet-sheet-avatar" style="display:flex; align-items:center; justify-content:center; font-size:36px;">🐾</div>`}
+                <div class="bp-pet-sheet-info">
+                    <span class="bp-pet-badge-verified">✔ Mascota Validada</span>
+                    <h3>${title}</h3>
+                    ${honor ? `<div class="bp-pet-sheet-honor">👑 ${honor}</div>` : ''}
+                    ${apodos ? `<div class="bp-pet-sheet-meta">a.k.a. "${apodos}"</div>` : ''}
+                    ${especie ? `<div class="bp-pet-sheet-meta">🐾 Especie / Raza: ${especie}</div>` : ''}
+                    ${(fLlegada || fDespedida) ? `<div class="bp-pet-sheet-meta">📅 ${fLlegada || '?'} ➔ ${fDespedida || 'Eternidad'}${yearsText}</div>` : ''}
+                </div>
+            </div>
+
+            <!-- FICHA DE PERSONAJE & ESTADÍSTICAS -->
+            <div class="bp-sheet-sec-title">📊 Ficha de Personaje</div>
+            <div class="bp-stats-grid">
+                <div class="bp-stat-item">
+                    <div class="bp-stat-label"><span>💖 Cariñoso / Mimos</span><strong>${carino}/10</strong></div>
+                    <div class="bp-stat-bar-bg"><div class="bp-stat-bar-fill" style="width:${carino * 10}%;"></div></div>
+                </div>
+                <div class="bp-stat-item">
+                    <div class="bp-stat-label"><span>😼 Travesura</span><strong>${travesura}/10</strong></div>
+                    <div class="bp-stat-bar-bg"><div class="bp-stat-bar-fill" style="width:${travesura * 10}%;"></div></div>
+                </div>
+                <div class="bp-stat-item">
+                    <div class="bp-stat-label"><span>🛁 Amor al Baño</span><strong>${bano}/10</strong></div>
+                    <div class="bp-stat-bar-bg"><div class="bp-stat-bar-fill" style="width:${bano * 10}%;"></div></div>
+                </div>
+                <div class="bp-stat-item">
+                    <div class="bp-stat-label"><span>🥺 Cara de Pena</span><strong>${pena}/10</strong></div>
+                    <div class="bp-stat-bar-bg"><div class="bp-stat-bar-fill" style="width:${pena * 10}%;"></div></div>
+                </div>
+            </div>
+
+            <!-- GUSTOS Y MANÍAS -->
+            ${(superpoder || archienemigo || comida || travesuraEpica || lugar || juguete) ? `
+                <div class="bp-sheet-sec-title">🌟 Gustos y Manías</div>
+                <div class="bp-tastes-grid">
+                    ${superpoder ? `<div class="bp-taste-box"><strong>⚡ Superpoder:</strong> ${superpoder}</div>` : ''}
+                    ${archienemigo ? `<div class="bp-taste-box"><strong>🦹 Archienemigo:</strong> ${archienemigo}</div>` : ''}
+                    ${comida ? `<div class="bp-taste-box"><strong>🍖 Comida Favorita:</strong> ${comida}</div>` : ''}
+                    ${lugar ? `<div class="bp-taste-box"><strong>🛋️ Lugar Favorito:</strong> ${lugar}</div>` : ''}
+                    ${juguete ? `<div class="bp-taste-box"><strong>🧸 Juguete Estrella:</strong> ${juguete}</div>` : ''}
+                    ${travesuraEpica ? `<div class="bp-taste-box"><strong>💥 Travesura Épica:</strong> ${travesuraEpica}</div>` : ''}
+                </div>
+            ` : ''}
+
+            <!-- HISTORIA Y CARTA -->
+            <div class="bp-sheet-sec-title">📖 La Gran Anécdota</div>
+            <div class="bp-story-box">${historia}</div>
+
+            ${carta ? `
+                <div class="bp-sheet-sec-title">💌 Carta de Despedida</div>
+                <div class="bp-letter-box">${carta}</div>
+            ` : ''}
+
+            ${soundtrack ? `
+                <div style="margin-bottom:14px; text-align:center;">
+                    <a href="${soundtrack}" target="_blank" rel="noopener noreferrer" class="bp-btn" style="display:inline-block; background:rgba(30, 215, 96, 0.2); color:#1ed760; border:1px solid #1ed760; padding:8px 16px; border-radius:20px; text-decoration:none; font-weight:700; font-size:12px;">
+                        🎵 Escuchar Banda Sonora de ${title}
+                    </a>
+                </div>
+            ` : ''}
+
+            <!-- HOMENAJES INTERACTIVOS (1-CLICK) -->
+            <div class="bp-sheet-sec-title">🕯️ Muestras de Cariño</div>
+            <div class="bp-tributes-row">
+                <button class="bp-tribute-btn" data-type="vela" data-id="${mData.id}">
+                    <span>🕯️ Encender Vela</span>
+                    <span class="bp-tribute-count" id="bp-count-vela">${velasCount}</span>
+                </button>
+                <button class="bp-tribute-btn" data-type="flor" data-id="${mData.id}">
+                    <span>🌸 Dejar Flor</span>
+                    <span class="bp-tribute-count" id="bp-count-flor">${floresCount}</span>
+                </button>
+                <button class="bp-tribute-btn" data-type="premio" data-id="${mData.id}">
+                    <span>🦴 Dejar Premio</span>
+                    <span class="bp-tribute-count" id="bp-count-premio">${premiosCount}</span>
+                </button>
+            </div>
+
+            <!-- MURO DE RECUERDOS -->
+            <div class="bp-sheet-sec-title">💬 Libro de Visitas y Muro de Recuerdos</div>
+            <div class="bp-muro-box" id="bp-muro-list">
+                ${muroCommentsHtml}
+            </div>
+            <div class="bp-muro-form">
+                <input type="text" id="bp-muro-author-input" class="bp-muro-input" placeholder="Tu nombre" style="max-width:110px;" value="${settings.userName || ''}" />
+                <input type="text" id="bp-muro-msg-input" class="bp-muro-input" placeholder="Deja unas palabras de recuerdo..." />
+                <button id="bp-muro-submit" class="bp-btn" style="background:#27ae60; color:#fff; border:none; padding:8px 14px; border-radius:8px; font-weight:700; cursor:pointer;">Enviar</button>
+            </div>
+        `;
+
+        // Attach tribute click listeners
+        sheetContent.querySelectorAll('.bp-tribute-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tipo = btn.dataset.type;
+                const petId = btn.dataset.id;
+                if (!petId || petId === 'undefined') return;
+
+                const restUrl = (settings.restRoot || '/wp-json/') + 'bosquepatitas/v1/tributo';
+
+                fetch(restUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mascota_id: petId, tipo: tipo })
+                })
+                .then(res => res.json())
+                .then(res => {
+                    if (res.success) {
+                        const countSpan = sheetContent.querySelector(`#bp-count-${tipo}`);
+                        if (countSpan) countSpan.textContent = res.count;
+                    }
+                });
+            });
+        });
+
+        // Attach muro comment submit listener
+        const muroSubmit = sheetContent.querySelector('#bp-muro-submit');
+        const muroMsgInput = sheetContent.querySelector('#bp-muro-msg-input');
+        const muroAuthorInput = sheetContent.querySelector('#bp-muro-author-input');
+        const muroList = sheetContent.querySelector('#bp-muro-list');
+
+        if (muroSubmit && muroMsgInput) {
+            muroSubmit.addEventListener('click', () => {
+                const mensaje = muroMsgInput.value.trim();
+                const autor = (muroAuthorInput ? muroAuthorInput.value.trim() : '') || 'Amigo del Bosque';
+                const petId = mData.id;
+
+                if (!mensaje || !petId) return;
+
+                muroSubmit.disabled = true;
+
+                const restUrl = (settings.restRoot || '/wp-json/') + 'bosquepatitas/v1/comentario';
+
+                fetch(restUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mascota_id: petId, autor: autor, mensaje: mensaje })
+                })
+                .then(res => res.json())
+                .then(res => {
+                    muroSubmit.disabled = false;
+                    if (res.success && res.muro) {
+                        muroMsgInput.value = '';
+                        let updatedHtml = '';
+                        res.muro.forEach(c => {
+                            updatedHtml += `
+                                <div class="bp-muro-comment">
+                                    <span class="bp-muro-author">${c.autor}</span>
+                                    <span class="bp-muro-date">${c.fecha}</span>
+                                    <div class="bp-muro-text">${c.mensaje}</div>
+                                </div>
+                            `;
+                        });
+                        if (muroList) muroList.innerHTML = updatedHtml;
+                    }
+                })
+                .catch(err => {
+                    muroSubmit.disabled = false;
+                });
+            });
+        }
+
+        petSheetModal.classList.remove('hidden');
+    }
 
     // Mostrar modal de ayuda automáticamente la primera vez en móviles
     if (isMobile && !localStorage.getItem('bp_help_shown')) {
@@ -1518,6 +1935,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             };
                             isAutoWalking = true;
                         }
+
+                        openModalForObject(obj.userData, plotGroup);
                     }
                     break;
                 }

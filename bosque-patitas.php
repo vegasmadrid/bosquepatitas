@@ -18,6 +18,7 @@ define('BP_PLUGIN_URL', plugin_dir_url(__FILE__));
 // Cargar módulos
 require_once BP_PLUGIN_DIR . 'includes/class-cpt.php';
 require_once BP_PLUGIN_DIR . 'includes/class-settings.php';
+require_once BP_PLUGIN_DIR . 'includes/class-admin-mascotas.php';
 require_once BP_PLUGIN_DIR . 'includes/class-auth.php';
 require_once BP_PLUGIN_DIR . 'includes/class-profile.php';
 
@@ -81,14 +82,44 @@ class BosquePatitas {
         $login_url   = $login_page_id ? get_permalink($login_page_id) : wp_login_url();
         $profile_url = $profile_page_id ? get_permalink($profile_page_id) : admin_url('profile.php');
 
+        $approved_pets = array();
+        if ($is_logged_in) {
+            $pets = get_posts(array(
+                'post_type'      => 'bp_mascota',
+                'author'         => $current_user->ID,
+                'posts_per_page' => -1,
+                'post_status'    => 'publish',
+                'meta_query'     => array(
+                    array(
+                        'key'     => 'is_approved',
+                        'value'   => '1',
+                        'compare' => '='
+                    )
+                )
+            ));
+
+            foreach ($pets as $p) {
+                $tumba_id = (int) get_post_meta($p->ID, 'tumba_id', true);
+                if ($tumba_id === 0) {
+                    $approved_pets[] = array(
+                        'id'     => $p->ID,
+                        'nombre' => get_the_title($p->ID),
+                        'especie' => get_post_meta($p->ID, 'especie_raza', true) ?: 'Mascota'
+                    );
+                }
+            }
+        }
+
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
-            'apiUrl'     => esc_url_raw(rest_url('wp/v2/tumbas')),
-            'nonce'      => wp_create_nonce('wp_rest'),
-            'isLoggedIn' => $is_logged_in,
-            'userName'   => $is_logged_in ? esc_html($current_user->display_name ?: $current_user->user_login) : '',
-            'loginUrl'   => esc_url($login_url),
-            'profileUrl' => esc_url($profile_url)
+            'apiUrl'       => esc_url_raw(rest_url('wp/v2/tumbas')),
+            'restRoot'     => esc_url_raw(rest_url()),
+            'nonce'        => wp_create_nonce('wp_rest'),
+            'isLoggedIn'   => $is_logged_in,
+            'userName'     => $is_logged_in ? esc_html($current_user->display_name ?: $current_user->user_login) : '',
+            'loginUrl'     => esc_url($login_url),
+            'profileUrl'   => esc_url($profile_url),
+            'approvedPets' => $approved_pets
         ));
 
         return '<div id="bp-canvas-container"><div id="bp-loading">Cargando BosquePatitas...</div></div>';
