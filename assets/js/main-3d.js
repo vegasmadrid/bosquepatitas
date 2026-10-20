@@ -148,9 +148,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. ESCENA, CÁMARA Y RENDERER
     // ----------------------------------------------------
     const scene = new THREE.Scene();
-    const skyColor = new THREE.Color(0xd4e7f8); // Cielo azul etéreo suave
+    const skyColor = new THREE.Color(0x7ec0ee); // Cielo azul claro y radiante
     scene.background = skyColor;
-    scene.fog = new THREE.FogExp2(skyColor, 0.007); // Niebla celestial lejana
+    scene.fog = new THREE.FogExp2(0x9bd0f9, 0.0045); // Niebla atmosférica suave que se funde con el cielo azul
 
     const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
 
@@ -953,81 +953,86 @@ document.addEventListener('DOMContentLoaded', () => {
         const cloudGroup = new THREE.Group();
 
         const cloudMat = new THREE.MeshStandardMaterial({
-            color: 0xfafcff,
-            roughness: 0.95,
-            metalness: 0.05,
+            color: 0xffffff,
+            roughness: 0.9,
+            metalness: 0.02,
             flatShading: true,
             transparent: true,
-            opacity: 0.96
+            opacity: 0.97
         });
 
         const cloudPuffGeos = [
             new THREE.DodecahedronGeometry(2.5, 1),
-            new THREE.DodecahedronGeometry(3.8, 1),
-            new THREE.IcosahedronGeometry(3.0, 1),
-            new THREE.DodecahedronGeometry(4.5, 1)
+            new THREE.DodecahedronGeometry(3.5, 1),
+            new THREE.IcosahedronGeometry(3.0, 1)
         ];
 
-        function createSingleCloudCluster(scale = 1.0) {
-            const cluster = new THREE.Group();
-            const puffCount = Math.floor(5 + Math.random() * 6);
+        // Límite interno seguro estricto: el terreno mide 35x35 desde el centro, la verja está en 33.
+        // Ningún copo de nube puede entrar en el área |X| < 37.5 o |Z| < 37.5
+        const INNER_SAFE_LIMIT = 37.5;
+        const totalClouds = isMobile ? 160 : 300;
 
-            for (let i = 0; i < puffCount; i++) {
+        for (let i = 0; i < totalClouds; i++) {
+            const sector = Math.floor(Math.random() * 4);
+            let cx, cz;
+
+            const distFromEdge = Math.random() * 120.0;
+            const u = INNER_SAFE_LIMIT + 5.0 + distFromEdge;
+            const v = (Math.random() - 0.5) * 300.0;
+
+            if (sector === 0) {       // Sur
+                cx = v; cz = u;
+            } else if (sector === 1) { // Norte
+                cx = v; cz = -u;
+            } else if (sector === 2) { // Este
+                cx = u; cz = v;
+            } else {                  // Oeste
+                cx = -u; cz = v;
+            }
+
+            if (Math.abs(cx) < INNER_SAFE_LIMIT + 2.0 && Math.abs(cz) < INNER_SAFE_LIMIT + 2.0) continue;
+
+            const dist = Math.hypot(cx, cz);
+            // Escala moderada para que formen una alfombra continua horizontal
+            const scale = 1.0 + Math.random() * 1.5 + Math.min(3.0, dist / 40.0);
+
+            // Posición Y baja para que sea una alfombra bajo el cementerio
+            const cy = -4.5 + (Math.random() - 0.5) * 1.2;
+
+            const cluster = new THREE.Group();
+            cluster.position.set(cx, cy, cz);
+
+            const puffCount = Math.floor(4 + Math.random() * 5);
+            let validCluster = false;
+
+            for (let p = 0; p < puffCount; p++) {
                 const geo = cloudPuffGeos[Math.floor(Math.random() * cloudPuffGeos.length)];
                 const puff = new THREE.Mesh(geo, cloudMat);
 
-                const px = (Math.random() - 0.5) * 6 * scale;
-                const py = (Math.random() - 0.5) * 2.2 * scale;
-                const pz = (Math.random() - 0.5) * 6 * scale;
-                const pScale = (0.7 + Math.random() * 0.8) * scale;
+                const px = (Math.random() - 0.5) * 7.0 * scale;
+                const py = (Math.random() - 0.5) * 0.8 * scale; // Perfil vertical chato (alfombra)
+                const pz = (Math.random() - 0.5) * 7.0 * scale;
 
+                const worldX = cx + px;
+                const worldZ = cz + pz;
+
+                // Verificación estricta punto a punto contra el perímetro interno
+                if (Math.abs(worldX) < INNER_SAFE_LIMIT || Math.abs(worldZ) < INNER_SAFE_LIMIT) {
+                    continue;
+                }
+
+                const pScale = (0.8 + Math.random() * 0.8) * scale;
                 puff.position.set(px, py, pz);
-                puff.scale.set(pScale, pScale * 0.75, pScale);
+                puff.scale.set(pScale * 1.3, pScale * 0.35, pScale * 1.3); // Chato horizontalmente
                 puff.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+
                 cluster.add(puff);
+                validCluster = true;
             }
 
-            return cluster;
-        }
-
-        // Crear un lecho denso de nubes esponjosas ESTRICTAMENTE fuera del perímetro rectangular (-38 a 38)
-        const minOffset = 38.5; // Garantiza que ninguna nube invada la verja (33.0) ni el terreno (35.0)
-        const maxOffset = 150.0;
-        const totalClouds = isMobile ? 130 : 240;
-
-        for (let i = 0; i < totalClouds; i++) {
-            // Seleccionar uno de los 4 sectores exteriores para distribución uniforme
-            const sector = Math.floor(Math.random() * 4);
-            let x, z;
-
-            const u = minOffset + Math.random() * (maxOffset - minOffset);
-            const v = (Math.random() - 0.5) * maxOffset * 2;
-
-            if (sector === 0) {       // Sur
-                x = v;
-                z = u;
-            } else if (sector === 1) { // Norte
-                x = v;
-                z = -u;
-            } else if (sector === 2) { // Este
-                x = u;
-                z = v;
-            } else {                  // Oeste
-                x = -u;
-                z = v;
+            if (validCluster) {
+                cloudGroup.add(cluster);
             }
-
-            // Omitir si cae dentro del cuadro interno seguro
-            if (Math.abs(x) < minOffset && Math.abs(z) < minOffset) continue;
-
-            const dist = Math.hypot(x, z);
-            const y = -3.2 + (Math.random() - 0.5) * 2.0; // Mantener la base de nubes por debajo del piso
-            const scale = 1.1 + Math.random() * 2.2 + Math.min(3.5, dist / 35.0);
-
-            const cloudCluster = createSingleCloudCluster(scale);
-            cloudCluster.position.set(x, y, z);
-
-            cloudGroup.add(cloudCluster);
         }
 
         return cloudGroup;
