@@ -954,17 +954,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cloudMat = new THREE.MeshStandardMaterial({
             color: 0xffffff,
-            roughness: 0.9,
-            metalness: 0.02,
-            flatShading: true,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.15,
+            roughness: 1.0,
+            metalness: 0.0,
+            flatShading: false,
             transparent: true,
-            opacity: 0.97
+            opacity: 0.98
         });
 
         const cloudPuffGeos = [
-            new THREE.DodecahedronGeometry(2.5, 1),
-            new THREE.DodecahedronGeometry(3.5, 1),
-            new THREE.IcosahedronGeometry(3.0, 1)
+            new THREE.SphereGeometry(2.5, 16, 12),
+            new THREE.SphereGeometry(3.5, 16, 12),
+            new THREE.SphereGeometry(3.0, 16, 12)
         ];
 
         // Límite interno seguro estricto: el terreno mide 35x35 desde el centro, la verja está en 33.
@@ -1017,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const worldZ = cz + pz;
 
                 // Verificación estricta punto a punto contra el perímetro interno
-                if (Math.abs(worldX) < INNER_SAFE_LIMIT || Math.abs(worldZ) < INNER_SAFE_LIMIT) {
+                if (Math.abs(worldX) < INNER_SAFE_LIMIT && Math.abs(worldZ) < INNER_SAFE_LIMIT) {
                     continue;
                 }
 
