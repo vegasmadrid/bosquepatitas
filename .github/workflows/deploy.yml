@@ -12,10 +12,19 @@ jobs:
     - name: Get latest code
       uses: actions/checkout@v4
 
-    - name: Deploy via LFTP
+    - name: Diagnostico de conexion FTP
       env:
         FTP_USER: ${{ secrets.FTP_USERNAME }}
         FTP_PASS: ${{ secrets.FTP_PASSWORD }}
       run: |
-        sudo apt update && sudo apt install -y lftp
-        lftp -u "$FTP_USER","$FTP_PASS" -e "set ftp:ssl-force true; set ssl:verify-certificate no; set ftp:passive-mode true; mirror -R --verbose --exclude .git/ --exclude .github/ . /wp-content/plugins/bosque-patitas/; quit" 213.158.84.67
+        echo "=== 1. VERIFICACIÓN DE SECRETOS ==="
+        echo "Longitud del usuario: ${#FTP_USER} caracteres"
+        echo "Longitud de la clave: ${#FTP_PASS} caracteres"
+        
+        if [ -z "$FTP_USER" ] || [ -z "$FTP_PASS" ]; then
+          echo "ERROR: Uno o ambos Secretos están vacíos en GitHub."
+          exit 1
+        fi
+
+        echo "=== 2. RESPUESTA DETALLADA DEL SERVIDOR (CURL) ==="
+        curl -v --ftp-ssl --insecure -u "$FTP_USER:$FTP_PASS" "ftp://213.158.84.67:21/" --list-only
