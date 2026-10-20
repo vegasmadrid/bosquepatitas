@@ -955,31 +955,53 @@ document.addEventListener('DOMContentLoaded', () => {
         const cloudMat = new THREE.MeshStandardMaterial({
             color: 0xffffff,
             emissive: 0xffffff,
-            emissiveIntensity: 0.15,
-            roughness: 1.0,
+            emissiveIntensity: 0.35, // Blanco brillante celestialmente radiante
+            roughness: 0.9,
             metalness: 0.0,
             flatShading: false,
             transparent: true,
             opacity: 0.98
         });
 
+        // Geometrías esféricas suaves para nubes redondas y mulliditas
         const cloudPuffGeos = [
-            new THREE.SphereGeometry(2.5, 16, 12),
-            new THREE.SphereGeometry(3.5, 16, 12),
-            new THREE.SphereGeometry(3.0, 16, 12)
+            new THREE.SphereGeometry(2.5, 24, 18),
+            new THREE.SphereGeometry(3.2, 24, 18),
+            new THREE.SphereGeometry(2.8, 24, 18)
         ];
 
-        // Límite interno seguro estricto: el terreno mide 35x35 desde el centro, la verja está en 33.
-        // Ningún copo de nube puede entrar en el área |X| < 37.5 o |Z| < 37.5
-        const INNER_SAFE_LIMIT = 37.5;
-        const totalClouds = isMobile ? 160 : 300;
+        // Función matemática exacta para verificar que NINGUNA esfera/copo penetre en el área del cementerio
+        const CEMETERY_SAFE_BOX = 35.5; // El terreno del cementerio mide 35x35 desde el centro, la verja en 33.0
+
+        function isOverlappingCemetery(x, z, radius) {
+            const absX = Math.abs(x);
+            const absZ = Math.abs(z);
+
+            let dx = 0;
+            if (absX > CEMETERY_SAFE_BOX) {
+                dx = absX - CEMETERY_SAFE_BOX;
+            }
+
+            let dz = 0;
+            if (absZ > CEMETERY_SAFE_BOX) {
+                dz = absZ - CEMETERY_SAFE_BOX;
+            }
+
+            if (absX <= CEMETERY_SAFE_BOX && absZ <= CEMETERY_SAFE_BOX) return true;
+            if (absX <= CEMETERY_SAFE_BOX) return dz < radius;
+            if (absZ <= CEMETERY_SAFE_BOX) return dx < radius;
+            return (dx * dx + dz * dz) < (radius * radius);
+        }
+
+        const totalClouds = isMobile ? 180 : 320;
+        const MIN_CLUSTER_DIST = 38.0;
 
         for (let i = 0; i < totalClouds; i++) {
             const sector = Math.floor(Math.random() * 4);
             let cx, cz;
 
-            const distFromEdge = Math.random() * 120.0;
-            const u = INNER_SAFE_LIMIT + 5.0 + distFromEdge;
+            const distFromEdge = Math.random() * 110.0;
+            const u = MIN_CLUSTER_DIST + distFromEdge;
             const v = (Math.random() - 0.5) * 300.0;
 
             if (sector === 0) {       // Sur
@@ -992,40 +1014,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 cx = -u; cz = v;
             }
 
-            if (Math.abs(cx) < INNER_SAFE_LIMIT + 2.0 && Math.abs(cz) < INNER_SAFE_LIMIT + 2.0) continue;
-
             const dist = Math.hypot(cx, cz);
-            // Escala moderada para que formen una alfombra continua horizontal
-            const scale = 1.0 + Math.random() * 1.5 + Math.min(3.0, dist / 40.0);
+            const scale = 0.9 + Math.random() * 1.4 + Math.min(2.5, dist / 45.0);
 
-            // Posición Y baja para que sea una alfombra bajo el cementerio
-            const cy = -4.5 + (Math.random() - 0.5) * 1.2;
+            // Posición Y baja para formar el suelo de nubes bajo el cementerio
+            const cy = -6.2 + (Math.random() - 0.5) * 1.0;
 
             const cluster = new THREE.Group();
             cluster.position.set(cx, cy, cz);
 
-            const puffCount = Math.floor(4 + Math.random() * 5);
+            const puffCount = Math.floor(5 + Math.random() * 5);
             let validCluster = false;
 
             for (let p = 0; p < puffCount; p++) {
-                const geo = cloudPuffGeos[Math.floor(Math.random() * cloudPuffGeos.length)];
+                const baseRadius = 2.8;
+                const geoIndex = Math.floor(Math.random() * cloudPuffGeos.length);
+                const geo = cloudPuffGeos[geoIndex];
                 const puff = new THREE.Mesh(geo, cloudMat);
 
-                const px = (Math.random() - 0.5) * 7.0 * scale;
-                const py = (Math.random() - 0.5) * 0.8 * scale; // Perfil vertical chato (alfombra)
-                const pz = (Math.random() - 0.5) * 7.0 * scale;
+                const px = (Math.random() - 0.5) * 6.5 * scale;
+                const py = (Math.random() - 0.5) * 1.2 * scale;
+                const pz = (Math.random() - 0.5) * 6.5 * scale;
+
+                const pScale = (0.85 + Math.random() * 0.75) * scale;
+                const puffRadius = baseRadius * pScale * 1.15;
 
                 const worldX = cx + px;
                 const worldZ = cz + pz;
 
-                // Verificación estricta punto a punto contra el perímetro interno
-                if (Math.abs(worldX) < INNER_SAFE_LIMIT && Math.abs(worldZ) < INNER_SAFE_LIMIT) {
+                // Verificación matemática estricta contra el cuadro del cementerio
+                if (isOverlappingCemetery(worldX, worldZ, puffRadius)) {
                     continue;
                 }
 
-                const pScale = (0.8 + Math.random() * 0.8) * scale;
                 puff.position.set(px, py, pz);
-                puff.scale.set(pScale * 1.3, pScale * 0.35, pScale * 1.3); // Chato horizontalmente
+                // Proporciones redondas y mulliditas (curvas esponjosas)
+                puff.scale.set(pScale * 1.15, pScale * 0.85, pScale * 1.15);
                 puff.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
 
                 cluster.add(puff);
