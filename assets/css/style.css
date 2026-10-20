@@ -149,17 +149,17 @@ html {
 }
 
 button.bp-menu-trigger.bp-menu-trigger-yellow {
-    width: 62px !important;
-    height: 38px !important;
-    min-width: 62px !important;
-    min-height: 38px !important;
-    max-width: 62px !important;
-    max-height: 38px !important;
-    border-radius: 14px !important;
+    width: 50px !important;
+    height: 50px !important;
+    min-width: 50px !important;
+    min-height: 50px !important;
+    max-width: 50px !important;
+    max-height: 50px !important;
+    border-radius: 50% !important;
     padding: 0 !important;
     margin: 0 !important;
-    background: #ffd600 !important;
-    background: linear-gradient(180deg, #ffeb3b 0%, #fbc02d 100%) !important;
+    background: #ff69b4 !important;
+    background: linear-gradient(180deg, #ff80ab 0%, #f50057 100%) !important;
     border: 3px solid #000000 !important;
     color: #000000 !important;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 -2px 0 rgba(0, 0, 0, 0.2) !important;
@@ -168,7 +168,7 @@ button.bp-menu-trigger.bp-menu-trigger-yellow {
 }
 
 button.bp-menu-trigger.bp-menu-trigger-yellow:hover {
-    background: linear-gradient(180deg, #fff176 0%, #fdd835 100%) !important;
+    background: linear-gradient(180deg, #ff85c0 0%, #ff4d94 100%) !important;
     border-color: #000000 !important;
     transform: translateY(-2px) scale(1.05) !important;
     box-shadow: 0 10px 22px rgba(0, 0, 0, 0.55), inset 0 -2px 0 rgba(0, 0, 0, 0.25) !important;
