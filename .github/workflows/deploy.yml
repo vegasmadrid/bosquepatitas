@@ -1,4 +1,4 @@
-name: Deploy to Webempresa
+name: Deploy via cPanel API
 on:
   push:
     branches:
@@ -6,25 +6,10 @@ on:
       - 'jules-*'
 
 jobs:
-  web-deploy:
+  cpanel-deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: Get latest code
-      uses: actions/checkout@v4
-
-    - name: Diagnostico de conexion FTP
-      env:
-        FTP_USER: ${{ secrets.FTP_USERNAME }}
-        FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+    - name: Trigger cPanel Git Pull
       run: |
-        echo "=== 1. VERIFICACIÓN DE SECRETOS ==="
-        echo "Longitud del usuario: ${#FTP_USER} caracteres"
-        echo "Longitud de la clave: ${#FTP_PASS} caracteres"
-        
-        if [ -z "$FTP_USER" ] || [ -z "$FTP_PASS" ]; then
-          echo "ERROR: Uno o ambos Secretos están vacíos en GitHub."
-          exit 1
-        fi
-
-        echo "=== 2. RESPUESTA DETALLADA DEL SERVIDOR (CURL) ==="
-        curl -v --ftp-ssl --insecure -u "$FTP_USER:$FTP_PASS" "ftp://213.158.84.67:21/" --list-only
+        curl -k -s -u "${{ secrets.CPANEL_USER }}:${{ secrets.CPANEL_PASS }}" \
+          "https://cp7132.webempresa.eu:2443/execute/VersionControl/update?name=bosque-patitas&repository_root=%2Fhome%2Fmusicae1%2Fpublic_html%2Fbosquepatitas.com%2Fwp-content%2Fplugins%2Fbosque-patitas"
