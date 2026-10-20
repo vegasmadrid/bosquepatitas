@@ -37,12 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
     topBar.innerHTML = `
         <button id="bp-inventory-btn" class="bp-menu-trigger bp-menu-trigger-yellow" title="Menú de Opciones" aria-label="Abrir Menú">
             <svg class="bp-menu-icon-yellow" viewBox="0 0 100 100" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="22" y="22" width="14" height="14" rx="4" fill="#000000"/>
-                <rect x="22" y="43" width="14" height="14" rx="4" fill="#000000"/>
-                <rect x="22" y="64" width="14" height="14" rx="4" fill="#000000"/>
-                <rect x="42" y="22" width="36" height="14" rx="4" fill="#000000"/>
-                <rect x="42" y="43" width="36" height="14" rx="4" fill="#000000"/>
-                <rect x="42" y="64" width="36" height="14" rx="4" fill="#000000"/>
+                <rect x="20" y="24" width="60" height="12" rx="6" fill="#000000"/>
+                <rect x="20" y="44" width="60" height="12" rx="6" fill="#000000"/>
+                <rect x="20" y="64" width="60" height="12" rx="6" fill="#000000"/>
             </svg>
         </button>
     `;
