@@ -12,10 +12,13 @@ jobs:
     - name: Get latest code
       uses: actions/checkout@v4
 
-    - name: Deploy via Git-FTP
+    - name: Deploy via LFTP
       run: |
-        sudo apt update && sudo apt install -y git-ftp
-        git config git-ftp.url "ftpes://213.158.84.67:21/"
-        git config git-ftp.user "${{ secrets.FTP_USERNAME }}"
-        git config git-ftp.password "${{ secrets.FTP_PASSWORD }}"
-        git ftp push --auto-init --insecure
+        sudo apt update && sudo apt install -y lftp
+        lftp -c "
+        set ftp:ssl-force true;
+        set ssl:verify-certificate no;
+        set ftp:passive-mode true;
+        open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' 213.158.84.67;
+        mirror -R --verbose --exclude .git/ --exclude .github/ . /wp-content/plugins/bosque-patitas/
+        "
