@@ -990,20 +990,40 @@ document.addEventListener('DOMContentLoaded', () => {
             return cluster;
         }
 
-        // Crear una corona densa de nubes esponjosas alrededor de los límites del cementerio
-        const innerRadius = 34.5;
-        const outerRadius = 140.0;
-        const totalClouds = isMobile ? 120 : 220;
+        // Crear un lecho denso de nubes esponjosas ESTRICTAMENTE fuera del perímetro rectangular (-38 a 38)
+        const minOffset = 38.5; // Garantiza que ninguna nube invada la verja (33.0) ni el terreno (35.0)
+        const maxOffset = 150.0;
+        const totalClouds = isMobile ? 130 : 240;
 
         for (let i = 0; i < totalClouds; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = innerRadius + Math.random() * (outerRadius - innerRadius);
+            // Seleccionar uno de los 4 sectores exteriores para distribución uniforme
+            const sector = Math.floor(Math.random() * 4);
+            let x, z;
 
-            const x = Math.cos(angle) * dist;
-            const z = Math.sin(angle) * dist;
-            const y = -1.5 + (Math.random() - 0.5) * 2.5;
+            const u = minOffset + Math.random() * (maxOffset - minOffset);
+            const v = (Math.random() - 0.5) * maxOffset * 2;
 
-            const scale = 1.2 + Math.random() * 2.5 + (dist / 40.0);
+            if (sector === 0) {       // Sur
+                x = v;
+                z = u;
+            } else if (sector === 1) { // Norte
+                x = v;
+                z = -u;
+            } else if (sector === 2) { // Este
+                x = u;
+                z = v;
+            } else {                  // Oeste
+                x = -u;
+                z = v;
+            }
+
+            // Omitir si cae dentro del cuadro interno seguro
+            if (Math.abs(x) < minOffset && Math.abs(z) < minOffset) continue;
+
+            const dist = Math.hypot(x, z);
+            const y = -3.2 + (Math.random() - 0.5) * 2.0; // Mantener la base de nubes por debajo del piso
+            const scale = 1.1 + Math.random() * 2.2 + Math.min(3.5, dist / 35.0);
+
             const cloudCluster = createSingleCloudCluster(scale);
             cloudCluster.position.set(x, y, z);
 
