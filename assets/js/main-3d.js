@@ -1471,14 +1471,20 @@ document.addEventListener('DOMContentLoaded', () => {
         arcadeContent.innerHTML = '<div style="text-align:center; padding:40px; font-family:\'Press Start 2P\', monospace; color:#34d399;">⌛ CARGANDO SELECCIÓN DE PERSONAJES...</div>';
 
         const restRoot = settings.restRoot || '/wp-json/';
-        const fetchUrl = restRoot + 'wp/v2/mascotas?per_page=100';
+        let fetchUrl = restRoot + 'wp/v2/mascotas?per_page=100';
+        if (settings.currentUserId) {
+            fetchUrl += '&author=' + settings.currentUserId;
+        }
 
         fetch(fetchUrl, {
             headers: { 'X-WP-Nonce': settings.nonce }
         })
         .then(res => res.json())
         .then(pets => {
-            renderArcadePetsScreen(pets, editPet);
+            const userPets = Array.isArray(pets)
+                ? pets.filter(p => !settings.currentUserId || parseInt(p.author, 10) === parseInt(settings.currentUserId, 10))
+                : [];
+            renderArcadePetsScreen(userPets, editPet);
         })
         .catch(err => {
             renderArcadePetsScreen([], editPet);
@@ -1563,7 +1569,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ` : `
                     <form id="bp-arcade-pet-form" enctype="multipart/form-data">
                         <input type="hidden" name="mascota_id" value="${editPet ? (editPet.id || editPet.ID) : 0}" />
-                        <input type="hidden" name="bp_nonce" value="${settings.nonce}" />
+                        <input type="hidden" name="bp_nonce" value="${settings.authNonce || settings.nonce}" />
 
                         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
                             <div>
@@ -1738,7 +1744,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formData = new FormData();
                 formData.append('action', 'bp_ajax_unlink_mascota');
                 formData.append('mascota_id', petId);
-                formData.append('bp_nonce', settings.nonce);
+                formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
                 const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
 
@@ -1759,7 +1765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formData = new FormData();
                 formData.append('action', 'bp_ajax_delete_mascota');
                 formData.append('mascota_id', petId);
-                formData.append('bp_nonce', settings.nonce);
+                formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
                 const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
 
@@ -1846,7 +1852,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     confirmBtn.disabled = true;
                     confirmBtn.textContent = 'Colocando Lápida...';
 
-                    const pos = plotGroup.position;
+                    const pos = (plotGroup && plotGroup.position) ? plotGroup.position : { x: (userData && userData.x) || 0, y: 0.02, z: (userData && userData.z) || 0 };
                     const restUrl = (settings.restRoot || '/wp-json/') + 'bosquepatitas/v1/asignar-tumba';
 
                     fetch(restUrl, {

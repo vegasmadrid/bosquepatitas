@@ -111,14 +111,16 @@ class BosquePatitas {
 
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
-            'apiUrl'       => esc_url_raw(rest_url('wp/v2/tumbas')),
-            'restRoot'     => esc_url_raw(rest_url()),
-            'nonce'        => wp_create_nonce('wp_rest'),
-            'isLoggedIn'   => $is_logged_in,
-            'userName'     => $is_logged_in ? esc_html($current_user->display_name ?: $current_user->user_login) : '',
-            'loginUrl'     => esc_url($login_url),
-            'profileUrl'   => esc_url($profile_url),
-            'approvedPets' => $approved_pets
+            'apiUrl'        => esc_url_raw(rest_url('wp/v2/tumbas')),
+            'restRoot'      => esc_url_raw(rest_url()),
+            'nonce'         => wp_create_nonce('wp_rest'),
+            'authNonce'     => wp_create_nonce('bp_auth_nonce'),
+            'isLoggedIn'    => $is_logged_in,
+            'currentUserId' => get_current_user_id(),
+            'userName'      => $is_logged_in ? esc_html($current_user->display_name ?: $current_user->user_login) : '',
+            'loginUrl'      => esc_url($login_url),
+            'profileUrl'    => esc_url($profile_url),
+            'approvedPets'  => $approved_pets
         ));
 
         return '<div id="bp-canvas-container"><div id="bp-loading">Cargando BosquePatitas...</div></div>';
