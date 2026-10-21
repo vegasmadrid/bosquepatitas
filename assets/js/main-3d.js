@@ -166,6 +166,22 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     container.appendChild(petSheetModal);
 
+    // Fullscreen 80s Arcade Options Overlay - Mis Mascotas
+    const arcadePetsModal = document.createElement('div');
+    arcadePetsModal.id = 'bp-mascotas-arcade-modal';
+    arcadePetsModal.className = 'bp-arcade-overlay hidden bp-ui-element';
+    arcadePetsModal.innerHTML = `
+        <div class="bp-arcade-header">
+            <div>
+                <h2 class="bp-arcade-title">🕹️ MIS MASCOTAS - REGISTRO DE PERSONAJES</h2>
+                <div class="bp-arcade-subtitle">Gestión 80s Retro Arcade | BosquePatitas 3D</div>
+            </div>
+            <button id="bp-arcade-close" class="bp-arcade-close-btn">✖ SALIR AL BOSQUE</button>
+        </div>
+        <div id="bp-arcade-content"></div>
+    `;
+    container.appendChild(arcadePetsModal);
+
     // D-Pad Controles Táctiles en Pantalla
     const dpadContainer = document.createElement('div');
     dpadContainer.id = 'bp-dpad';
@@ -1381,10 +1397,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (menuItemPets) {
         menuItemPets.addEventListener('click', () => {
-            const url = menuItemPets.dataset.url;
-            if (url && url !== '#') {
-                window.location.href = url;
-            }
+            inventoryModal.classList.add('hidden');
+            openArcadePetsModal();
+        });
+    }
+
+    const arcadeCloseBtn = document.getElementById('bp-arcade-close');
+    if (arcadeCloseBtn) {
+        arcadeCloseBtn.addEventListener('click', () => {
+            arcadePetsModal.classList.add('hidden');
         });
     }
 
@@ -1420,6 +1441,336 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sheetModalCloseBtn = document.getElementById('bp-sheet-close');
     if (sheetModalCloseBtn) sheetModalCloseBtn.addEventListener('click', () => petSheetModal.classList.add('hidden'));
+
+    // ----------------------------------------------------
+    // FULLSCREEN 80s ARCADE OVERLAY FUNCTIONALITY
+    // ----------------------------------------------------
+    function openArcadePetsModal(editPet = null) {
+        const arcadeContent = document.getElementById('bp-arcade-content');
+        if (!arcadeContent) return;
+
+        arcadePetsModal.classList.remove('hidden');
+
+        if (!settings.isLoggedIn) {
+            arcadeContent.innerHTML = `
+                <div style="text-align:center; padding:60px 20px;">
+                    <p style="font-family:'Press Start 2P', monospace; font-size:14px; color:#ffd600; margin-bottom:20px;">
+                        🕹️ INSERT COIN / ACCESO REQUERIDO
+                    </p>
+                    <p style="color:#a7f3d0; font-size:14px; margin-bottom:24px;">
+                        Debes iniciar sesión o registrarte para acceder al Registro de Personajes y crear fichas de mascotas.
+                    </p>
+                    <a href="${settings.loginUrl}" class="bp-arcade-btn bp-arcade-btn-yellow" style="display:inline-block; text-decoration:none; font-size:12px; padding:14px 24px;">
+                        🔑 INICIAR SESIÓN / REGISTRARSE
+                    </a>
+                </div>
+            `;
+            return;
+        }
+
+        arcadeContent.innerHTML = '<div style="text-align:center; padding:40px; font-family:\'Press Start 2P\', monospace; color:#34d399;">⌛ CARGANDO SELECCIÓN DE PERSONAJES...</div>';
+
+        const restRoot = settings.restRoot || '/wp-json/';
+        const fetchUrl = restRoot + 'wp/v2/mascotas?per_page=100';
+
+        fetch(fetchUrl, {
+            headers: { 'X-WP-Nonce': settings.nonce }
+        })
+        .then(res => res.json())
+        .then(pets => {
+            renderArcadePetsScreen(pets, editPet);
+        })
+        .catch(err => {
+            renderArcadePetsScreen([], editPet);
+        });
+    }
+
+    function renderArcadePetsScreen(pets, editPet = null) {
+        const arcadeContent = document.getElementById('bp-arcade-content');
+        if (!arcadeContent) return;
+
+        let cardsHtml = `
+            <div class="bp-arcade-card" style="border-dash:2px dashed #ffd600; background:rgba(255, 214, 0, 0.05); align-items:center; justify-content:center; text-align:center; cursor:pointer;" id="bp-arcade-add-new-card">
+                <div style="font-size:36px; margin-bottom:10px;">➕</div>
+                <div style="font-family:'Press Start 2P', monospace; font-size:11px; color:#ffd600;">REGISTRAR NUEVA MASCOTA</div>
+                <p style="font-size:11px; color:#a7f3d0; margin-top:6px;">Crea una nueva ficha de personaje</p>
+            </div>
+        `;
+
+        if (Array.isArray(pets) && pets.length > 0) {
+            pets.forEach(p => {
+                const details = p.mascota_details || {};
+                const isApproved = details.is_approved || false;
+                const tumbaId = details.tumba_id || 0;
+                const imgUrl = details.imagen_url || '';
+                const title = details.nombre || (p.title ? (p.title.rendered || p.title) : 'Mascota');
+                const honor = details.titulo_honor || '';
+                const especie = details.especie_raza || '';
+
+                cardsHtml += `
+                    <div class="bp-arcade-card">
+                        <div class="bp-arcade-card-head">
+                            ${imgUrl ? `<img src="${imgUrl}" class="bp-arcade-avatar" />` : `<div class="bp-arcade-avatar" style="display:flex; align-items:center; justify-content:center; font-size:28px;">🐾</div>`}
+                            <div>
+                                <h4 class="bp-arcade-card-title">${title}</h4>
+                                ${honor ? `<div style="font-size:11px; color:#34d399;">👑 ${honor}</div>` : ''}
+                                ${especie ? `<div style="font-size:10px; color:#94a3b8;">🐾 ${especie}</div>` : ''}
+                                <div style="margin-top:4px;">
+                                    ${isApproved ? `<span class="bp-arcade-badge approved">✔ VALIDADA</span>` : `<span class="bp-arcade-badge pending">⏳ EN REVISIÓN</span>`}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bp-arcade-stats-mini">
+                            <div>💖 Cariño: <strong>${details.stat_carino || 10}/10</strong></div>
+                            <div>😼 Travesura: <strong>${details.stat_travesura || 5}/10</strong></div>
+                            <div>📍 Tumba: <strong>${tumbaId > 0 ? 'Sepultada en 3D' : 'Sin tumba'}</strong></div>
+                        </div>
+
+                        <div class="bp-arcade-actions">
+                            ${tumbaId > 0 ? `
+                                <button class="bp-arcade-btn bp-arcade-btn-green bp-arcade-unlink-btn" data-id="${p.id}">🔓 RETIRAR DE TUMBA</button>
+                            ` : `
+                                <button class="bp-arcade-btn bp-arcade-btn-yellow bp-arcade-edit-btn" data-id="${p.id}">✏️ EDITAR</button>
+                            `}
+                            <button class="bp-arcade-btn bp-arcade-btn-danger bp-arcade-delete-btn" data-id="${p.id}">🗑️ ELIMINAR</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        const editData = editPet ? (editPet.mascota_details || editPet) : null;
+        const inGrave = editData ? (editData.tumba_id || 0) : 0;
+
+        arcadeContent.innerHTML = `
+            <div style="margin-bottom:20px; font-family:'Press Start 2P', monospace; font-size:11px; color:#34d399;">
+                GRID DE SELECCIÓN DE PERSONAJES (${Array.isArray(pets) ? pets.length : 0} REGISTRADAS)
+            </div>
+
+            <div class="bp-arcade-grid">
+                ${cardsHtml}
+            </div>
+
+            <!-- FORMULARIO RETRO EDITAR / CREAR MASCOTA -->
+            <div id="bp-arcade-form-drawer" class="bp-arcade-form-box ${editPet ? '' : 'hidden'}">
+                <h4>${editPet ? '✏️ EDITAR FICHA DE PERSONAJE' : '🐾 REGISTRO DE NUEVA MASCOTA'}</h4>
+
+                ${inGrave > 0 ? `
+                    <div style="background:rgba(225, 29, 72, 0.2); border:1px solid #e11d48; color:#fca5a5; padding:12px; border-radius:6px; font-size:12px; margin-bottom:15px;">
+                        ⚠️ Esta mascota está actualmente en una tumba 3D. Debes retirarla de la tumba antes de modificar su ficha.
+                    </div>
+                ` : `
+                    <form id="bp-arcade-pet-form" enctype="multipart/form-data">
+                        <input type="hidden" name="mascota_id" value="${editPet ? (editPet.id || editPet.ID) : 0}" />
+                        <input type="hidden" name="bp_nonce" value="${settings.nonce}" />
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">1. NOMBRE REAL *</label>
+                                <input type="text" name="nombre" class="bp-arcade-input" required value="${editData ? (editData.nombre || editPet.post_title || '') : ''}" placeholder="Ej: Toby" />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">2. APODOS</label>
+                                <input type="text" name="apodos" class="bp-arcade-input" value="${editData ? (editData.apodos || '') : ''}" placeholder='Ej: "Sr. Salchicha"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">3. TÍTULO DE HONOR</label>
+                                <input type="text" name="titulo_honor" class="bp-arcade-input" value="${editData ? (editData.titulo_honor || '') : ''}" placeholder='Ej: "Reina del Sofá"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">4. ESPECIE Y RAZA</label>
+                                <input type="text" name="especie_raza" class="bp-arcade-input" value="${editData ? (editData.especie_raza || '') : ''}" placeholder='Ej: "Perro / Mezcla"' />
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:15px;">
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FECHA LLEGADA</label>
+                                <input type="date" name="fecha_llegada" class="bp-arcade-input" value="${editData ? (editData.fecha_llegada || '') : ''}" />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FECHA DESPEDIDA</label>
+                                <input type="date" name="fecha_despedida" class="bp-arcade-input" value="${editData ? (editData.fecha_despedida || '') : ''}" />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FOTOGRAFÍA</label>
+                                <input type="file" name="foto_mascota" class="bp-arcade-input" accept="image/*" />
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:10px; margin-bottom:15px; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px;">
+                            <div>
+                                <label style="font-size:10px; color:#34d399;">CARIÑO (1-10)</label>
+                                <input type="number" min="1" max="10" name="stat_carino" class="bp-arcade-input" value="${editData ? (editData.stat_carino || 10) : 10}" />
+                            </div>
+                            <div>
+                                <label style="font-size:10px; color:#34d399;">TRAVESURA (1-10)</label>
+                                <input type="number" min="1" max="10" name="stat_travesura" class="bp-arcade-input" value="${editData ? (editData.stat_travesura || 5) : 5}" />
+                            </div>
+                            <div>
+                                <label style="font-size:10px; color:#34d399;">AMOR BAÑO (1-10)</label>
+                                <input type="number" min="1" max="10" name="stat_bano" class="bp-arcade-input" value="${editData ? (editData.stat_bano || 3) : 3}" />
+                            </div>
+                            <div>
+                                <label style="font-size:10px; color:#34d399;">CARA PENA (1-10)</label>
+                                <input type="number" min="1" max="10" name="stat_pena" class="bp-arcade-input" value="${editData ? (editData.stat_pena || 10) : 10}" />
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom:15px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LA GRAN ANÉCDOTA / HISTORIA *</label>
+                            <textarea name="historia" rows="3" class="bp-arcade-input" required placeholder="Cuéntanos su historia...">${editData ? (editData.historia || editPet.post_content || '') : ''}</textarea>
+                        </div>
+
+                        <div id="bp-arcade-feedback" style="display:none; font-size:12px; margin-bottom:12px; color:#2ecc71;"></div>
+
+                        <div style="display:flex; gap:10px;">
+                            <button type="submit" class="bp-arcade-btn bp-arcade-btn-green" style="font-size:11px; padding:12px 20px;">
+                                🕹️ ENVIAR FICHA PARA VALIDACIÓN
+                            </button>
+                            <button type="button" id="bp-arcade-cancel-form" class="bp-arcade-btn bp-arcade-btn-yellow" style="font-size:11px; padding:12px 20px;">
+                                CANCELAR
+                            </button>
+                        </div>
+                    </form>
+                `}
+            </div>
+        `;
+
+        // Wire Add New Button
+        const addNewCard = document.getElementById('bp-arcade-add-new-card');
+        const formDrawer = document.getElementById('bp-arcade-form-drawer');
+
+        if (addNewCard && formDrawer) {
+            addNewCard.addEventListener('click', () => {
+                formDrawer.classList.remove('hidden');
+                formDrawer.scrollIntoView({ behavior: 'smooth' });
+            });
+        }
+
+        const cancelFormBtn = document.getElementById('bp-arcade-cancel-form');
+        if (cancelFormBtn && formDrawer) {
+            cancelFormBtn.addEventListener('click', () => {
+                formDrawer.classList.add('hidden');
+            });
+        }
+
+        // Wire Form Submission
+        const arcadeForm = document.getElementById('bp-arcade-pet-form');
+        const feedbackBox = document.getElementById('bp-arcade-feedback');
+
+        if (arcadeForm) {
+            arcadeForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                const submitBtn = arcadeForm.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'GUARDANDO FICHA...';
+                }
+
+                const formData = new FormData(arcadeForm);
+                formData.append('action', 'bp_ajax_save_mascota');
+
+                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(res => {
+                    if (res.success) {
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#2ecc71';
+                            feedbackBox.textContent = res.data.message || 'Ficha enviada con éxito.';
+                        }
+                        setTimeout(() => {
+                            openArcadePetsModal();
+                        }, 1000);
+                    } else {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = '🕹️ ENVIAR FICHA PARA VALIDACIÓN';
+                        }
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#e11d48';
+                            feedbackBox.textContent = res.data.message || 'Error al guardar.';
+                        }
+                    }
+                })
+                .catch(err => {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '🕹️ ENVIAR FICHA PARA VALIDACIÓN';
+                    }
+                    if (feedbackBox) {
+                        feedbackBox.style.display = 'block';
+                        feedbackBox.style.color = '#e11d48';
+                        feedbackBox.textContent = 'Error de conexión.';
+                    }
+                });
+            });
+        }
+
+        // Wire Edit Buttons
+        arcadeContent.querySelectorAll('.bp-arcade-edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const petId = parseInt(btn.dataset.id, 10);
+                const pet = Array.isArray(pets) ? pets.find(p => p.id === petId) : null;
+                if (pet) {
+                    renderArcadePetsScreen(pets, pet);
+                    const drawer = document.getElementById('bp-arcade-form-drawer');
+                    if (drawer) drawer.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+
+        // Wire Unlink Buttons
+        arcadeContent.querySelectorAll('.bp-arcade-unlink-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const petId = parseInt(btn.dataset.id, 10);
+                if (!confirm('¿Deseas retirar esta mascota de la tumba 3D?')) return;
+
+                const formData = new FormData();
+                formData.append('action', 'bp_ajax_unlink_mascota');
+                formData.append('mascota_id', petId);
+                formData.append('bp_nonce', settings.nonce);
+
+                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+
+                fetch(ajaxUrl, { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(res => {
+                    openArcadePetsModal();
+                });
+            });
+        });
+
+        // Wire Delete Buttons
+        arcadeContent.querySelectorAll('.bp-arcade-delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const petId = parseInt(btn.dataset.id, 10);
+                if (!confirm('¿Seguro que deseas eliminar esta ficha de mascota?')) return;
+
+                const formData = new FormData();
+                formData.append('action', 'bp_ajax_delete_mascota');
+                formData.append('mascota_id', petId);
+                formData.append('bp_nonce', settings.nonce);
+
+                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+
+                fetch(ajaxUrl, { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(res => {
+                    openArcadePetsModal();
+                });
+            });
+        });
+    }
 
     // ----------------------------------------------------
     // FUNCIONES MANEJADORAS DE MODALES DE PARCELA Y MASCOTA
