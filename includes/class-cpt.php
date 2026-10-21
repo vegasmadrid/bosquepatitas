@@ -67,7 +67,9 @@ class BP_Custom_Post_Type {
                 'type'               => 'number',
                 'default'            => $default_val,
                 'sanitize_callback' => 'floatval',
-                'auth_callback'     => function() { return true; }
+                'auth_callback'     => function($allowed, $meta_key, $post_id) {
+                    return current_user_can('edit_post', $post_id);
+                }
             ));
         }
 
@@ -77,7 +79,9 @@ class BP_Custom_Post_Type {
             'type'               => 'integer',
             'default'            => 0,
             'sanitize_callback' => 'absint',
-            'auth_callback'     => function() { return true; }
+            'auth_callback'     => function($allowed, $meta_key, $post_id) {
+                return current_user_can('edit_post', $post_id);
+            }
         ));
 
         // Meta fields for bp_mascota
@@ -99,13 +103,13 @@ class BP_Custom_Post_Type {
             'juguete_estrella' => 'string',
             'carta_despedida'  => 'string',
             'soundtrack_url'   => 'string',
-            'galeria'          => 'string', // JSON array of image URLs
+            'galeria'          => 'string',
             'is_approved'      => 'string',
             'tumba_id'         => 'integer',
             'count_velas'      => 'integer',
             'count_flores'     => 'integer',
             'count_premios'    => 'integer',
-            'muro_recuerdos'   => 'string', // JSON array of comments
+            'muro_recuerdos'   => 'string',
         );
 
         foreach ($mascota_meta_keys as $key => $type) {
@@ -113,7 +117,12 @@ class BP_Custom_Post_Type {
                 'show_in_rest'  => true,
                 'single'         => true,
                 'type'           => $type,
-                'auth_callback' => function() { return true; }
+                'auth_callback' => function($allowed, $meta_key, $post_id) {
+                    if ($meta_key === 'is_approved') {
+                        return current_user_can('manage_options');
+                    }
+                    return current_user_can('edit_post', $post_id);
+                }
             ));
         }
     }

@@ -494,7 +494,15 @@ kbd {
     margin-top: 16px;
 }
 
+.hidden {
+    display: none !important;
+}
+
 /* FULLSCREEN 80s ARCADE VIDEO GAME OPTIONS OVERLAY - MIS MASCOTAS */
+.bp-arcade-overlay.hidden {
+    display: none !important;
+}
+
 .bp-arcade-overlay {
     position: fixed !important;
     top: 0 !important;

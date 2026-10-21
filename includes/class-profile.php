@@ -10,10 +10,12 @@ class BP_Profile {
         add_action('wp_ajax_bp_ajax_save_mascota', array($this, 'ajax_save_mascota'));
         add_action('wp_ajax_bp_ajax_unlink_mascota', array($this, 'ajax_unlink_mascota'));
         add_action('wp_ajax_bp_ajax_delete_mascota', array($this, 'ajax_delete_mascota'));
+        add_action('wp_ajax_bp_get_user_mascotas', array($this, 'ajax_get_user_mascotas'));
 
         add_action('wp_ajax_nopriv_bp_ajax_save_mascota', array($this, 'ajax_save_mascota'));
         add_action('wp_ajax_nopriv_bp_ajax_unlink_mascota', array($this, 'ajax_unlink_mascota'));
         add_action('wp_ajax_nopriv_bp_ajax_delete_mascota', array($this, 'ajax_delete_mascota'));
+        add_action('wp_ajax_nopriv_bp_get_user_mascotas', array($this, 'ajax_get_user_mascotas'));
     }
 
     /**
@@ -339,6 +341,48 @@ class BP_Profile {
         </div>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * AJAX Fetch Logged In User Pets with Full Metadata
+     */
+    public function ajax_get_user_mascotas() {
+        if (!is_user_logged_in()) {
+            wp_send_json_success(array());
+        }
+
+        $user_id = get_current_user_id();
+        $cpt_obj = new BP_Custom_Post_Type();
+
+        $args = array(
+            'post_type'      => 'bp_mascota',
+            'post_status'    => array('publish', 'pending', 'draft'),
+            'author'         => $user_id,
+            'posts_per_page' => -1,
+            'orderby'        => 'date',
+            'order'          => 'DESC'
+        );
+
+        $query = new WP_Query($args);
+        $result = array();
+
+        if ($query->have_posts()) {
+            while ($query->have_posts()) {
+                $query->the_post();
+                $post = $query->post;
+                $details = $cpt_obj->get_formatted_mascota_data($post);
+
+                $result[] = array(
+                    'id'              => $post->ID,
+                    'title'           => array('rendered' => get_the_title($post->ID)),
+                    'author'          => $post->post_author,
+                    'mascota_details' => $details
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        wp_send_json_success($result);
     }
 
     /**

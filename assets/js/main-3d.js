@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h2 class="bp-arcade-title">🕹️ MIS MASCOTAS - REGISTRO DE PERSONAJES</h2>
                 <div class="bp-arcade-subtitle">Gestión 80s Retro Arcade | BosquePatitas 3D</div>
             </div>
-            <button id="bp-arcade-close" class="bp-arcade-close-btn">✖ SALIR AL BOSQUE</button>
+                <button id="bp-arcade-close" class="bp-arcade-close-btn bp-arcade-exit-btn">✖ SALIR AL BOSQUE</button>
         </div>
         <div id="bp-arcade-content"></div>
     `;
@@ -1402,12 +1402,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const handleArcadeClose = () => {
+        arcadePetsModal.classList.add('hidden');
+    };
     const arcadeCloseBtn = document.getElementById('bp-arcade-close');
     if (arcadeCloseBtn) {
-        arcadeCloseBtn.addEventListener('click', () => {
-            arcadePetsModal.classList.add('hidden');
-        });
+        arcadeCloseBtn.addEventListener('click', handleArcadeClose);
     }
+    document.addEventListener('click', (e) => {
+        if (e.target && (e.target.id === 'bp-arcade-close' || e.target.classList.contains('bp-arcade-close-btn') || e.target.classList.contains('bp-arcade-exit-btn'))) {
+            handleArcadeClose();
+        }
+    });
 
     if (menuItemAccount) {
         menuItemAccount.addEventListener('click', () => {
@@ -1470,21 +1476,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         arcadeContent.innerHTML = '<div style="text-align:center; padding:40px; font-family:\'Press Start 2P\', monospace; color:#34d399;">⌛ CARGANDO SELECCIÓN DE PERSONAJES...</div>';
 
-        const restRoot = settings.restRoot || '/wp-json/';
-        let fetchUrl = restRoot + 'wp/v2/mascotas?per_page=100';
-        if (settings.currentUserId) {
-            fetchUrl += '&author=' + settings.currentUserId;
-        }
+        const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+        const formData = new FormData();
+        formData.append('action', 'bp_get_user_mascotas');
 
-        fetch(fetchUrl, {
-            headers: { 'X-WP-Nonce': settings.nonce }
+        fetch(ajaxUrl, {
+            method: 'POST',
+            body: formData
         })
         .then(res => res.json())
-        .then(pets => {
-            const userPets = Array.isArray(pets)
-                ? pets.filter(p => !settings.currentUserId || parseInt(p.author, 10) === parseInt(settings.currentUserId, 10))
-                : [];
-            renderArcadePetsScreen(userPets, editPet);
+        .then(res => {
+            if (res.success && Array.isArray(res.data)) {
+                renderArcadePetsScreen(res.data, editPet);
+            } else {
+                // Fallback to REST API fetch
+                const restRoot = settings.restRoot || '/wp-json/';
+                let fetchUrl = restRoot + 'wp/v2/mascotas?per_page=100';
+                if (settings.currentUserId) {
+                    fetchUrl += '&author=' + settings.currentUserId;
+                }
+                fetch(fetchUrl, { headers: { 'X-WP-Nonce': settings.nonce } })
+                    .then(r => r.json())
+                    .then(pets => {
+                        const userPets = Array.isArray(pets)
+                            ? pets.filter(p => !settings.currentUserId || parseInt(p.author, 10) === parseInt(settings.currentUserId, 10))
+                            : [];
+                        renderArcadePetsScreen(userPets, editPet);
+                    })
+                    .catch(() => renderArcadePetsScreen([], editPet));
+            }
         })
         .catch(err => {
             renderArcadePetsScreen([], editPet);
