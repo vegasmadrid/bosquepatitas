@@ -100,7 +100,7 @@ class BP_Custom_Post_Type {
             'carta_despedida'  => 'string',
             'soundtrack_url'   => 'string',
             'galeria'          => 'string', // JSON array of image URLs
-            'is_approved'      => 'boolean',
+            'is_approved'      => 'string',
             'tumba_id'         => 'integer',
             'count_velas'      => 'integer',
             'count_flores'     => 'integer',

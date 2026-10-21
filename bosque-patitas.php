@@ -58,15 +58,14 @@ class BosquePatitas {
         $login_page_id   = (int) get_option('bp_login_page_id', 0);
         $profile_page_id = (int) get_option('bp_profile_page_id', 0);
 
-        if (is_page($login_page_id) || is_page($profile_page_id)) {
-            wp_enqueue_style('bp-auth-profile-css');
-            wp_enqueue_script('bp-auth-profile-js');
+        // Always enqueue auth & profile assets on frontend so forms and AJAX work reliably
+        wp_enqueue_style('bp-auth-profile-css');
+        wp_enqueue_script('bp-auth-profile-js');
 
-            wp_localize_script('bp-auth-profile-js', 'BP_Auth_Data', array(
-                'ajaxurl' => admin_url('admin-ajax.php'),
-                'nonce'   => wp_create_nonce('bp_auth_nonce')
-            ));
-        }
+        wp_localize_script('bp-auth-profile-js', 'BP_Auth_Data', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('bp_auth_nonce')
+        ));
     }
 
     public function render_shortcode() {

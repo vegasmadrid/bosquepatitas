@@ -31,13 +31,13 @@ class BP_Admin_Mascotas {
             }
 
             if ($action === 'aprobar') {
-                update_post_meta($mascota_id, 'is_approved', 1);
+                update_post_meta($mascota_id, 'is_approved', '1');
                 $this->send_user_approval_email($mascota_id);
 
                 wp_redirect(add_query_arg(array('page' => 'bp-aprobar-mascotas', 'msg' => 'approved'), admin_url('edit.php?post_type=mascota_tumba')));
                 exit;
             } elseif ($action === 'rechazar') {
-                update_post_meta($mascota_id, 'is_approved', 0);
+                update_post_meta($mascota_id, 'is_approved', '0');
 
                 // If pet was in a grave, remove it from grave
                 $tumba_id = (int) get_post_meta($mascota_id, 'tumba_id', true);
@@ -89,13 +89,18 @@ class BP_Admin_Mascotas {
         $pending_mascotas = get_posts(array(
             'post_type'      => 'bp_mascota',
             'posts_per_page' => -1,
-            'post_status'    => 'publish',
+            'post_status'    => array('publish', 'pending', 'draft', 'any'),
             'meta_query'     => array(
                 'relation' => 'OR',
                 array(
                     'key'     => 'is_approved',
                     'value'   => '0',
                     'compare' => '='
+                ),
+                array(
+                    'key'     => 'is_approved',
+                    'value'   => '1',
+                    'compare' => '!='
                 ),
                 array(
                     'key'     => 'is_approved',
@@ -107,7 +112,7 @@ class BP_Admin_Mascotas {
         $approved_mascotas = get_posts(array(
             'post_type'      => 'bp_mascota',
             'posts_per_page' => -1,
-            'post_status'    => 'publish',
+            'post_status'    => array('publish', 'pending', 'draft', 'any'),
             'meta_query'     => array(
                 array(
                     'key'     => 'is_approved',

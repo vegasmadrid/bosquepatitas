@@ -10,6 +10,10 @@ class BP_Profile {
         add_action('wp_ajax_bp_ajax_save_mascota', array($this, 'ajax_save_mascota'));
         add_action('wp_ajax_bp_ajax_unlink_mascota', array($this, 'ajax_unlink_mascota'));
         add_action('wp_ajax_bp_ajax_delete_mascota', array($this, 'ajax_delete_mascota'));
+
+        add_action('wp_ajax_nopriv_bp_ajax_save_mascota', array($this, 'ajax_save_mascota'));
+        add_action('wp_ajax_nopriv_bp_ajax_unlink_mascota', array($this, 'ajax_unlink_mascota'));
+        add_action('wp_ajax_nopriv_bp_ajax_delete_mascota', array($this, 'ajax_delete_mascota'));
     }
 
     /**
@@ -48,7 +52,7 @@ class BP_Profile {
             'post_type'      => 'bp_mascota',
             'author'         => $current_user->ID,
             'posts_per_page' => -1,
-            'post_status'    => 'publish',
+            'post_status'    => array('publish', 'pending', 'draft'),
             'orderby'        => 'date',
             'order'          => 'DESC'
         ));
@@ -388,8 +392,8 @@ class BP_Profile {
             }
         }
 
-        // Every edit/creation sets is_approved to 0 (pending approval) and removes green checkmark
-        update_post_meta($pet_id, 'is_approved', 0);
+        // Every edit/creation sets is_approved to '0' (pending approval) and removes green checkmark
+        update_post_meta($pet_id, 'is_approved', '0');
 
         // Save metadata fields
         $meta_fields = array(
