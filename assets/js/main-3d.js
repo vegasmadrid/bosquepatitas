@@ -1644,9 +1644,48 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">SUPERPODER DESTACADO</label>
+                                <input type="text" name="superpoder" class="bp-arcade-input" value="${editData ? (editData.superpoder || '') : ''}" placeholder='Ej: "Detectar premios a 3 km"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">ARCHIENEMIGO MORTAL</label>
+                                <input type="text" name="archienemigo" class="bp-arcade-input" value="${editData ? (editData.archienemigo || '') : ''}" placeholder='Ej: "La aspiradora"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">COMIDA FAVORITA</label>
+                                <input type="text" name="comida_favorita" class="bp-arcade-input" value="${editData ? (editData.comida_favorita || '') : ''}" placeholder='Ej: "Jamón york"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">JUGUETE ESTRELLA</label>
+                                <input type="text" name="juguete_estrella" class="bp-arcade-input" value="${editData ? (editData.juguete_estrella || '') : ''}" placeholder='Ej: "Pelota de tenis"' />
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LUGAR FAVORITO</label>
+                                <input type="text" name="lugar_favorito" class="bp-arcade-input" value="${editData ? (editData.lugar_favorito || '') : ''}" placeholder='Ej: "Rincón del sofá"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">TRAVESURA ÉPICA</label>
+                                <input type="text" name="travesura_epica" class="bp-arcade-input" value="${editData ? (editData.travesura_epica || '') : ''}" placeholder='Ej: "Se comió la tarta de cumpleaños"' />
+                            </div>
+                            <div style="grid-column: span 2;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">BANDA SONORA (ENLACE YOUTUBE O SPOTIFY)</label>
+                                <input type="url" name="soundtrack_url" class="bp-arcade-input" value="${editData ? (editData.soundtrack_url || '') : ''}" placeholder="https://www.youtube.com/watch?v=..." />
+                            </div>
+                        </div>
+
                         <div style="margin-bottom:15px;">
                             <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LA GRAN ANÉCDOTA / HISTORIA *</label>
                             <textarea name="historia" rows="3" class="bp-arcade-input" required placeholder="Cuéntanos su historia...">${editData ? (editData.historia || editPet.post_content || '') : ''}</textarea>
+                        </div>
+
+                        <div style="margin-bottom:15px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">CARTA DE DESPEDIDA</label>
+                            <textarea name="carta_despedida" rows="3" class="bp-arcade-input" placeholder="Tu mensaje personal de amor y despedida...">${editData ? (editData.carta_despedida || '') : ''}</textarea>
                         </div>
 
                         <div id="bp-arcade-feedback" style="display:none; font-size:12px; margin-bottom:12px; color:#2ecc71;"></div>
