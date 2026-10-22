@@ -66,7 +66,7 @@ class BP_Custom_Post_Type {
                 'single'             => true,
                 'type'               => 'number',
                 'default'            => $default_val,
-                'sanitize_callback' => 'floatval',
+                'sanitize_callback' => function($val) { return floatval($val); },
                 'auth_callback'     => function($allowed, $meta_key, $post_id) {
                     return current_user_can('edit_post', $post_id);
                 }
@@ -78,7 +78,7 @@ class BP_Custom_Post_Type {
             'single'             => true,
             'type'               => 'integer',
             'default'            => 0,
-            'sanitize_callback' => 'absint',
+            'sanitize_callback' => function($val) { return absint($val); },
             'auth_callback'     => function($allowed, $meta_key, $post_id) {
                 return current_user_can('edit_post', $post_id);
             }
