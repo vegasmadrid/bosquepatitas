@@ -560,22 +560,24 @@ kbd {
 }
 
 .bp-arcade-close-btn {
-    background: #e11d48 !important;
+    background: #27ae60 !important;
     color: #ffffff !important;
-    border: 3px solid #000000 !important;
-    box-shadow: 4px 4px 0px #000000 !important;
-    font-family: 'Press Start 2P', monospace, sans-serif !important;
-    font-size: 11px !important;
-    padding: 10px 16px !important;
-    border-radius: 6px !important;
+    border: 2px solid #2ecc71 !important;
+    box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4) !important;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    padding: 10px 18px !important;
+    border-radius: 8px !important;
     cursor: pointer !important;
-    transition: all 0.15s ease !important;
+    transition: all 0.2s ease !important;
 }
 
 .bp-arcade-close-btn:hover {
-    background: #f43f5e !important;
-    transform: translate(-1px, -1px) !important;
-    box-shadow: 5px 5px 0px #000000 !important;
+    background: #2ecc71 !important;
+    color: #050b08 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 16px rgba(46, 204, 113, 0.6) !important;
 }
 
 /* ARCADE CHARACTER SELECT GRID */

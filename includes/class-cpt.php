@@ -359,9 +359,10 @@ class BP_Custom_Post_Type {
 
         // Create or update tumba
         $tumba_title = 'Tumba de ' . get_the_title($mascota_id);
+        $tumba_content = !empty($mascota->post_content) ? $mascota->post_content : '';
         $tumba_id = wp_insert_post(array(
             'post_title'   => $tumba_title,
-            'post_content' => $mascota->post_content,
+            'post_content' => $tumba_content,
             'post_type'    => 'mascota_tumba',
             'post_status'  => 'publish',
             'post_author'  => $user_id

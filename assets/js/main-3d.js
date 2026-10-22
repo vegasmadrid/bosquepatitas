@@ -166,17 +166,17 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     container.appendChild(petSheetModal);
 
-    // Fullscreen 80s Arcade Options Overlay - Mis Mascotas
+    // Fullscreen Options Overlay - Mis Mascotas
     const arcadePetsModal = document.createElement('div');
     arcadePetsModal.id = 'bp-mascotas-arcade-modal';
     arcadePetsModal.className = 'bp-arcade-overlay hidden bp-ui-element';
     arcadePetsModal.innerHTML = `
         <div class="bp-arcade-header">
             <div>
-                <h2 class="bp-arcade-title">🕹️ MIS MASCOTAS - REGISTRO DE PERSONAJES</h2>
-                <div class="bp-arcade-subtitle">Gestión 80s Retro Arcade | BosquePatitas 3D</div>
+                <h2 class="bp-arcade-title">🐾 MIS MASCOTAS</h2>
+                <div class="bp-arcade-subtitle">Aquí puedes ver el listado de tus mascotas registradas y dar de alta a nuevas mascotas.</div>
             </div>
-                <button id="bp-arcade-close" class="bp-arcade-close-btn bp-arcade-exit-btn">✖ SALIR AL BOSQUE</button>
+            <button id="bp-arcade-close" class="bp-arcade-close-btn bp-arcade-exit-btn">VOLVER AL BOSQUE</button>
         </div>
         <div id="bp-arcade-content"></div>
     `;
@@ -1293,6 +1293,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Avanzar / Retroceder con Rueda del Ratón en Modo Paseo Ground
     container.addEventListener('wheel', (e) => {
+        if (e.target.closest('.bp-arcade-overlay, .bp-modal-overlay, .bp-modal-pet-sheet, .bp-modal-card, .bp-modal-panel')) {
+            return;
+        }
         if (currentMode !== MODE_GROUND) return;
         e.preventDefault();
         stopAutoWalk();
