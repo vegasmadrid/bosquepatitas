@@ -176,9 +176,9 @@ class BP_Profile {
         // Every edit/creation sets is_approved to '0' (pending approval) and removes green checkmark
         update_post_meta($pet_id, 'is_approved', '0');
 
-        // Save metadata fields
+        // Save metadata fields with character limits
         $meta_fields = array(
-            'apodos', 'titulo_honor', 'especie_raza', 'fecha_llegada', 'fecha_despedida',
+            'apodos', 'epitafio', 'titulo_honor', 'especie_raza', 'fecha_llegada', 'fecha_despedida',
             'stat_carino', 'stat_travesura', 'stat_bano', 'stat_pena', 'superpoder',
             'archienemigo', 'comida_favorita', 'travesura_epica', 'lugar_favorito',
             'juguete_estrella', 'carta_despedida', 'soundtrack_url'
@@ -186,7 +186,13 @@ class BP_Profile {
 
         foreach ($meta_fields as $field) {
             if (isset($_POST[$field])) {
-                $val = is_numeric($_POST[$field]) ? intval($_POST[$field]) : sanitize_text_field($_POST[$field]);
+                if ($field === 'apodos') {
+                    $val = mb_substr(sanitize_text_field($_POST[$field]), 0, 30);
+                } elseif ($field === 'epitafio') {
+                    $val = mb_substr(sanitize_text_field($_POST[$field]), 0, 60);
+                } else {
+                    $val = is_numeric($_POST[$field]) ? intval($_POST[$field]) : sanitize_text_field($_POST[$field]);
+                }
                 update_post_meta($pet_id, $field, $val);
             }
         }

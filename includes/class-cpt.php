@@ -87,6 +87,7 @@ class BP_Custom_Post_Type {
         // Meta fields for bp_mascota
         $mascota_meta_keys = array(
             'apodos'           => 'string',
+            'epitafio'         => 'string',
             'titulo_honor'     => 'string',
             'especie_raza'     => 'string',
             'fecha_llegada'    => 'string',
@@ -233,6 +234,7 @@ class BP_Custom_Post_Type {
             'historia'         => wpautop($post->post_content),
             'imagen_url'       => $thumb_url ?: '',
             'apodos'           => get_post_meta($post->ID, 'apodos', true),
+            'epitafio'         => get_post_meta($post->ID, 'epitafio', true),
             'titulo_honor'     => get_post_meta($post->ID, 'titulo_honor', true),
             'especie_raza'     => get_post_meta($post->ID, 'especie_raza', true),
             'fecha_llegada'    => get_post_meta($post->ID, 'fecha_llegada', true),

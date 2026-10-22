@@ -1600,15 +1600,19 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <input type="text" name="nombre" class="bp-arcade-input" required value="${editData ? (editData.nombre || editPet.post_title || '') : ''}" placeholder="Ej: Toby" />
                             </div>
                             <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">2. APODOS</label>
-                                <input type="text" name="apodos" class="bp-arcade-input" value="${editData ? (editData.apodos || '') : ''}" placeholder='Ej: "Sr. Salchicha"' />
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">2. APODOS (MÁX. 30 CAT.)</label>
+                                <input type="text" name="apodos" class="bp-arcade-input" maxlength="30" value="${editData ? (editData.apodos || '') : ''}" placeholder='Ej: "Sr. Salchicha"' />
                             </div>
                             <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">3. TÍTULO DE HONOR</label>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">3. EPITAFIO (FRASE PARA LA LÁPIDA, MÁX. 60 CAT.)</label>
+                                <input type="text" name="epitafio" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.epitafio || '') : ''}" placeholder='Ej: "Siempre estarás corriendo feliz en nuestros corazones"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">4. TÍTULO DE HONOR</label>
                                 <input type="text" name="titulo_honor" class="bp-arcade-input" value="${editData ? (editData.titulo_honor || '') : ''}" placeholder='Ej: "Reina del Sofá"' />
                             </div>
                             <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">4. ESPECIE Y RAZA</label>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">5. ESPECIE Y RAZA</label>
                                 <input type="text" name="especie_raza" class="bp-arcade-input" value="${editData ? (editData.especie_raza || '') : ''}" placeholder='Ej: "Perro / Mezcla"' />
                             </div>
                         </div>
@@ -2280,29 +2284,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            const posX = clientX - rect.left;
-            const posY = clientY - rect.top;
-
-            tooltip.style.left = `${posX + 15}px`;
-            tooltip.style.top = `${posY + 15}px`;
             tooltip.classList.remove('hidden');
 
             if (ud.type === 'tombstone' || (ud.type === 'plot' && ud.occupied)) {
                 const tumba = ud.tombData || {};
-                const title = (tumba.title && typeof tumba.title === 'object') ? tumba.title.rendered : (tumba.title || 'Mascota Recordada');
-                const contentRaw = (tumba.content && typeof tumba.content === 'object') ? tumba.content.rendered : (tumba.content || '');
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = contentRaw;
-                const textExcerpt = tempDiv.textContent || tempDiv.innerText || 'En memoria eterna de nuestra amada mascota.';
+                const mData = tumba.mascota_data || {};
+                const title = mData.nombre || ((tumba.title && typeof tumba.title === 'object') ? tumba.title.rendered : (tumba.title || 'Mascota Recordada'));
+                const apodo = mData.apodos || '';
+                const fLlegada = mData.fecha_llegada || '';
+                const fDespedida = mData.fecha_despedida || '';
+                const datesText = (fLlegada || fDespedida) ? `📅 ${fLlegada || '?'} ➔ ${fDespedida || 'Eternidad'}` : '';
+                const epitafio = mData.epitafio || '';
 
                 tooltip.innerHTML = `
                     <div class="bp-tooltip-header">
-                        <span class="bp-badge occupied">Tumba de Mascota</span>
-                        <h4 class="bp-pet-title">${title}</h4>
+                        <span class="bp-badge occupied">🪦 Lápida Conmemorativa</span>
+                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px;">${title}</h4>
+                        ${apodo ? `<div style="font-size:13px; color:#ffd600; font-weight:700; margin-top:2px;">"${apodo}"</div>` : ''}
+                        ${datesText ? `<div style="font-size:11px; color:#a7f3d0; margin-top:4px;">${datesText}</div>` : ''}
                     </div>
-                    <p class="bp-pet-excerpt">"${textExcerpt.trim()}"</p>
-                    <div class="bp-tooltip-footer">
-                        <small>Parcela: ${ud.plotId || 'BosquePatitas'}</small>
+                    ${epitafio ? `<p class="bp-pet-excerpt" style="font-size:13px; color:#fef08a; margin:10px 0; font-style:italic;">"${epitafio}"</p>` : ''}
+                    <div class="bp-tooltip-footer" style="margin-top:8px;">
+                        <small style="color:#94a3b8;">Parcela: ${ud.plotId || 'BosquePatitas'} | Clic para ver ficha completa</small>
                     </div>
                 `;
             } else {
