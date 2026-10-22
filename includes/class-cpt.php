@@ -354,9 +354,19 @@ class BP_Custom_Post_Type {
             return new WP_REST_Response(array('success' => false, 'message' => 'La mascota aún no ha sido aprobada'), 400);
         }
 
-        $current_tumba_id = (int) get_post_meta($mascota_id, 'tumba_id', true);
-        if ($current_tumba_id > 0) {
-            return new WP_REST_Response(array('success' => false, 'message' => 'Esta mascota ya tiene una tumba asignada. Primero debes liberarla.'), 400);
+        // Delete any existing orphan tumba for this mascota to clean up past attempts
+        $existing_tumbas = get_posts(array(
+            'post_type'      => 'mascota_tumba',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'meta_key'       => 'mascota_id',
+            'meta_value'     => $mascota_id,
+            'fields'         => 'ids'
+        ));
+        if (!empty($existing_tumbas)) {
+            foreach ($existing_tumbas as $old_tumba_id) {
+                wp_delete_post($old_tumba_id, true);
+            }
         }
 
         // Create or update tumba

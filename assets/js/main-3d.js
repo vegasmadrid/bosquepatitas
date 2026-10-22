@@ -507,7 +507,93 @@ document.addEventListener('DOMContentLoaded', () => {
         return group;
     }
 
-    function createTombstoneModel() {
+    function createEngravedStoneTexture(mData) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+
+        // Dark grey granite stone background
+        ctx.fillStyle = '#6b7280';
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Stone texture noise
+        for (let i = 0; i < 6000; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 512;
+            const shade = Math.floor(80 + Math.random() * 80);
+            ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.15)`;
+            ctx.fillRect(x, y, 2, 2);
+        }
+
+        // Inner border
+        ctx.strokeStyle = '#d4af37';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(20, 20, 472, 472);
+
+        const nombre = (mData.nombre || 'Mascota').toUpperCase();
+        const apodo = mData.apodos ? `"${mData.apodos}"` : '';
+        const fLlegada = mData.fecha_llegada || '';
+        const fDespedida = mData.fecha_despedida || '';
+        const fechas = (fLlegada || fDespedida) ? `${fLlegada} - ${fDespedida}` : '';
+        const epitafio = mData.epitafio ? `"${mData.epitafio}"` : '';
+
+        ctx.textAlign = 'center';
+
+        // Engraved text styling with shadow effect
+        function drawEngravedText(text, x, y, font, color = '#111827', highlight = '#fef08a') {
+            ctx.font = font;
+            // Shadow
+            ctx.fillStyle = '#000000';
+            ctx.fillText(text, x + 2, y + 2);
+            // Highlight
+            ctx.fillStyle = highlight;
+            ctx.fillText(text, x, y);
+        }
+
+        // Paw Icon
+        drawEngravedText('🐾', 256, 80, '40px sans-serif', '#000', '#d4af37');
+
+        // Name
+        drawEngravedText(nombre, 256, 150, 'bold 36px serif', '#000', '#ffffff');
+
+        // Nickname
+        if (apodo) {
+            drawEngravedText(apodo, 256, 210, 'italic 26px serif', '#000', '#ffd600');
+        }
+
+        // Dates
+        if (fechas) {
+            drawEngravedText(fechas, 256, 270, 'bold 22px monospace', '#000', '#a7f3d0');
+        }
+
+        // Epitaph (wrapped)
+        if (epitafio) {
+            ctx.font = 'italic 20px serif';
+            const words = epitafio.split(' ');
+            let line = '';
+            let lineY = 350;
+
+            for (let i = 0; i < words.length; i++) {
+                const testLine = line + words[i] + ' ';
+                if (ctx.measureText(testLine).width > 420 && i > 0) {
+                    drawEngravedText(line.trim(), 256, lineY, 'italic 20px serif', '#000', '#fef08a');
+                    line = words[i] + ' ';
+                    lineY += 32;
+                } else {
+                    line = testLine;
+                }
+            }
+            if (line) {
+                drawEngravedText(line.trim(), 256, lineY, 'italic 20px serif', '#000', '#fef08a');
+            }
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        return texture;
+    }
+
+    function createTombstoneModel(tombData = null) {
         const group = new THREE.Group();
 
         const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x4d5358, roughness: 0.85, metalness: 0.1 });
@@ -528,8 +614,23 @@ document.addEventListener('DOMContentLoaded', () => {
         subBaseMesh.receiveShadow = true;
         group.add(subBaseMesh);
 
+        const mData = tombData ? (tombData.mascota_data || {}) : null;
+
+        let bodyMat = stoneMat;
+        if (mData && (mData.nombre || mData.apodos || mData.epitafio)) {
+            const texture = createEngravedStoneTexture(mData);
+            bodyMat = [
+                stoneMat, // right
+                stoneMat, // left
+                stoneMat, // top
+                stoneMat, // bottom
+                new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, metalness: 0.1 }), // front (+Z)
+                stoneMat  // back (-Z)
+            ];
+        }
+
         const bodyGeo = new THREE.BoxGeometry(0.8, 0.8, 0.22);
-        const bodyMesh = new THREE.Mesh(bodyGeo, stoneMat);
+        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
         bodyMesh.position.y = 0.76;
         bodyMesh.castShadow = true;
         bodyMesh.receiveShadow = true;
@@ -1198,7 +1299,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         if (plot) {
-                            const tombstoneMesh = createTombstoneModel();
+                            const tombstoneMesh = createTombstoneModel(tumba);
                             plotManager.assignTombToPlot(plot, tombstoneMesh, tumba);
                         }
                     });
@@ -1597,7 +1698,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">1. NOMBRE REAL *</label>
-                                <input type="text" name="nombre" class="bp-arcade-input" required value="${editData ? (editData.nombre || editPet.post_title || '') : ''}" placeholder="Ej: Toby" />
+                                <input type="text" name="nombre" class="bp-arcade-input" maxlength="50" required value="${editData ? (editData.nombre || editPet.post_title || '') : ''}" placeholder="Ej: Toby" />
                             </div>
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">2. APODOS (MÁX. 30 CAT.)</label>
@@ -1608,12 +1709,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <input type="text" name="epitafio" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.epitafio || '') : ''}" placeholder='Ej: "Siempre estarás corriendo feliz en nuestros corazones"' />
                             </div>
                             <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">4. TÍTULO DE HONOR</label>
-                                <input type="text" name="titulo_honor" class="bp-arcade-input" value="${editData ? (editData.titulo_honor || '') : ''}" placeholder='Ej: "Reina del Sofá"' />
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">4. TÍTULO DE HONOR (MÁX. 30 CAT.)</label>
+                                <input type="text" name="titulo_honor" class="bp-arcade-input" maxlength="30" value="${editData ? (editData.titulo_honor || '') : ''}" placeholder='Ej: "Reina del Sofá"' />
                             </div>
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">5. ESPECIE Y RAZA</label>
-                                <input type="text" name="especie_raza" class="bp-arcade-input" value="${editData ? (editData.especie_raza || '') : ''}" placeholder='Ej: "Perro / Mezcla"' />
+                                <input type="text" name="especie_raza" class="bp-arcade-input" maxlength="50" value="${editData ? (editData.especie_raza || '') : ''}" placeholder='Ej: "Perro / Mezcla"' />
                             </div>
                         </div>
 
@@ -1654,45 +1755,45 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">SUPERPODER DESTACADO</label>
-                                <input type="text" name="superpoder" class="bp-arcade-input" value="${editData ? (editData.superpoder || '') : ''}" placeholder='Ej: "Detectar premios a 3 km"' />
+                                <input type="text" name="superpoder" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.superpoder || '') : ''}" placeholder='Ej: "Detectar premios a 3 km"' />
                             </div>
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">ARCHIENEMIGO MORTAL</label>
-                                <input type="text" name="archienemigo" class="bp-arcade-input" value="${editData ? (editData.archienemigo || '') : ''}" placeholder='Ej: "La aspiradora"' />
+                                <input type="text" name="archienemigo" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.archienemigo || '') : ''}" placeholder='Ej: "La aspiradora"' />
                             </div>
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">COMIDA FAVORITA</label>
-                                <input type="text" name="comida_favorita" class="bp-arcade-input" value="${editData ? (editData.comida_favorita || '') : ''}" placeholder='Ej: "Jamón york"' />
+                                <input type="text" name="comida_favorita" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.comida_favorita || '') : ''}" placeholder='Ej: "Jamón york"' />
                             </div>
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">JUGUETE ESTRELLA</label>
-                                <input type="text" name="juguete_estrella" class="bp-arcade-input" value="${editData ? (editData.juguete_estrella || '') : ''}" placeholder='Ej: "Pelota de tenis"' />
+                                <input type="text" name="juguete_estrella" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.juguete_estrella || '') : ''}" placeholder='Ej: "Pelota de tenis"' />
                             </div>
                         </div>
 
                         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LUGAR FAVORITO</label>
-                                <input type="text" name="lugar_favorito" class="bp-arcade-input" value="${editData ? (editData.lugar_favorito || '') : ''}" placeholder='Ej: "Rincón del sofá"' />
+                                <input type="text" name="lugar_favorito" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.lugar_favorito || '') : ''}" placeholder='Ej: "Rincón del sofá"' />
                             </div>
                             <div>
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">TRAVESURA ÉPICA</label>
-                                <input type="text" name="travesura_epica" class="bp-arcade-input" value="${editData ? (editData.travesura_epica || '') : ''}" placeholder='Ej: "Se comió la tarta de cumpleaños"' />
+                                <input type="text" name="travesura_epica" class="bp-arcade-input" maxlength="100" value="${editData ? (editData.travesura_epica || '') : ''}" placeholder='Ej: "Se comió la tarta de cumpleaños"' />
                             </div>
                             <div style="grid-column: span 2;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">BANDA SONORA (ENLACE YOUTUBE O SPOTIFY)</label>
-                                <input type="url" name="soundtrack_url" class="bp-arcade-input" value="${editData ? (editData.soundtrack_url || '') : ''}" placeholder="https://www.youtube.com/watch?v=..." />
+                                <input type="url" name="soundtrack_url" class="bp-arcade-input" maxlength="200" value="${editData ? (editData.soundtrack_url || '') : ''}" placeholder="https://www.youtube.com/watch?v=..." />
                             </div>
                         </div>
 
                         <div style="margin-bottom:15px;">
                             <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LA GRAN ANÉCDOTA / HISTORIA *</label>
-                            <textarea name="historia" rows="3" class="bp-arcade-input" required placeholder="Cuéntanos su historia...">${editData ? (editData.historia || editPet.post_content || '') : ''}</textarea>
+                            <textarea name="historia" rows="3" class="bp-arcade-input" maxlength="2000" required placeholder="Cuéntanos su historia...">${editData ? (editData.historia || editPet.post_content || '') : ''}</textarea>
                         </div>
 
                         <div style="margin-bottom:15px;">
                             <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">CARTA DE DESPEDIDA</label>
-                            <textarea name="carta_despedida" rows="3" class="bp-arcade-input" placeholder="Tu mensaje personal de amor y despedida...">${editData ? (editData.carta_despedida || '') : ''}</textarea>
+                            <textarea name="carta_despedida" rows="3" class="bp-arcade-input" maxlength="2000" placeholder="Tu mensaje personal de amor y despedida...">${editData ? (editData.carta_despedida || '') : ''}</textarea>
                         </div>
 
                         <div id="bp-arcade-feedback" style="display:none; font-size:12px; margin-bottom:12px; color:#2ecc71;"></div>
@@ -1879,11 +1980,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     Para solicitar una parcela necesitas tener al menos una mascota validada con el tik verde ✔ por el equipo de BosquePatitas.
                 </p>
                 <div style="text-align:center;">
-                    <a href="${settings.profileUrl}" class="bp-btn bp-btn-primary" style="display:inline-block; background:#2d6a4f; color:#ffffff; padding:12px 20px; border-radius:8px; font-weight:700; text-decoration:none;">
+                    <button id="bp-btn-go-to-mascotas" class="bp-btn bp-btn-primary" style="display:inline-block; background:#2d6a4f; color:#ffffff; padding:12px 20px; border-radius:8px; font-weight:700; border:none; cursor:pointer;">
                         🐾 Registrar y Validar Mascota
-                    </a>
+                    </button>
                 </div>
             `;
+            const goToMascotasBtn = document.getElementById('bp-btn-go-to-mascotas');
+            if (goToMascotasBtn) {
+                goToMascotasBtn.addEventListener('click', () => {
+                    claimModal.classList.add('hidden');
+                    openArcadePetsModal();
+                });
+            }
         } else {
             let optionsHtml = '';
             settings.approvedPets.forEach(pet => {
@@ -1941,7 +2049,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             // Find plot object
                             const plot = plotManager.plots.find(p => p.id === userData.plotId);
                             if (plot) {
-                                const tombstoneMesh = createTombstoneModel();
                                 const tombData = {
                                     id: data.tumba_id,
                                     title: { rendered: 'Tumba de ' + data.mascota_data.nombre },
@@ -1949,6 +2056,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     meta: { posicion_x: pos.x, posicion_y: pos.y, posicion_z: pos.z },
                                     mascota_data: data.mascota_data
                                 };
+                                const tombstoneMesh = createTombstoneModel(tombData);
                                 plotManager.assignTombToPlot(plot, tombstoneMesh, tombData);
                             }
 
@@ -2290,6 +2398,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tumba = ud.tombData || {};
                 const mData = tumba.mascota_data || {};
                 const title = mData.nombre || ((tumba.title && typeof tumba.title === 'object') ? tumba.title.rendered : (tumba.title || 'Mascota Recordada'));
+                const honor = mData.titulo_honor || '';
                 const apodo = mData.apodos || '';
                 const fLlegada = mData.fecha_llegada || '';
                 const fDespedida = mData.fecha_despedida || '';
@@ -2300,6 +2409,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="bp-tooltip-header">
                         <span class="bp-badge occupied">🪦 Lápida Conmemorativa</span>
                         <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px;">${title}</h4>
+                        ${honor ? `<div style="font-size:12px; color:#34d399; font-weight:700; margin-top:2px;">👑 ${honor}</div>` : ''}
                         ${apodo ? `<div style="font-size:13px; color:#ffd600; font-weight:700; margin-top:2px;">"${apodo}"</div>` : ''}
                         ${datesText ? `<div style="font-size:11px; color:#a7f3d0; margin-top:4px;">${datesText}</div>` : ''}
                     </div>

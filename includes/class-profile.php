@@ -177,23 +177,35 @@ class BP_Profile {
         update_post_meta($pet_id, 'is_approved', '0');
 
         // Save metadata fields with character limits
-        $meta_fields = array(
-            'apodos', 'epitafio', 'titulo_honor', 'especie_raza', 'fecha_llegada', 'fecha_despedida',
-            'stat_carino', 'stat_travesura', 'stat_bano', 'stat_pena', 'superpoder',
-            'archienemigo', 'comida_favorita', 'travesura_epica', 'lugar_favorito',
-            'juguete_estrella', 'carta_despedida', 'soundtrack_url'
+        $meta_limits = array(
+            'apodos'           => 30,
+            'epitafio'         => 60,
+            'titulo_honor'     => 30,
+            'especie_raza'     => 50,
+            'fecha_llegada'    => 20,
+            'fecha_despedida'  => 20,
+            'superpoder'       => 60,
+            'archienemigo'     => 60,
+            'comida_favorita'  => 60,
+            'travesura_epica'  => 100,
+            'lugar_favorito'   => 60,
+            'juguete_estrella' => 60,
+            'carta_despedida'  => 2000,
+            'soundtrack_url'   => 200
         );
 
-        foreach ($meta_fields as $field) {
+        foreach ($meta_limits as $field => $max_len) {
             if (isset($_POST[$field])) {
-                if ($field === 'apodos') {
-                    $val = mb_substr(sanitize_text_field($_POST[$field]), 0, 30);
-                } elseif ($field === 'epitafio') {
-                    $val = mb_substr(sanitize_text_field($_POST[$field]), 0, 60);
-                } else {
-                    $val = is_numeric($_POST[$field]) ? intval($_POST[$field]) : sanitize_text_field($_POST[$field]);
-                }
+                $val = mb_substr(sanitize_text_field($_POST[$field]), 0, $max_len);
                 update_post_meta($pet_id, $field, $val);
+            }
+        }
+
+        $stat_fields = array('stat_carino', 'stat_travesura', 'stat_bano', 'stat_pena');
+        foreach ($stat_fields as $s_field) {
+            if (isset($_POST[$s_field])) {
+                $val = min(10, max(1, intval($_POST[$s_field])));
+                update_post_meta($pet_id, $s_field, $val);
             }
         }
 
