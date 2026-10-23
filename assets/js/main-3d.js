@@ -216,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let cameraYaw = 0;
     let targetCameraYaw = 0;
     let cameraPitch = 0;
+    let targetCameraPitch = 0;
     camera.position.set(0, PLAYER_HEIGHT, 15);
     camera.rotation.order = 'YXZ';
 
@@ -1342,6 +1343,10 @@ document.addEventListener('DOMContentLoaded', () => {
         autoWalkTarget = null;
     }
 
+    function resetCameraPitch() {
+        targetCameraPitch = 0;
+    }
+
     // Escuchadores Teclado
     window.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -1351,22 +1356,28 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'ArrowUp':
             case 'KeyW':
                 keyState.forward = true;
+                resetCameraPitch();
                 break;
             case 'ArrowDown':
             case 'KeyS':
                 keyState.backward = true;
+                resetCameraPitch();
                 break;
             case 'ArrowLeft':
                 keyState.turnLeft = true;
+                resetCameraPitch();
                 break;
             case 'ArrowRight':
                 keyState.turnRight = true;
+                resetCameraPitch();
                 break;
             case 'KeyA':
                 keyState.strafeLeft = true;
+                resetCameraPitch();
                 break;
             case 'KeyD':
                 keyState.strafeRight = true;
+                resetCameraPitch();
                 break;
             default:
                 handled = false;
@@ -1407,6 +1418,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentMode !== MODE_GROUND) return;
         e.preventDefault();
         stopAutoWalk();
+        resetCameraPitch();
 
         const scrollSpeed = 1.2;
         const moveZ = e.deltaY > 0 ? 1 : -1; // deltaY > 0 es scroll hacia abajo (retroceder), < 0 avance
@@ -1433,6 +1445,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             touchState[action] = true;
             stopAutoWalk();
+            resetCameraPitch();
             btn.classList.add('active');
         };
 
@@ -1485,6 +1498,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             camera.position.set(targetX, PLAYER_HEIGHT, targetZ);
             cameraPitch = 0;
+            targetCameraPitch = 0;
             targetCameraYaw = cameraYaw;
             camera.rotation.set(0, cameraYaw, 0, 'YXZ');
 
@@ -2441,7 +2455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             openModalForObject(obj.userData, plotGroup);
                         } else {
                             const rotY = plotGroup.rotation.y || 0;
-                            const approachDist = 1.4;
+                            const approachDist = 1.8;
 
                             const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
                             const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
@@ -2449,11 +2463,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
                             finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
 
+                            // Calculate pitch angle so camera looks directly at tombstone face center (Y = 0.75m)
+                            const tombstoneCenterY = 0.75;
+                            const finalPitch = Math.atan2(tombstoneCenterY - PLAYER_HEIGHT, approachDist);
+
                             autoWalkTarget = {
                                 x: targetX,
                                 z: targetZ,
                                 targetPlotPos: targetPos,
                                 finalYaw: finalYaw,
+                                finalPitch: finalPitch,
                                 pendingUserData: obj.userData,
                                 pendingPlotGroup: plotGroup
                             };
@@ -2522,11 +2541,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (totalPointerMove > 5) {
             stopAutoWalk();
+            resetCameraPitch();
         }
 
         const sensitivity = 0.0032;
         targetCameraYaw -= dx * sensitivity;
-        cameraPitch = 0;
     };
 
     const onPointerUp = (event) => {
@@ -2597,12 +2616,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     targetCameraYaw += yawDiff * 0.18;
+                    if (autoWalkTarget.finalPitch !== undefined) {
+                        targetCameraPitch = autoWalkTarget.finalPitch;
+                    }
                 } else {
                     // Posición y orientación frontal exactas alcanzadas
                     camera.position.x = autoWalkTarget.x;
                     camera.position.z = autoWalkTarget.z;
                     targetCameraYaw = finalYaw;
                     cameraYaw = finalYaw;
+                    if (autoWalkTarget.finalPitch !== undefined) {
+                        targetCameraPitch = autoWalkTarget.finalPitch;
+                    }
 
                     const pendingData = autoWalkTarget.pendingUserData;
                     const pendingGroup = autoWalkTarget.pendingPlotGroup;
@@ -2642,19 +2667,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Suavizado e inercia de rotación (Damping)
+            // Suavizado e inercia de rotación horizontal (Yaw) y vertical (Pitch)
             let diffYaw = targetCameraYaw - cameraYaw;
             diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
             cameraYaw += diffYaw * 0.15;
+
+            cameraPitch += (targetCameraPitch - cameraPitch) * 0.12;
 
             camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
             camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
             camera.position.y = PLAYER_HEIGHT;
 
-            cameraPitch = 0;
             camera.rotation.order = 'YXZ';
             camera.rotation.y = cameraYaw;
-            camera.rotation.x = 0;
+            camera.rotation.x = cameraPitch;
             camera.rotation.z = 0;
         } else if (controls) {
             controls.update();
