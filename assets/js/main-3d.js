@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     camera.position.set(0, PLAYER_HEIGHT, 15);
     camera.rotation.order = 'YXZ';
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
     renderer.shadowMap.enabled = true;
@@ -510,27 +510,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createEngravedStoneTexture(mData) {
         const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
+        canvas.width = 1024;
+        canvas.height = 1024;
         const ctx = canvas.getContext('2d');
 
         // Dark grey granite stone background
         ctx.fillStyle = '#6b7280';
-        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillRect(0, 0, 1024, 1024);
 
         // Stone texture noise
-        for (let i = 0; i < 6000; i++) {
-            const x = Math.random() * 512;
-            const y = Math.random() * 512;
+        for (let i = 0; i < 20000; i++) {
+            const x = Math.random() * 1024;
+            const y = Math.random() * 1024;
             const shade = Math.floor(80 + Math.random() * 80);
             ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.15)`;
-            ctx.fillRect(x, y, 2, 2);
+            ctx.fillRect(x, y, 3, 3);
         }
 
-        // Inner border
+        // Inner border (double frame for elegance)
         ctx.strokeStyle = '#d4af37';
-        ctx.lineWidth = 6;
-        ctx.strokeRect(20, 20, 472, 472);
+        ctx.lineWidth = 12;
+        ctx.strokeRect(35, 35, 954, 954);
+        ctx.lineWidth = 4;
+        ctx.strokeRect(55, 55, 914, 914);
 
         const nombre = (mData.nombre || 'Mascota').toUpperCase();
         const apodo = mData.apodos ? `"${mData.apodos}"` : '';
@@ -544,49 +546,52 @@ document.addEventListener('DOMContentLoaded', () => {
         // Engraved text styling with shadow effect
         function drawEngravedText(text, x, y, font, color = '#111827', highlight = '#fef08a') {
             ctx.font = font;
-            // Shadow
+            // Deep Shadow
             ctx.fillStyle = '#000000';
-            ctx.fillText(text, x + 2, y + 2);
+            ctx.fillText(text, x + 4, y + 4);
             // Highlight
             ctx.fillStyle = highlight;
             ctx.fillText(text, x, y);
         }
 
         // Paw Icon
-        drawEngravedText('🐾', 256, 80, '40px sans-serif', '#000', '#d4af37');
+        drawEngravedText('🐾', 512, 170, '70px sans-serif', '#000', '#d4af37');
 
-        // Name
-        drawEngravedText(nombre, 256, 150, 'bold 36px serif', '#000', '#ffffff');
+        // Name (bold 72px)
+        drawEngravedText(nombre, 512, 310, 'bold 72px serif', '#000', '#ffffff');
 
         // Nickname
+        let currentY = 410;
         if (apodo) {
-            drawEngravedText(apodo, 256, 210, 'italic 26px serif', '#000', '#ffd600');
+            drawEngravedText(apodo, 512, currentY, 'italic 50px serif', '#000', '#ffd600');
+            currentY += 100;
         }
 
-        // Dates
+        // Dates (large, clear 52px bold sans-serif)
         if (fechas) {
-            drawEngravedText(fechas, 256, 270, 'bold 22px monospace', '#000', '#a7f3d0');
+            drawEngravedText(fechas, 512, currentY, 'bold 52px sans-serif', '#000', '#fef08a');
+            currentY += 100;
         }
 
         // Epitaph (wrapped)
         if (epitafio) {
-            ctx.font = 'italic 20px serif';
+            ctx.font = 'italic 42px serif';
             const words = epitafio.split(' ');
             let line = '';
-            let lineY = 350;
+            let lineY = currentY + 20;
 
             for (let i = 0; i < words.length; i++) {
                 const testLine = line + words[i] + ' ';
-                if (ctx.measureText(testLine).width > 420 && i > 0) {
-                    drawEngravedText(line.trim(), 256, lineY, 'italic 20px serif', '#000', '#fef08a');
+                if (ctx.measureText(testLine).width > 820 && i > 0) {
+                    drawEngravedText(line.trim(), 512, lineY, 'italic 42px serif', '#000', '#ffffff');
                     line = words[i] + ' ';
-                    lineY += 32;
+                    lineY += 60;
                 } else {
                     line = testLine;
                 }
             }
             if (line) {
-                drawEngravedText(line.trim(), 256, lineY, 'italic 20px serif', '#000', '#fef08a');
+                drawEngravedText(line.trim(), 512, lineY, 'italic 42px serif', '#000', '#ffffff');
             }
         }
 
@@ -648,7 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const ornamentGeo = new THREE.OctahedronGeometry(0.09);
         const ornamentMesh = new THREE.Mesh(ornamentGeo, goldMat);
-        ornamentMesh.position.set(0, 0.9, 0.12);
+        ornamentMesh.position.set(0, 1.28, 0.12);
         ornamentMesh.castShadow = true;
         group.add(ornamentMesh);
 
