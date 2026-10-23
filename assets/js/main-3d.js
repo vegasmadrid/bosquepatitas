@@ -214,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAP_LIMIT = 32.2; // Límite de movimiento interno dentro de la verja victoriana (33.0)
 
     let cameraYaw = 0;
+    let targetCameraYaw = 0;
     let cameraPitch = 0;
     camera.position.set(0, PLAYER_HEIGHT, 15);
     camera.rotation.order = 'YXZ';
@@ -1478,6 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             camera.position.set(targetX, PLAYER_HEIGHT, targetZ);
             cameraPitch = 0;
+            targetCameraYaw = cameraYaw;
             camera.rotation.set(0, cameraYaw, 0, 'YXZ');
 
             if (slotViewDesc) slotViewDesc.textContent = 'Alternar a Vista Aérea Orbit';
@@ -1640,12 +1642,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 cardsHtml += `
                     <div class="bp-arcade-card">
                         <div class="bp-arcade-card-head">
-                            ${imgUrl ? `<img src="${imgUrl}" class="bp-arcade-avatar" />` : `<div class="bp-arcade-avatar" style="display:flex; align-items:center; justify-content:center; font-size:28px;">🐾</div>`}
+                            ${imgUrl ? `<img src="${imgUrl}" class="bp-arcade-avatar" />` : `<div class="bp-arcade-avatar bp-arcade-avatar-placeholder"><span class="bp-paw-icon-bright">🐾</span></div>`}
                             <div>
                                 <h4 class="bp-arcade-card-title">${title}</h4>
-                                ${honor ? `<div style="font-size:11px; color:#34d399;">👑 ${honor}</div>` : ''}
-                                ${especie ? `<div style="font-size:10px; color:#94a3b8;">🐾 ${especie}</div>` : ''}
-                                <div style="margin-top:4px;">
+                                ${honor ? `<div style="font-size:11px; color:#34d399 !important; font-weight:700;">👑 ${honor}</div>` : ''}
+                                ${especie ? `<div style="font-size:11px; color:#ffd600 !important; font-weight:700; display:flex; align-items:center; gap:4px;"><span class="bp-paw-icon-bright">🐾</span> ${especie}</div>` : ''}
+                                <div style="margin-top:6px;">
                                     ${isApproved ? `<span class="bp-arcade-badge approved">✔ VALIDADA</span>` : `<span class="bp-arcade-badge pending">⏳ EN REVISIÓN</span>`}
                                 </div>
                             </div>
@@ -2408,25 +2410,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 tooltip.innerHTML = `
                     <div class="bp-tooltip-header">
                         <span class="bp-badge occupied">🪦 Lápida Conmemorativa</span>
-                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px;">${title}</h4>
-                        ${honor ? `<div style="font-size:12px; color:#34d399; font-weight:700; margin-top:2px;">👑 ${honor}</div>` : ''}
-                        ${apodo ? `<div style="font-size:13px; color:#ffd600; font-weight:700; margin-top:2px;">"${apodo}"</div>` : ''}
-                        ${datesText ? `<div style="font-size:11px; color:#a7f3d0; margin-top:4px;">${datesText}</div>` : ''}
+                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px; color:#ffffff !important; font-weight:800;">${title}</h4>
+                        ${honor ? `<div style="font-size:12px; color:#34d399 !important; font-weight:700; margin-top:2px;">👑 ${honor}</div>` : ''}
+                        ${apodo ? `<div style="font-size:13px; color:#ffd600 !important; font-weight:700; margin-top:2px;">"${apodo}"</div>` : ''}
+                        ${datesText ? `<div style="font-size:11px; color:#a7f3d0 !important; margin-top:4px;">${datesText}</div>` : ''}
                     </div>
-                    ${epitafio ? `<p class="bp-pet-excerpt" style="font-size:13px; color:#fef08a; margin:10px 0; font-style:italic;">"${epitafio}"</p>` : ''}
+                    ${epitafio ? `<p class="bp-pet-excerpt" style="font-size:13px; color:#fef08a !important; margin:10px 0; font-style:italic;">"${epitafio}"</p>` : ''}
                     <div class="bp-tooltip-footer" style="margin-top:8px;">
-                        <small style="color:#94a3b8;">Parcela: ${ud.plotId || 'BosquePatitas'} | Clic para ver ficha completa</small>
+                        <small style="color:#94a3b8 !important;">Parcela: ${ud.plotId || 'BosquePatitas'} | Clic para ver ficha completa</small>
                     </div>
                 `;
             } else {
                 tooltip.innerHTML = `
                     <div class="bp-tooltip-header">
                         <span class="bp-badge free">Parcela Disponible</span>
-                        <h4 class="bp-pet-title">Espacio para Homenaje</h4>
+                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px; color:#ffffff !important; font-weight:800;">Espacio para Homenaje</h4>
                     </div>
-                    <p class="bp-pet-excerpt">Esta parcela está libre para recordar a una mascota especial.</p>
+                    <p class="bp-pet-excerpt" style="color:#e2e8f0 !important; font-size:13px; margin:8px 0;">Esta parcela está libre para recordar a una mascota especial.</p>
                     <div class="bp-tooltip-footer">
-                        <small>Código: ${ud.plotId}</small>
+                        <small style="color:#94a3b8 !important;">Código: ${ud.plotId}</small>
                     </div>
                 `;
             }
@@ -2451,24 +2453,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (currentMode === MODE_AERIAL) {
                             if (controls) controls.target.set(targetPos.x, targetPos.y + 0.8, targetPos.z);
+                            openModalForObject(obj.userData, plotGroup);
                         } else {
-                            const dx = camera.position.x - targetPos.x;
-                            const dz = camera.position.z - targetPos.z;
-                            const len = Math.hypot(dx, dz) || 1;
-                            const approachDist = 2.4;
+                            const rotY = plotGroup.rotation.y || 0;
+                            const approachDist = 2.2;
 
-                            const targetX = targetPos.x + (dx / len) * approachDist;
-                            const targetZ = targetPos.z + (dz / len) * approachDist;
+                            const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
+                            const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
+
+                            let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
+                            finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
 
                             autoWalkTarget = {
-                                x: Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetX)),
-                                z: Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetZ)),
-                                targetPlotPos: targetPos
+                                x: targetX,
+                                z: targetZ,
+                                targetPlotPos: targetPos,
+                                finalYaw: finalYaw,
+                                pendingUserData: obj.userData,
+                                pendingPlotGroup: plotGroup
                             };
                             isAutoWalking = true;
                         }
-
-                        openModalForObject(obj.userData, plotGroup);
                     }
                     break;
                 }
@@ -2535,11 +2540,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const sensitivity = 0.0032;
-        cameraYaw -= dx * sensitivity;
-        cameraPitch -= dy * sensitivity;
-
-        const maxPitch = Math.PI / 3;
-        cameraPitch = Math.max(-maxPitch, Math.min(maxPitch, cameraPitch));
+        targetCameraYaw -= dx * sensitivity;
+        cameraPitch = 0;
     };
 
     const onPointerUp = (event) => {
@@ -2592,24 +2594,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dz = autoWalkTarget.z - camera.position.z;
                 const dist = Math.hypot(dx, dz);
 
-                if (dist > 0.25) {
-                    camera.position.x += (dx / dist) * Math.min(dist, moveSpeed * 1.3);
-                    camera.position.z += (dz / dist) * Math.min(dist, moveSpeed * 1.3);
+                const finalYaw = (autoWalkTarget.finalYaw !== undefined)
+                    ? autoWalkTarget.finalYaw
+                    : Math.atan2(-(autoWalkTarget.targetPlotPos.x - camera.position.x), -(autoWalkTarget.targetPlotPos.z - camera.position.z));
 
-                    if (autoWalkTarget.targetPlotPos) {
-                        const lookDx = autoWalkTarget.targetPlotPos.x - camera.position.x;
-                        const lookDz = autoWalkTarget.targetPlotPos.z - camera.position.z;
-                        let targetYaw = Math.atan2(-lookDx, -lookDz);
-                        let diffYaw = targetYaw - cameraYaw;
-                        diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
-                        cameraYaw += diffYaw * 0.12;
+                let yawDiff = finalYaw - targetCameraYaw;
+                yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
+
+                if (dist > 0.08 || Math.abs(yawDiff) > 0.03) {
+                    if (dist > 0.08) {
+                        const walkSpeed = Math.min(dist, moveSpeed * 1.4);
+                        camera.position.x += (dx / dist) * walkSpeed;
+                        camera.position.z += (dz / dist) * walkSpeed;
+                    } else {
+                        camera.position.x = autoWalkTarget.x;
+                        camera.position.z = autoWalkTarget.z;
                     }
+
+                    targetCameraYaw += yawDiff * 0.18;
                 } else {
+                    // Posición y orientación frontal exactas alcanzadas
+                    camera.position.x = autoWalkTarget.x;
+                    camera.position.z = autoWalkTarget.z;
+                    targetCameraYaw = finalYaw;
+                    cameraYaw = finalYaw;
+
+                    const pendingData = autoWalkTarget.pendingUserData;
+                    const pendingGroup = autoWalkTarget.pendingPlotGroup;
                     stopAutoWalk();
+
+                    if (pendingData && pendingGroup) {
+                        setTimeout(() => {
+                            openModalForObject(pendingData, pendingGroup);
+                        }, 120);
+                    }
                 }
             } else {
-                if (keyState.turnLeft || touchState.turnLeft) cameraYaw += turnSpeed;
-                if (keyState.turnRight || touchState.turnRight) cameraYaw -= turnSpeed;
+                if (keyState.turnLeft || touchState.turnLeft) targetCameraYaw += turnSpeed;
+                if (keyState.turnRight || touchState.turnRight) targetCameraYaw -= turnSpeed;
 
                 let moveX = 0;
                 let moveZ = 0;
@@ -2635,13 +2657,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Suavizado e inercia de rotación (Damping)
+            let diffYaw = targetCameraYaw - cameraYaw;
+            diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
+            cameraYaw += diffYaw * 0.15;
+
             camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
             camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
             camera.position.y = PLAYER_HEIGHT;
 
+            cameraPitch = 0;
             camera.rotation.order = 'YXZ';
             camera.rotation.y = cameraYaw;
-            camera.rotation.x = cameraPitch;
+            camera.rotation.x = 0;
             camera.rotation.z = 0;
         } else if (controls) {
             controls.update();
