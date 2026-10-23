@@ -11,6 +11,8 @@ class BP_Custom_Post_Type {
         add_filter('rest_prepare_mascota_tumba', array($this, 'filter_rest_response'), 10, 3);
         add_filter('rest_prepare_bp_mascota', array($this, 'filter_rest_mascota_response'), 10, 3);
         add_action('rest_api_init', array($this, 'register_custom_rest_routes'));
+        add_filter('manage_mascota_tumba_posts_columns', array($this, 'set_mascota_tumba_columns'));
+        add_action('manage_mascota_tumba_posts_custom_column', array($this, 'custom_mascota_tumba_column'), 10, 2);
     }
 
     public function register_cpt() {
@@ -18,7 +20,6 @@ class BP_Custom_Post_Type {
             'name'          => 'Tumbas',
             'singular_name' => 'Tumba',
             'menu_name'     => 'BosquePatitas',
-            'add_new_item'  => 'Añadir Nueva Tumba',
         );
 
         $args = array(
@@ -28,6 +29,10 @@ class BP_Custom_Post_Type {
             'rest_base'    => 'tumbas',
             'supports'     => array('title', 'editor', 'thumbnail', 'author'),
             'menu_icon'    => 'dashicons-location-alt',
+            'capabilities' => array(
+                'create_posts' => 'do_not_allow',
+            ),
+            'map_meta_cap' => true,
         );
 
         register_post_type('mascota_tumba', $args);
@@ -428,6 +433,54 @@ class BP_Custom_Post_Type {
         update_post_meta($mascota_id, 'tumba_id', 0);
 
         return new WP_REST_Response(array('success' => true, 'mascota_id' => $mascota_id), 200);
+    }
+
+    public function set_mascota_tumba_columns($columns) {
+        $new_columns = array(
+            'cb'         => $columns['cb'],
+            'title'      => 'Tumba / Título',
+            'coordenadas'=> 'Coordenadas 3D (X, Y, Z)',
+            'estado'     => 'Estado de Ocupación',
+            'mascota'    => 'Mascota Asignada',
+            'date'       => $columns['date']
+        );
+        return $new_columns;
+    }
+
+    public function custom_mascota_tumba_column($column, $post_id) {
+        switch ($column) {
+            case 'coordenadas':
+                $x = floatval(get_post_meta($post_id, 'posicion_x', true));
+                $y = floatval(get_post_meta($post_id, 'posicion_y', true));
+                $z = floatval(get_post_meta($post_id, 'posicion_z', true));
+                echo '<code>X: ' . number_format($x, 2) . ' | Y: ' . number_format($y, 2) . ' | Z: ' . number_format($z, 2) . '</code>';
+                break;
+            case 'estado':
+                $mascota_id = (int) get_post_meta($post_id, 'mascota_id', true);
+                if ($mascota_id > 0 && get_post($mascota_id)) {
+                    echo '<span style="color:#2e7d32; font-weight:bold;">🟢 Asignada</span>';
+                } else {
+                    echo '<span style="color:#757575; font-weight:bold;">⚪ Vacía / Libre</span>';
+                }
+                break;
+            case 'mascota':
+                $mascota_id = (int) get_post_meta($post_id, 'mascota_id', true);
+                if ($mascota_id > 0) {
+                    $mascota = get_post($mascota_id);
+                    if ($mascota) {
+                        $edit_link = get_edit_post_link($mascota_id);
+                        $author_id = $mascota->post_author;
+                        $author_name = get_the_author_meta('display_name', $author_id);
+                        echo '<a href="' . esc_url($edit_link) . '"><strong>' . esc_html($mascota->post_title) . '</strong></a>';
+                        echo '<br><small>Dueño: ' . esc_html($author_name) . '</small>';
+                    } else {
+                        echo '<em>Mascota eliminada</em>';
+                    }
+                } else {
+                    echo '<em>— Sin mascota —</em>';
+                }
+                break;
+        }
     }
 }
 
