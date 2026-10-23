@@ -216,10 +216,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let cameraYaw = 0;
     let targetCameraYaw = 0;
     let cameraPitch = 0;
+    let targetCameraPitch = 0;
     camera.position.set(0, PLAYER_HEIGHT, 15);
     camera.rotation.order = 'YXZ';
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
     renderer.shadowMap.enabled = true;
@@ -510,27 +511,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createEngravedStoneTexture(mData) {
         const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
+        canvas.width = 2048;
+        canvas.height = 2048;
         const ctx = canvas.getContext('2d');
 
         // Dark grey granite stone background
-        ctx.fillStyle = '#6b7280';
-        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillStyle = '#616872';
+        ctx.fillRect(0, 0, 2048, 2048);
 
         // Stone texture noise
-        for (let i = 0; i < 6000; i++) {
-            const x = Math.random() * 512;
-            const y = Math.random() * 512;
-            const shade = Math.floor(80 + Math.random() * 80);
-            ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.15)`;
-            ctx.fillRect(x, y, 2, 2);
+        for (let i = 0; i < 50000; i++) {
+            const x = Math.random() * 2048;
+            const y = Math.random() * 2048;
+            const shade = Math.floor(70 + Math.random() * 90);
+            ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.18)`;
+            ctx.fillRect(x, y, 5, 5);
         }
 
-        // Inner border
-        ctx.strokeStyle = '#d4af37';
-        ctx.lineWidth = 6;
-        ctx.strokeRect(20, 20, 472, 472);
+        // Inner border (double gold frame)
+        ctx.strokeStyle = '#ffd600';
+        ctx.lineWidth = 24;
+        ctx.strokeRect(70, 70, 1908, 1908);
+        ctx.lineWidth = 8;
+        ctx.strokeRect(110, 110, 1828, 1828);
 
         const nombre = (mData.nombre || 'Mascota').toUpperCase();
         const apodo = mData.apodos ? `"${mData.apodos}"` : '';
@@ -541,52 +544,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ctx.textAlign = 'center';
 
-        // Engraved text styling with shadow effect
-        function drawEngravedText(text, x, y, font, color = '#111827', highlight = '#fef08a') {
+        // Engraved text styling with heavy dark shadow & high contrast fill
+        function drawEngravedText(text, x, y, font, highlight = '#ffffff', shadowOffset = 8) {
             ctx.font = font;
-            // Shadow
+            // Heavy Deep Shadow for 3D Engraved Look
             ctx.fillStyle = '#000000';
-            ctx.fillText(text, x + 2, y + 2);
-            // Highlight
+            ctx.fillText(text, x + shadowOffset, y + shadowOffset);
+            ctx.fillText(text, x + shadowOffset / 2, y + shadowOffset / 2);
+            // Crisp Highlight
             ctx.fillStyle = highlight;
             ctx.fillText(text, x, y);
         }
 
         // Paw Icon
-        drawEngravedText('🐾', 256, 80, '40px sans-serif', '#000', '#d4af37');
+        drawEngravedText('🐾', 1024, 280, '120px sans-serif', '#ffd600', 10);
 
-        // Name
-        drawEngravedText(nombre, 256, 150, 'bold 36px serif', '#000', '#ffffff');
+        // Name (Ultra bold 135px)
+        drawEngravedText(nombre, 1024, 540, 'bold 135px serif', '#ffffff', 12);
 
         // Nickname
+        let currentY = 710;
         if (apodo) {
-            drawEngravedText(apodo, 256, 210, 'italic 26px serif', '#000', '#ffd600');
+            drawEngravedText(apodo, 1024, currentY, 'bold italic 90px serif', '#ffd600', 10);
+            currentY += 190;
         }
 
-        // Dates
+        // Dates (Large, ultra-crisp 95px bold sans-serif)
         if (fechas) {
-            drawEngravedText(fechas, 256, 270, 'bold 22px monospace', '#000', '#a7f3d0');
+            drawEngravedText(fechas, 1024, currentY, 'bold 95px sans-serif', '#fef08a', 10);
+            currentY += 210;
         }
 
-        // Epitaph (wrapped)
+        // Epitaph (Large 85px bold italic serif with prominent vertical space)
         if (epitafio) {
-            ctx.font = 'italic 20px serif';
+            ctx.font = 'bold italic 85px serif';
             const words = epitafio.split(' ');
             let line = '';
-            let lineY = 350;
+            let lineY = currentY + 30;
 
             for (let i = 0; i < words.length; i++) {
                 const testLine = line + words[i] + ' ';
-                if (ctx.measureText(testLine).width > 420 && i > 0) {
-                    drawEngravedText(line.trim(), 256, lineY, 'italic 20px serif', '#000', '#fef08a');
+                if (ctx.measureText(testLine).width > 1650 && i > 0) {
+                    drawEngravedText(line.trim(), 1024, lineY, 'bold italic 85px serif', '#ffffff', 10);
                     line = words[i] + ' ';
-                    lineY += 32;
+                    lineY += 120;
                 } else {
                     line = testLine;
                 }
             }
             if (line) {
-                drawEngravedText(line.trim(), 256, lineY, 'italic 20px serif', '#000', '#fef08a');
+                drawEngravedText(line.trim(), 1024, lineY, 'bold italic 85px serif', '#ffffff', 10);
             }
         }
 
@@ -648,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const ornamentGeo = new THREE.OctahedronGeometry(0.09);
         const ornamentMesh = new THREE.Mesh(ornamentGeo, goldMat);
-        ornamentMesh.position.set(0, 0.9, 0.12);
+        ornamentMesh.position.set(0, 1.60, 0.0);
         ornamentMesh.castShadow = true;
         group.add(ornamentMesh);
 
@@ -1336,6 +1343,10 @@ document.addEventListener('DOMContentLoaded', () => {
         autoWalkTarget = null;
     }
 
+    function resetCameraPitch() {
+        targetCameraPitch = 0;
+    }
+
     // Escuchadores Teclado
     window.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -1345,22 +1356,28 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'ArrowUp':
             case 'KeyW':
                 keyState.forward = true;
+                resetCameraPitch();
                 break;
             case 'ArrowDown':
             case 'KeyS':
                 keyState.backward = true;
+                resetCameraPitch();
                 break;
             case 'ArrowLeft':
                 keyState.turnLeft = true;
+                resetCameraPitch();
                 break;
             case 'ArrowRight':
                 keyState.turnRight = true;
+                resetCameraPitch();
                 break;
             case 'KeyA':
                 keyState.strafeLeft = true;
+                resetCameraPitch();
                 break;
             case 'KeyD':
                 keyState.strafeRight = true;
+                resetCameraPitch();
                 break;
             default:
                 handled = false;
@@ -1401,6 +1418,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentMode !== MODE_GROUND) return;
         e.preventDefault();
         stopAutoWalk();
+        resetCameraPitch();
 
         const scrollSpeed = 1.2;
         const moveZ = e.deltaY > 0 ? 1 : -1; // deltaY > 0 es scroll hacia abajo (retroceder), < 0 avance
@@ -1427,6 +1445,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             touchState[action] = true;
             stopAutoWalk();
+            resetCameraPitch();
             btn.classList.add('active');
         };
 
@@ -1479,6 +1498,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             camera.position.set(targetX, PLAYER_HEIGHT, targetZ);
             cameraPitch = 0;
+            targetCameraPitch = 0;
             targetCameraYaw = cameraYaw;
             camera.rotation.set(0, cameraYaw, 0, 'YXZ');
 
@@ -2397,30 +2417,9 @@ document.addEventListener('DOMContentLoaded', () => {
             tooltip.classList.remove('hidden');
 
             if (ud.type === 'tombstone' || (ud.type === 'plot' && ud.occupied)) {
-                const tumba = ud.tombData || {};
-                const mData = tumba.mascota_data || {};
-                const title = mData.nombre || ((tumba.title && typeof tumba.title === 'object') ? tumba.title.rendered : (tumba.title || 'Mascota Recordada'));
-                const honor = mData.titulo_honor || '';
-                const apodo = mData.apodos || '';
-                const fLlegada = mData.fecha_llegada || '';
-                const fDespedida = mData.fecha_despedida || '';
-                const datesText = (fLlegada || fDespedida) ? `📅 ${fLlegada || '?'} ➔ ${fDespedida || 'Eternidad'}` : '';
-                const epitafio = mData.epitafio || '';
-
-                tooltip.innerHTML = `
-                    <div class="bp-tooltip-header">
-                        <span class="bp-badge occupied">🪦 Lápida Conmemorativa</span>
-                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px; color:#ffffff !important; font-weight:800;">${title}</h4>
-                        ${honor ? `<div style="font-size:12px; color:#34d399 !important; font-weight:700; margin-top:2px;">👑 ${honor}</div>` : ''}
-                        ${apodo ? `<div style="font-size:13px; color:#ffd600 !important; font-weight:700; margin-top:2px;">"${apodo}"</div>` : ''}
-                        ${datesText ? `<div style="font-size:11px; color:#a7f3d0 !important; margin-top:4px;">${datesText}</div>` : ''}
-                    </div>
-                    ${epitafio ? `<p class="bp-pet-excerpt" style="font-size:13px; color:#fef08a !important; margin:10px 0; font-style:italic;">"${epitafio}"</p>` : ''}
-                    <div class="bp-tooltip-footer" style="margin-top:8px;">
-                        <small style="color:#94a3b8 !important;">Parcela: ${ud.plotId || 'BosquePatitas'} | Clic para ver ficha completa</small>
-                    </div>
-                `;
+                tooltip.classList.add('hidden');
             } else {
+                tooltip.classList.remove('hidden');
                 tooltip.innerHTML = `
                     <div class="bp-tooltip-header">
                         <span class="bp-badge free">Parcela Disponible</span>
@@ -2456,7 +2455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             openModalForObject(obj.userData, plotGroup);
                         } else {
                             const rotY = plotGroup.rotation.y || 0;
-                            const approachDist = 2.2;
+                            const approachDist = 1.8;
 
                             const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
                             const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
@@ -2464,11 +2463,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
                             finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
 
+                            // Calculate pitch angle so camera looks directly at tombstone face center (Y = 0.75m)
+                            const tombstoneCenterY = 0.75;
+                            const finalPitch = Math.atan2(tombstoneCenterY - PLAYER_HEIGHT, approachDist);
+
                             autoWalkTarget = {
                                 x: targetX,
                                 z: targetZ,
                                 targetPlotPos: targetPos,
                                 finalYaw: finalYaw,
+                                finalPitch: finalPitch,
                                 pendingUserData: obj.userData,
                                 pendingPlotGroup: plotGroup
                             };
@@ -2537,11 +2541,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (totalPointerMove > 5) {
             stopAutoWalk();
+            resetCameraPitch();
         }
 
         const sensitivity = 0.0032;
         targetCameraYaw -= dx * sensitivity;
-        cameraPitch = 0;
     };
 
     const onPointerUp = (event) => {
@@ -2612,12 +2616,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     targetCameraYaw += yawDiff * 0.18;
+                    if (autoWalkTarget.finalPitch !== undefined) {
+                        targetCameraPitch = autoWalkTarget.finalPitch;
+                    }
                 } else {
                     // Posición y orientación frontal exactas alcanzadas
                     camera.position.x = autoWalkTarget.x;
                     camera.position.z = autoWalkTarget.z;
                     targetCameraYaw = finalYaw;
                     cameraYaw = finalYaw;
+                    if (autoWalkTarget.finalPitch !== undefined) {
+                        targetCameraPitch = autoWalkTarget.finalPitch;
+                    }
 
                     const pendingData = autoWalkTarget.pendingUserData;
                     const pendingGroup = autoWalkTarget.pendingPlotGroup;
@@ -2657,19 +2667,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Suavizado e inercia de rotación (Damping)
+            // Suavizado e inercia de rotación horizontal (Yaw) y vertical (Pitch)
             let diffYaw = targetCameraYaw - cameraYaw;
             diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
             cameraYaw += diffYaw * 0.15;
+
+            cameraPitch += (targetCameraPitch - cameraPitch) * 0.12;
 
             camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
             camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
             camera.position.y = PLAYER_HEIGHT;
 
-            cameraPitch = 0;
             camera.rotation.order = 'YXZ';
             camera.rotation.y = cameraYaw;
-            camera.rotation.x = 0;
+            camera.rotation.x = cameraPitch;
             camera.rotation.z = 0;
         } else if (controls) {
             controls.update();
