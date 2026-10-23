@@ -72,20 +72,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Feedback Helpers
-    function showFeedback(message, type = 'error') {
-        if (!feedbackBox) return;
-        feedbackBox.className = 'bp-auth-feedback bp-' + type;
-        feedbackBox.innerHTML = message;
-        feedbackBox.style.display = 'block';
+    function showFeedback(message, type = 'error', targetId = 'bp-auth-feedback') {
+        const targetBox = document.getElementById(targetId) || feedbackBox;
+        if (!targetBox) return;
+        targetBox.className = 'bp-auth-feedback bp-' + type;
+        targetBox.innerHTML = message;
+        targetBox.style.display = 'block';
     }
 
-    function hideFeedback() {
-        if (!feedbackBox) return;
-        feedbackBox.style.display = 'none';
-        feedbackBox.innerHTML = '';
+    function hideFeedback(targetId = 'bp-auth-feedback') {
+        const targetBox = document.getElementById(targetId) || feedbackBox;
+        if (!targetBox) return;
+        targetBox.style.display = 'none';
+        targetBox.innerHTML = '';
     }
 
-    // AJAX Form Submissions
+    // AJAX Auth Form Submissions
     function handleFormSubmit(formId, actionName) {
         const form = document.getElementById(formId);
         if (!form) return;
@@ -105,7 +107,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData(form);
             formData.append('action', actionName);
 
-            // Fetch AJAX call
             fetch(BP_Auth_Data.ajaxurl, {
                 method: 'POST',
                 body: formData
@@ -141,5 +142,120 @@ document.addEventListener('DOMContentLoaded', function() {
     handleFormSubmit('bp-form-login', 'bp_ajax_login');
     handleFormSubmit('bp-form-register', 'bp_ajax_register');
     handleFormSubmit('bp-form-lost', 'bp_ajax_lost_password');
+
+    // ----------------------------------------------------
+    // PET FORM & MANAGEMENT INTERACTION
+    // ----------------------------------------------------
+    const openPetFormBtn = document.getElementById('bp-btn-open-pet-form');
+    const cancelPetFormBtn = document.getElementById('bp-btn-cancel-pet');
+    const petFormContainer = document.getElementById('bp-pet-form-container');
+    const petForm = document.getElementById('bp-form-mascota');
+
+    if (openPetFormBtn && petFormContainer) {
+        openPetFormBtn.addEventListener('click', function() {
+            petFormContainer.classList.toggle('bp-hidden');
+            if (!petFormContainer.classList.contains('bp-hidden')) {
+                petFormContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    }
+
+    if (cancelPetFormBtn && petFormContainer) {
+        cancelPetFormBtn.addEventListener('click', function() {
+            petFormContainer.classList.add('bp-hidden');
+        });
+    }
+
+    if (petForm) {
+        petForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            hideFeedback('bp-pet-form-feedback');
+
+            const submitBtn = petForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn ? submitBtn.innerText : '';
+
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerText = 'Guardando Ficha...';
+            }
+
+            const formData = new FormData(petForm);
+            formData.append('action', 'bp_ajax_save_mascota');
+
+            fetch(BP_Auth_Data.ajaxurl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = originalText;
+                }
+
+                if (res.success) {
+                    showFeedback(res.data.message, 'success', 'bp-pet-form-feedback');
+                    setTimeout(() => {
+                        window.location.href = res.data.redirect || window.location.href;
+                    }, 1200);
+                } else {
+                    showFeedback(res.data.message || 'Error al guardar la mascota', 'error', 'bp-pet-form-feedback');
+                }
+            })
+            .catch(err => {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = originalText;
+                }
+                showFeedback('Error de conexión con el servidor', 'error', 'bp-pet-form-feedback');
+            });
+        });
+    }
+
+    // Unlink Pet Buttons
+    document.querySelectorAll('.bp-btn-unlink-pet').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const petId = this.dataset.petId;
+            if (!confirm('¿Deseas quitar esta mascota de su tumba 3D? La tumba quedará libre para otra mascota.')) return;
+
+            const formData = new FormData();
+            formData.append('action', 'bp_ajax_unlink_mascota');
+            formData.append('mascota_id', petId);
+            formData.append('bp_nonce', BP_Auth_Data.nonce);
+
+            fetch(BP_Auth_Data.ajaxurl, { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(res => {
+                    if (res.success) {
+                        window.location.reload();
+                    } else {
+                        alert(res.data.message || 'Error al desasignar.');
+                    }
+                });
+        });
+    });
+
+    // Delete Pet Buttons
+    document.querySelectorAll('.bp-btn-delete-pet').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const petId = this.dataset.petId;
+            if (!confirm('¿Seguro que deseas eliminar la ficha de esta mascota? Esta acción no se puede deshacer.')) return;
+
+            const formData = new FormData();
+            formData.append('action', 'bp_ajax_delete_mascota');
+            formData.append('mascota_id', petId);
+            formData.append('bp_nonce', BP_Auth_Data.nonce);
+
+            fetch(BP_Auth_Data.ajaxurl, { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(res => {
+                    if (res.success) {
+                        window.location.reload();
+                    } else {
+                        alert(res.data.message || 'Error al eliminar.');
+                    }
+                });
+        });
+    });
 
 });

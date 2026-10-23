@@ -345,6 +345,39 @@ body .bp-auth-wrapper .bp-auth-feedback.bp-success {
     border-color: #86efac !important;
 }
 
+/* FORM DRAWER & GRID UTILITIES */
+.bp-hidden {
+    display: none !important;
+}
+
+body .bp-profile-wrapper .bp-form-sec-title {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    margin: 20px 0 12px 0 !important;
+    padding-bottom: 6px !important;
+    border-bottom: 2px dashed #cbd5e1 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+body .bp-profile-wrapper .bp-form-row {
+    display: flex !important;
+    gap: 15px !important;
+    margin-bottom: 15px !important;
+    flex-wrap: wrap !important;
+}
+
+body .bp-profile-wrapper .bp-form-row .half {
+    flex: 1 1 calc(50% - 10px) !important;
+    min-width: 220px !important;
+}
+
+body .bp-profile-wrapper .bp-form-row.four-col .bp-form-group {
+    flex: 1 1 calc(25% - 12px) !important;
+    min-width: 120px !important;
+}
+
 /* PROFILE CARD STYLES */
 body .bp-profile-wrapper .bp-profile-card {
     background: #ffffff !important;
