@@ -214,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAP_LIMIT = 32.2; // Límite de movimiento interno dentro de la verja victoriana (33.0)
 
     let cameraYaw = 0;
+    let targetCameraYaw = 0;
     let cameraPitch = 0;
     camera.position.set(0, PLAYER_HEIGHT, 15);
     camera.rotation.order = 'YXZ';
@@ -1478,6 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             camera.position.set(targetX, PLAYER_HEIGHT, targetZ);
             cameraPitch = 0;
+            targetCameraYaw = cameraYaw;
             camera.rotation.set(0, cameraYaw, 0, 'YXZ');
 
             if (slotViewDesc) slotViewDesc.textContent = 'Alternar a Vista Aérea Orbit';
@@ -2535,11 +2537,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const sensitivity = 0.0032;
-        cameraYaw -= dx * sensitivity;
-        cameraPitch -= dy * sensitivity;
-
-        const maxPitch = Math.PI / 3;
-        cameraPitch = Math.max(-maxPitch, Math.min(maxPitch, cameraPitch));
+        targetCameraYaw -= dx * sensitivity;
+        cameraPitch = 0;
     };
 
     const onPointerUp = (event) => {
@@ -2599,17 +2598,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (autoWalkTarget.targetPlotPos) {
                         const lookDx = autoWalkTarget.targetPlotPos.x - camera.position.x;
                         const lookDz = autoWalkTarget.targetPlotPos.z - camera.position.z;
-                        let targetYaw = Math.atan2(-lookDx, -lookDz);
-                        let diffYaw = targetYaw - cameraYaw;
+                        let walkTargetYaw = Math.atan2(-lookDx, -lookDz);
+                        let diffYaw = walkTargetYaw - targetCameraYaw;
                         diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
-                        cameraYaw += diffYaw * 0.12;
+                        targetCameraYaw += diffYaw * 0.12;
                     }
                 } else {
                     stopAutoWalk();
                 }
             } else {
-                if (keyState.turnLeft || touchState.turnLeft) cameraYaw += turnSpeed;
-                if (keyState.turnRight || touchState.turnRight) cameraYaw -= turnSpeed;
+                if (keyState.turnLeft || touchState.turnLeft) targetCameraYaw += turnSpeed;
+                if (keyState.turnRight || touchState.turnRight) targetCameraYaw -= turnSpeed;
 
                 let moveX = 0;
                 let moveZ = 0;
@@ -2635,13 +2634,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Suavizado e inercia de rotación (Damping)
+            let diffYaw = targetCameraYaw - cameraYaw;
+            diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
+            cameraYaw += diffYaw * 0.15;
+
             camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
             camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
             camera.position.y = PLAYER_HEIGHT;
 
+            cameraPitch = 0;
             camera.rotation.order = 'YXZ';
             camera.rotation.y = cameraYaw;
-            camera.rotation.x = cameraPitch;
+            camera.rotation.x = 0;
             camera.rotation.z = 0;
         } else if (controls) {
             controls.update();
