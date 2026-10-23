@@ -2456,15 +2456,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             openModalForObject(obj.userData, plotGroup);
                         } else {
                             const rotY = plotGroup.rotation.y || 0;
-                            const approachDist = 2.4;
+                            const approachDist = 2.2;
 
-                            const targetX = targetPos.x + Math.sin(rotY) * approachDist;
-                            const targetZ = targetPos.z + Math.cos(rotY) * approachDist;
+                            const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
+                            const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
+
+                            let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
+                            finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
 
                             autoWalkTarget = {
-                                x: Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetX)),
-                                z: Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetZ)),
+                                x: targetX,
+                                z: targetZ,
                                 targetPlotPos: targetPos,
+                                finalYaw: finalYaw,
                                 pendingUserData: obj.userData,
                                 pendingPlotGroup: plotGroup
                             };
@@ -2590,24 +2594,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dz = autoWalkTarget.z - camera.position.z;
                 const dist = Math.hypot(dx, dz);
 
-                if (dist > 0.25) {
-                    camera.position.x += (dx / dist) * Math.min(dist, moveSpeed * 1.3);
-                    camera.position.z += (dz / dist) * Math.min(dist, moveSpeed * 1.3);
+                const finalYaw = (autoWalkTarget.finalYaw !== undefined)
+                    ? autoWalkTarget.finalYaw
+                    : Math.atan2(-(autoWalkTarget.targetPlotPos.x - camera.position.x), -(autoWalkTarget.targetPlotPos.z - camera.position.z));
 
-                    if (autoWalkTarget.targetPlotPos) {
-                        const lookDx = autoWalkTarget.targetPlotPos.x - camera.position.x;
-                        const lookDz = autoWalkTarget.targetPlotPos.z - camera.position.z;
-                        let walkTargetYaw = Math.atan2(-lookDx, -lookDz);
-                        let diffYaw = walkTargetYaw - targetCameraYaw;
-                        diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
-                        targetCameraYaw += diffYaw * 0.12;
+                let yawDiff = finalYaw - targetCameraYaw;
+                yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
+
+                if (dist > 0.08 || Math.abs(yawDiff) > 0.03) {
+                    if (dist > 0.08) {
+                        const walkSpeed = Math.min(dist, moveSpeed * 1.4);
+                        camera.position.x += (dx / dist) * walkSpeed;
+                        camera.position.z += (dz / dist) * walkSpeed;
+                    } else {
+                        camera.position.x = autoWalkTarget.x;
+                        camera.position.z = autoWalkTarget.z;
                     }
+
+                    targetCameraYaw += yawDiff * 0.18;
                 } else {
+                    // Posición y orientación frontal exactas alcanzadas
+                    camera.position.x = autoWalkTarget.x;
+                    camera.position.z = autoWalkTarget.z;
+                    targetCameraYaw = finalYaw;
+                    cameraYaw = finalYaw;
+
                     const pendingData = autoWalkTarget.pendingUserData;
                     const pendingGroup = autoWalkTarget.pendingPlotGroup;
                     stopAutoWalk();
+
                     if (pendingData && pendingGroup) {
-                        openModalForObject(pendingData, pendingGroup);
+                        setTimeout(() => {
+                            openModalForObject(pendingData, pendingGroup);
+                        }, 120);
                     }
                 }
             } else {
