@@ -1642,12 +1642,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 cardsHtml += `
                     <div class="bp-arcade-card">
                         <div class="bp-arcade-card-head">
-                            ${imgUrl ? `<img src="${imgUrl}" class="bp-arcade-avatar" />` : `<div class="bp-arcade-avatar" style="display:flex; align-items:center; justify-content:center; font-size:28px;">🐾</div>`}
+                            ${imgUrl ? `<img src="${imgUrl}" class="bp-arcade-avatar" />` : `<div class="bp-arcade-avatar bp-arcade-avatar-placeholder"><span class="bp-paw-icon-bright">🐾</span></div>`}
                             <div>
                                 <h4 class="bp-arcade-card-title">${title}</h4>
-                                ${honor ? `<div style="font-size:11px; color:#34d399;">👑 ${honor}</div>` : ''}
-                                ${especie ? `<div style="font-size:10px; color:#94a3b8;">🐾 ${especie}</div>` : ''}
-                                <div style="margin-top:4px;">
+                                ${honor ? `<div style="font-size:11px; color:#34d399 !important; font-weight:700;">👑 ${honor}</div>` : ''}
+                                ${especie ? `<div style="font-size:11px; color:#ffd600 !important; font-weight:700; display:flex; align-items:center; gap:4px;"><span class="bp-paw-icon-bright">🐾</span> ${especie}</div>` : ''}
+                                <div style="margin-top:6px;">
                                     ${isApproved ? `<span class="bp-arcade-badge approved">✔ VALIDADA</span>` : `<span class="bp-arcade-badge pending">⏳ EN REVISIÓN</span>`}
                                 </div>
                             </div>
@@ -2410,25 +2410,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 tooltip.innerHTML = `
                     <div class="bp-tooltip-header">
                         <span class="bp-badge occupied">🪦 Lápida Conmemorativa</span>
-                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px;">${title}</h4>
-                        ${honor ? `<div style="font-size:12px; color:#34d399; font-weight:700; margin-top:2px;">👑 ${honor}</div>` : ''}
-                        ${apodo ? `<div style="font-size:13px; color:#ffd600; font-weight:700; margin-top:2px;">"${apodo}"</div>` : ''}
-                        ${datesText ? `<div style="font-size:11px; color:#a7f3d0; margin-top:4px;">${datesText}</div>` : ''}
+                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px; color:#ffffff !important; font-weight:800;">${title}</h4>
+                        ${honor ? `<div style="font-size:12px; color:#34d399 !important; font-weight:700; margin-top:2px;">👑 ${honor}</div>` : ''}
+                        ${apodo ? `<div style="font-size:13px; color:#ffd600 !important; font-weight:700; margin-top:2px;">"${apodo}"</div>` : ''}
+                        ${datesText ? `<div style="font-size:11px; color:#a7f3d0 !important; margin-top:4px;">${datesText}</div>` : ''}
                     </div>
-                    ${epitafio ? `<p class="bp-pet-excerpt" style="font-size:13px; color:#fef08a; margin:10px 0; font-style:italic;">"${epitafio}"</p>` : ''}
+                    ${epitafio ? `<p class="bp-pet-excerpt" style="font-size:13px; color:#fef08a !important; margin:10px 0; font-style:italic;">"${epitafio}"</p>` : ''}
                     <div class="bp-tooltip-footer" style="margin-top:8px;">
-                        <small style="color:#94a3b8;">Parcela: ${ud.plotId || 'BosquePatitas'} | Clic para ver ficha completa</small>
+                        <small style="color:#94a3b8 !important;">Parcela: ${ud.plotId || 'BosquePatitas'} | Clic para ver ficha completa</small>
                     </div>
                 `;
             } else {
                 tooltip.innerHTML = `
                     <div class="bp-tooltip-header">
                         <span class="bp-badge free">Parcela Disponible</span>
-                        <h4 class="bp-pet-title">Espacio para Homenaje</h4>
+                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px; color:#ffffff !important; font-weight:800;">Espacio para Homenaje</h4>
                     </div>
-                    <p class="bp-pet-excerpt">Esta parcela está libre para recordar a una mascota especial.</p>
+                    <p class="bp-pet-excerpt" style="color:#e2e8f0 !important; font-size:13px; margin:8px 0;">Esta parcela está libre para recordar a una mascota especial.</p>
                     <div class="bp-tooltip-footer">
-                        <small>Código: ${ud.plotId}</small>
+                        <small style="color:#94a3b8 !important;">Código: ${ud.plotId}</small>
                     </div>
                 `;
             }
