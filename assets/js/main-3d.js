@@ -2453,24 +2453,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (currentMode === MODE_AERIAL) {
                             if (controls) controls.target.set(targetPos.x, targetPos.y + 0.8, targetPos.z);
+                            openModalForObject(obj.userData, plotGroup);
                         } else {
-                            const dx = camera.position.x - targetPos.x;
-                            const dz = camera.position.z - targetPos.z;
-                            const len = Math.hypot(dx, dz) || 1;
+                            const rotY = plotGroup.rotation.y || 0;
                             const approachDist = 2.4;
 
-                            const targetX = targetPos.x + (dx / len) * approachDist;
-                            const targetZ = targetPos.z + (dz / len) * approachDist;
+                            const targetX = targetPos.x + Math.sin(rotY) * approachDist;
+                            const targetZ = targetPos.z + Math.cos(rotY) * approachDist;
 
                             autoWalkTarget = {
                                 x: Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetX)),
                                 z: Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetZ)),
-                                targetPlotPos: targetPos
+                                targetPlotPos: targetPos,
+                                pendingUserData: obj.userData,
+                                pendingPlotGroup: plotGroup
                             };
                             isAutoWalking = true;
                         }
-
-                        openModalForObject(obj.userData, plotGroup);
                     }
                     break;
                 }
@@ -2604,7 +2603,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         targetCameraYaw += diffYaw * 0.12;
                     }
                 } else {
+                    const pendingData = autoWalkTarget.pendingUserData;
+                    const pendingGroup = autoWalkTarget.pendingPlotGroup;
                     stopAutoWalk();
+                    if (pendingData && pendingGroup) {
+                        openModalForObject(pendingData, pendingGroup);
+                    }
                 }
             } else {
                 if (keyState.turnLeft || touchState.turnLeft) targetCameraYaw += turnSpeed;
