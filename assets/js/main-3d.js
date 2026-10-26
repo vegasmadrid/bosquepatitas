@@ -1909,6 +1909,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const sheetModalCloseBtn = document.getElementById('bp-sheet-close');
     if (sheetModalCloseBtn) sheetModalCloseBtn.addEventListener('click', () => petSheetModal.classList.add('hidden'));
 
+    // Close overlays when clicking outside content card on backdrop
+    [petSheetModal, claimModal, helpModal, inventoryModal].forEach(modalEl => {
+        if (modalEl) {
+            modalEl.addEventListener('click', (e) => {
+                if (e.target === modalEl) {
+                    modalEl.classList.add('hidden');
+                }
+            });
+        }
+    });
+
     // ----------------------------------------------------
     // FULLSCREEN 80s ARCADE OVERLAY FUNCTIONALITY
     // ----------------------------------------------------
