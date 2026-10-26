@@ -427,13 +427,26 @@ class BP_Custom_Post_Type {
             return $clean;
         };
 
+        // Get user identifier
+        $actor_id = is_user_logged_in() ? ('u_' . get_current_user_id()) : ('ip_' . md5($_SERVER['REMOTE_ADDR'] ?? 'guest'));
+
         if ($tipo === 'vela') {
             $velas = $get_active_velas($mascota_id);
             if (count($velas) >= $max_capacity) {
                 return new WP_REST_Response(array(
                     'success' => false,
-                    'message' => 'Ya hay un máximo de 4 velas encendidas en esta tumba.'
+                    'message' => 'Esta tumba ya tiene el máximo de 4 velas encendidas. ¡Gracias por el apoyo!'
                 ), 400);
+            }
+
+            // Check if this user already has an active candle
+            foreach ($velas as $v) {
+                if (isset($v['actor_id']) && $v['actor_id'] === $actor_id) {
+                    return new WP_REST_Response(array(
+                        'success' => false,
+                        'message' => 'Ya has encendido tu vela en esta tumba hoy. ¡Invita a amigos o familiares a encender las suyas!'
+                    ), 400);
+                }
             }
 
             // Occupied slots
@@ -449,28 +462,41 @@ class BP_Custom_Post_Type {
             $velas[] = array(
                 'id'         => uniqid('v_'),
                 'created_at' => $now,
-                'slot'       => $available_slot
+                'slot'       => $available_slot,
+                'actor_id'   => $actor_id
             );
             update_post_meta($mascota_id, 'tributos_velas', wp_json_encode($velas));
             update_post_meta($mascota_id, 'count_velas', count($velas));
 
         } elseif ($tipo === 'flor') {
             $flores = $get_active_flores($mascota_id);
+
+            // Check if this user already has a fresh flower on this tomb
+            foreach ($flores as $f) {
+                if (isset($f['actor_id']) && $f['actor_id'] === $actor_id && $now < intval($f['expires_at'])) {
+                    return new WP_REST_Response(array(
+                        'success' => false,
+                        'message' => 'Ya has regalado tu ramo de flores a esta mascota. ¡Comparte la tumba para que otras personas pongan sus flores!'
+                    ), 400);
+                }
+            }
+
             if (count($flores) >= $max_capacity) {
-                // If max flowers, check if any is wilted to replace it with fresh flower
-                $has_wilted = false;
+                // If max flowers, check if any is wilted to replace it
+                $replaced = false;
                 foreach ($flores as $idx => $f) {
                     if ($now >= intval($f['expires_at'])) {
                         $flores[$idx]['created_at'] = $now;
                         $flores[$idx]['expires_at'] = $now + $flower_duration;
-                        $has_wilted = true;
+                        $flores[$idx]['actor_id']   = $actor_id;
+                        $replaced = true;
                         break;
                     }
                 }
-                if (!$has_wilted) {
+                if (!$replaced) {
                     return new WP_REST_Response(array(
                         'success' => false,
-                        'message' => 'Ya hay un máximo de 4 arreglos florales frescos en esta tumba.'
+                        'message' => 'Esta tumba ya tiene los 4 arreglos florales frescos máximos.'
                     ), 400);
                 }
             } else {
@@ -486,7 +512,8 @@ class BP_Custom_Post_Type {
                     'id'         => uniqid('f_'),
                     'created_at' => $now,
                     'expires_at' => $now + $flower_duration,
-                    'slot'       => $available_slot
+                    'slot'       => $available_slot,
+                    'actor_id'   => $actor_id
                 );
             }
             update_post_meta($mascota_id, 'tributos_flores', wp_json_encode($flores));
@@ -508,6 +535,17 @@ class BP_Custom_Post_Type {
 
         } elseif ($tipo === 'premio') {
             $premios = $get_active_premios($mascota_id);
+
+            // Check if this user already placed a treat
+            foreach ($premios as $p) {
+                if (isset($p['actor_id']) && $p['actor_id'] === $actor_id) {
+                    return new WP_REST_Response(array(
+                        'success' => false,
+                        'message' => 'Ya has dejado un premio hoy para esta mascota. ¡Invita a más amigos a consentirla!'
+                    ), 400);
+                }
+            }
+
             if (count($premios) >= $max_capacity) {
                 return new WP_REST_Response(array(
                     'success' => false,
@@ -527,7 +565,8 @@ class BP_Custom_Post_Type {
             $premios[] = array(
                 'id'         => uniqid('p_'),
                 'created_at' => $now,
-                'slot'       => $available_slot
+                'slot'       => $available_slot,
+                'actor_id'   => $actor_id
             );
             update_post_meta($mascota_id, 'tributos_premios', wp_json_encode($premios));
             update_post_meta($mascota_id, 'count_premios', count($premios));

@@ -455,17 +455,17 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
 
         const flowerSlots = [
-            { x: -0.36, y: 0.18, z: 0.40 },
-            { x:  0.36, y: 0.18, z: 0.40 },
-            { x: -0.20, y: 0.18, z: 0.50 },
-            { x:  0.20, y: 0.18, z: 0.50 }
+            { x: -0.36, y: 0.18, z: 0.36 },
+            { x:  0.36, y: 0.18, z: 0.36 },
+            { x: -0.18, y: 0.18, z: 0.42 },
+            { x:  0.18, y: 0.18, z: 0.42 }
         ];
 
         const treatSlots = [
-            { x: -0.25, y: 0.18, z: 0.32 },
-            { x:  0.25, y: 0.18, z: 0.32 },
-            { x: -0.10, y: 0.18, z: 0.42 },
-            { x:  0.10, y: 0.18, z: 0.42 }
+            { x: -0.35, y: 0.04, z: 0.58 },
+            { x:  0.35, y: 0.04, z: 0.58 },
+            { x: -0.12, y: 0.04, z: 0.68 },
+            { x:  0.12, y: 0.04, z: 0.68 }
         ];
 
         const velas = mData.velas || [];
@@ -2499,13 +2499,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let velasCount = mData.count_velas || 0;
         let floresCount = mData.count_flores || 0;
         let premiosCount = mData.count_premios || 0;
-        let freshFlores = mData.fresh_flores_count || 0;
         let wiltedFlores = mData.wilted_flores_count || 0;
         let tombState = mData.tomb_state || 'cuidada';
 
         const statusBadgeHtml = tombState === 'cuidada'
-            ? `<span class="bp-pet-badge-verified" style="background:#15803d; color:#ffffff; font-weight:700;">🌟 Cuidada y Luminosa</span>`
-            : `<span class="bp-pet-badge-verified" style="background:#b45309; color:#ffffff; font-weight:700;">🍂 Necesita Cariño</span>`;
+            ? `<span id="bp-badge-status-el" class="bp-pet-badge-verified" style="background:#15803d; color:#ffffff; font-weight:700;">🌟 Cuidada y Luminosa</span>`
+            : `<span id="bp-badge-status-el" class="bp-pet-badge-verified" style="background:#b45309; color:#ffffff; font-weight:700;">🍂 Necesita Cariño</span>`;
 
         const muro = mData.muro_recuerdos || [];
 
@@ -2594,7 +2593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <!-- HOMENAJES INTERACTIVOS -->
             <div class="bp-sheet-sec-title">🕯️ Muestras de Cariño y Cuidado</div>
             <div style="font-size:12px; color:#cbd5e1; margin-bottom:12px; line-height:1.4;">
-                Coloca homenajes en la tumba 3D. Las 🕯️ <strong>velas duran 24 horas</strong>, las 🌸 <strong>flores duran 3 días</strong> (puedes regarlas con 🚿 o 🦴 para revivirlas) y los 🦴 <strong>premios duran 24 horas</strong>.
+                Coloca homenajes en la tumba 3D. Las 🕯️ <strong>velas duran 24 horas</strong>, las 🌸 <strong>flores duran 3 días</strong> (puedes regarlas con 🚿 o 🦴 para revivirlas) y los 🦴 <strong>premios duran 24 horas</strong>. Cada visitante puede poner 1 tributo de cada tipo.
             </div>
 
             <div class="bp-tributes-row" style="display:flex; flex-wrap:wrap; gap:10px;">
@@ -2617,11 +2616,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${wiltedFlores > 0 ? `
                     <button class="bp-tribute-btn" data-type="limpiar_flores" data-id="${mData.id}" style="flex:1; min-width:140px; background:rgba(239, 68, 68, 0.2); border:1px solid #ef4444;">
                         <span>🧹 Limpiar Marchitas</span>
-                        <span class="bp-tribute-count">${wiltedFlores}</span>
+                        <span class="bp-tribute-count" id="bp-count-marchitas">${wiltedFlores}</span>
                     </button>
                 ` : ''}
             </div>
-            <div id="bp-tribute-feedback" style="display:none; font-size:12px; margin-top:8px; font-weight:600;"></div>
+
+            <div style="margin-top:12px; text-align:center;">
+                <button id="bp-btn-share-tomb" class="bp-btn" style="background:rgba(234, 179, 8, 0.18); border:1px solid #eab308; color:#fef08a; padding:10px 18px; border-radius:20px; font-weight:700; font-size:12px; cursor:pointer; width:100%;">
+                    🔗 Compartir Tumba para recibir Flores y Velas
+                </button>
+            </div>
+            <div id="bp-tribute-feedback" style="display:none; font-size:12px; margin-top:8px; font-weight:600; text-align:center;"></div>
 
             <!-- MURO DE RECUERDOS -->
             <div class="bp-sheet-sec-title">💬 Libro de Visitas y Muro de Recuerdos</div>
@@ -2637,7 +2642,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const feedbackBox = sheetContent.querySelector('#bp-tribute-feedback');
 
-        // Attach tribute click listeners
+        // Attach Share Tomb button listener
+        const shareBtn = sheetContent.querySelector('#bp-btn-share-tomb');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', () => {
+                const currentUrl = window.location.href.split('#')[0];
+                const shareText = `¡Ven a recordar a ${title} en el Cementerio 3D de BosquePatitas! Enciende una vela o ponle flores aquí: ${currentUrl}`;
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(shareText).then(() => {
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#fef08a';
+                            feedbackBox.textContent = '📋 ¡Mensaje copiado al portapapeles! Envíalo a tus amigos para que pongan flores y velas.';
+                        }
+                    });
+                } else {
+                    prompt('Copia este mensaje y envíalo a tus amigos:', shareText);
+                }
+            });
+        }
+
+        // Attach tribute click listeners with instantaneous DOM updates
         sheetContent.querySelectorAll('.bp-tribute-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tipo = btn.dataset.type;
@@ -2645,6 +2671,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!petId || petId === 'undefined') return;
 
                 btn.disabled = true;
+                const origText = btn.innerHTML;
+                btn.style.opacity = '0.6';
 
                 const restUrl = (settings.restRoot || '/wp-json/') + 'bosquepatitas/v1/tributo';
 
@@ -2656,34 +2684,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(res => res.json())
                 .then(res => {
                     btn.disabled = false;
+                    btn.style.opacity = '1.0';
+
                     if (res.success && res.mascota_data) {
                         tombData.mascota_data = res.mascota_data;
+                        const d = res.mascota_data;
 
-                        // Find corresponding plot in 3D scene and update its 3D tributes!
+                        // Fast in-place DOM updates for smooth UI experience
+                        const countVela = sheetContent.querySelector('#bp-count-vela');
+                        if (countVela) countVela.textContent = `${d.count_velas || 0}/4`;
+
+                        const countFlor = sheetContent.querySelector('#bp-count-flor');
+                        if (countFlor) countFlor.textContent = `${d.count_flores || 0}/4`;
+
+                        const countPremio = sheetContent.querySelector('#bp-count-premio');
+                        if (countPremio) countPremio.textContent = `${d.count_premios || 0}/4`;
+
+                        const badgeEl = sheetContent.querySelector('#bp-badge-status-el');
+                        if (badgeEl) {
+                            if (d.tomb_state === 'cuidada') {
+                                badgeEl.style.background = '#15803d';
+                                badgeEl.textContent = '🌟 Cuidada y Luminosa';
+                            } else {
+                                badgeEl.style.background = '#b45309';
+                                badgeEl.textContent = '🍂 Necesita Cariño';
+                            }
+                        }
+
+                        // Update 3D model in scene
                         const plot = plotManager.plots.find(p => p.tombData && p.tombData.mascota_data && p.tombData.mascota_data.id == petId);
                         if (plot && plot.tombMesh) {
-                            plot.tombData.mascota_data = res.mascota_data;
-                            attachTributesToTombstoneGroup(plot.tombMesh, res.mascota_data);
+                            plot.tombData.mascota_data = d;
+                            attachTributesToTombstoneGroup(plot.tombMesh, d);
                         }
 
                         if (feedbackBox) {
                             feedbackBox.style.display = 'block';
                             feedbackBox.style.color = '#34d399';
-                            feedbackBox.textContent = '✨ Homenaje actualizado con éxito en la tumba 3D.';
+                            feedbackBox.textContent = '✨ ¡Homenaje colocado al instante en la tumba 3D!';
                         }
-
-                        // Re-render sheet to refresh counts and status
-                        showPetSheetModal(tombData);
                     } else {
                         if (feedbackBox) {
                             feedbackBox.style.display = 'block';
                             feedbackBox.style.color = '#f87171';
-                            feedbackBox.textContent = res.message || 'Error al procesar el homenaje.';
+                            feedbackBox.textContent = res.message || 'No se pudo colocar el homenaje.';
                         }
                     }
                 })
                 .catch(err => {
                     btn.disabled = false;
+                    btn.style.opacity = '1.0';
                     if (feedbackBox) {
                         feedbackBox.style.display = 'block';
                         feedbackBox.style.color = '#f87171';
