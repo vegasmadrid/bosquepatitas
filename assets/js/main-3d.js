@@ -2663,7 +2663,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Attach tribute click listeners with instantaneous DOM updates
+        // Attach tribute click listeners with instantaneous 90s retro loading state
         sheetContent.querySelectorAll('.bp-tribute-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tipo = btn.dataset.type;
@@ -2671,8 +2671,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!petId || petId === 'undefined') return;
 
                 btn.disabled = true;
-                const origText = btn.innerHTML;
-                btn.style.opacity = '0.6';
+                const origContent = btn.innerHTML;
+
+                // 90s retro arcade video game loading indicator
+                btn.innerHTML = `<span style="font-family:'Press Start 2P', monospace; font-size:10px; color:#ffd600;">⌛ PROCESANDO...</span>`;
+
+                if (feedbackBox) {
+                    feedbackBox.style.display = 'block';
+                    feedbackBox.style.color = '#ffd600';
+                    feedbackBox.innerHTML = `<span style="font-family:'Press Start 2P', monospace; font-size:11px;">⌛ PROCESANDO HOMENAJE EN 3D...</span>`;
+                }
 
                 const restUrl = (settings.restRoot || '/wp-json/') + 'bosquepatitas/v1/tributo';
 
@@ -2684,7 +2692,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(res => res.json())
                 .then(res => {
                     btn.disabled = false;
-                    btn.style.opacity = '1.0';
+                    btn.innerHTML = origContent;
 
                     if (res.success && res.mascota_data) {
                         tombData.mascota_data = res.mascota_data;
@@ -2733,7 +2741,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .catch(err => {
                     btn.disabled = false;
-                    btn.style.opacity = '1.0';
+                    btn.innerHTML = origContent;
                     if (feedbackBox) {
                         feedbackBox.style.display = 'block';
                         feedbackBox.style.color = '#f87171';
@@ -2876,19 +2884,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const honor = mData.titulo_honor ? `👑 ${mData.titulo_honor}` : '';
                 const tombState = mData.tomb_state || 'cuidada';
                 const statusBadge = tombState === 'cuidada'
-                    ? '<span class="bp-badge cuidada" style="background:#15803d; color:#ffffff; font-size:11px; padding:3px 8px; border-radius:10px; font-weight:700;">🌟 Cuidada y Luminosa</span>'
-                    : '<span class="bp-badge necesita" style="background:#b45309; color:#ffffff; font-size:11px; padding:3px 8px; border-radius:10px; font-weight:700;">🍂 Necesita Cariño</span>';
+                    ? '<span class="bp-badge cuidada" style="background:#15803d; color:#ffffff; font-size:11px; padding:3px 10px; border-radius:12px; font-weight:700; display:inline-block;">🌟 Cuidada y Luminosa</span>'
+                    : '<span class="bp-badge necesita" style="background:#b45309; color:#ffffff; font-size:11px; padding:3px 10px; border-radius:12px; font-weight:700; display:inline-block;">🍂 Necesita Cariño</span>';
 
                 tooltip.innerHTML = `
-                    <div class="bp-tooltip-header">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <div class="bp-tooltip-header" style="text-align:center;">
+                        <div style="margin-bottom:6px; display:flex; justify-content:center;">
                             ${statusBadge}
-                            <small style="color:#94a3b8 !important;">Código: ${ud.plotId}</small>
                         </div>
-                        <h4 class="bp-pet-title" style="font-size:18px; color:#ffffff !important; font-weight:800; margin:0;">${name}</h4>
-                        ${honor ? `<div style="font-size:12px; color:#fef08a; margin-top:2px;">${honor}</div>` : ''}
+                        <h4 class="bp-pet-title" style="font-size:18px; color:#ffffff !important; font-weight:800; margin:0; text-align:center;">${name}</h4>
+                        ${honor ? `<div style="font-size:12px; color:#fef08a; margin-top:2px; text-align:center;">${honor}</div>` : ''}
                     </div>
-                    <div style="font-size:12px; color:#cbd5e1; margin-top:8px;">
+                    <div style="font-size:12px; color:#cbd5e1; margin-top:8px; text-align:center;">
                         🕯️ Velas: <strong>${mData.count_velas || 0}/4</strong> | 🌸 Flores: <strong>${mData.count_flores || 0}/4</strong> | 🦴 Premios: <strong>${mData.count_premios || 0}/4</strong>
                     </div>
                 `;
