@@ -561,23 +561,39 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.lineWidth = 4;
         ctx.stroke();
 
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return dateStr;
+        }
+
         const nombre = (mData.nombre || 'Mascota').toUpperCase();
         const apodo = mData.apodos ? `"${mData.apodos}"` : '';
-        const fLlegada = mData.fecha_llegada || '';
-        const fDespedida = mData.fecha_despedida || '';
+        const fLlegada = formatDate(mData.fecha_llegada || '');
+        const fDespedida = formatDate(mData.fecha_despedida || '');
         const fechas = (fLlegada || fDespedida) ? `${fLlegada}  -  ${fDespedida}` : '';
         const epitafio = mData.epitafio ? `"${mData.epitafio}"` : '';
         const honor = mData.titulo_honor ? mData.titulo_honor.toUpperCase() : '';
 
         ctx.textAlign = 'center';
 
-        // Engraved text styling with heavy dark shadow & high contrast fill
+        // Engraved text styling with dark outer outline, deep shadow & high contrast fill
         function drawEngravedText(text, x, y, font, highlight = '#ffffff', shadowOffset = 8) {
             ctx.font = font;
-            // Heavy Deep Shadow for 3D Engraved Look
+
+            // Outer black stroke for crisp definition against granite background
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = Math.max(6, shadowOffset);
+            ctx.strokeText(text, x, y);
+
+            // Heavy Deep Shadow for 3D Engraved Effect
             ctx.fillStyle = '#000000';
             ctx.fillText(text, x + shadowOffset, y + shadowOffset);
             ctx.fillText(text, x + shadowOffset / 2, y + shadowOffset / 2);
+
             // Crisp Highlight
             ctx.fillStyle = highlight;
             ctx.fillText(text, x, y);
@@ -595,8 +611,14 @@ document.addEventListener('DOMContentLoaded', () => {
             currentY += 80;
         }
 
-        // 3. Main Pet Name (Ultra bold 125px)
-        drawEngravedText(nombre, 709, currentY + 70, 'bold 125px serif', '#ffffff', 10);
+        // 3. Main Pet Name with auto-scaling to prevent overflowing canvas width
+        let nameFontSize = 125;
+        ctx.font = `bold ${nameFontSize}px serif`;
+        while (ctx.measureText(nombre).width > 1100 && nameFontSize > 50) {
+            nameFontSize -= 5;
+            ctx.font = `bold ${nameFontSize}px serif`;
+        }
+        drawEngravedText(nombre, 709, currentY + 70, `bold ${nameFontSize}px serif`, '#ffffff', 10);
         currentY += 190;
 
         // 4. Nickname
@@ -609,9 +631,15 @@ document.addEventListener('DOMContentLoaded', () => {
         drawEngravedText('✦ ────────── 🐾 ────────── ✦', 709, currentY + 20, 'bold 32px serif', '#ffd600', 4);
         currentY += 100;
 
-        // 6. Dates (Large, ultra-crisp 72px bold sans-serif)
+        // 6. Dates (Large, ultra-crisp 76px bold sans-serif with high contrast)
         if (fechas) {
-            drawEngravedText(fechas, 709, currentY, 'bold 72px sans-serif', '#fef08a', 8);
+            let dateFontSize = 76;
+            ctx.font = `bold ${dateFontSize}px sans-serif`;
+            while (ctx.measureText(fechas).width > 1100 && dateFontSize > 40) {
+                dateFontSize -= 4;
+                ctx.font = `bold ${dateFontSize}px sans-serif`;
+            }
+            drawEngravedText(fechas, 709, currentY, `bold ${dateFontSize}px sans-serif`, '#ffeb3b', 8);
             currentY += 110;
         }
 
@@ -719,6 +747,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const frontGeo = new THREE.ShapeGeometry(shape);
+
+            // Normalize UV coordinates so canvas texture spans [0, 1] horizontally and vertically
+            const posAttr = frontGeo.attributes.position;
+            const uvAttr = frontGeo.attributes.uv;
+            const minX = -radius;
+            const maxX = radius;
+            const minY = 0;
+            const maxY = totalH;
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const x = posAttr.getX(i);
+                const y = posAttr.getY(i);
+                const u = (x - minX) / (maxX - minX);
+                const v = (y - minY) / (maxY - minY);
+                uvAttr.setXY(i, u, v);
+            }
+            uvAttr.needsUpdate = true;
+
             const frontMesh = new THREE.Mesh(frontGeo, frontMat);
             frontMesh.position.set(0, 0.36, depth / 2 + 0.021);
             frontMesh.receiveShadow = true;
