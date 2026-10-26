@@ -511,36 +511,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createEngravedStoneTexture(mData) {
         const canvas = document.createElement('canvas');
-        canvas.width = 2048;
+        canvas.width = 1418;
         canvas.height = 2048;
         const ctx = canvas.getContext('2d');
 
         // Dark grey granite stone background
-        ctx.fillStyle = '#616872';
-        ctx.fillRect(0, 0, 2048, 2048);
+        ctx.fillStyle = '#4c525a';
+        ctx.fillRect(0, 0, 1418, 2048);
 
-        // Stone texture noise
-        for (let i = 0; i < 50000; i++) {
-            const x = Math.random() * 2048;
+        // Stone texture grain & noise
+        for (let i = 0; i < 40000; i++) {
+            const x = Math.random() * 1418;
             const y = Math.random() * 2048;
-            const shade = Math.floor(70 + Math.random() * 90);
+            const shade = Math.floor(60 + Math.random() * 85);
             ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.18)`;
-            ctx.fillRect(x, y, 5, 5);
+            ctx.fillRect(x, y, 4, 4);
         }
 
-        // Inner border (double gold frame)
+        // Helper path for arched contour
+        function traceArchedPath(padding) {
+            const cx = 709;
+            const cy = 709;
+            const r = 709 - padding;
+            const bottomY = 2048 - padding;
+
+            ctx.beginPath();
+            ctx.moveTo(cx - r, bottomY);
+            ctx.lineTo(cx - r, cy);
+            ctx.arc(cx, cy, r, Math.PI, 0, false);
+            ctx.lineTo(cx + r, bottomY);
+            ctx.closePath();
+        }
+
+        // Outer Gold Frame (thick)
+        traceArchedPath(50);
         ctx.strokeStyle = '#ffd600';
-        ctx.lineWidth = 24;
-        ctx.strokeRect(70, 70, 1908, 1908);
-        ctx.lineWidth = 8;
-        ctx.strokeRect(110, 110, 1828, 1828);
+        ctx.lineWidth = 20;
+        ctx.stroke();
+
+        // Inner Gold Frame (fine)
+        traceArchedPath(82);
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 7;
+        ctx.stroke();
+
+        // Subtle Frame Shadow
+        traceArchedPath(88);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.lineWidth = 4;
+        ctx.stroke();
 
         const nombre = (mData.nombre || 'Mascota').toUpperCase();
         const apodo = mData.apodos ? `"${mData.apodos}"` : '';
         const fLlegada = mData.fecha_llegada || '';
         const fDespedida = mData.fecha_despedida || '';
-        const fechas = (fLlegada || fDespedida) ? `${fLlegada} - ${fDespedida}` : '';
+        const fechas = (fLlegada || fDespedida) ? `${fLlegada}  -  ${fDespedida}` : '';
         const epitafio = mData.epitafio ? `"${mData.epitafio}"` : '';
+        const honor = mData.titulo_honor ? mData.titulo_honor.toUpperCase() : '';
 
         ctx.textAlign = 'center';
 
@@ -556,46 +583,68 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillText(text, x, y);
         }
 
-        // Paw Icon
-        drawEngravedText('🐾', 1024, 280, '120px sans-serif', '#ffd600', 10);
+        // 1. Top Arch Emblem & Stars (Crown & Paw)
+        drawEngravedText('👑', 709, 230, '115px sans-serif', '#ffd600', 8);
+        drawEngravedText('🐾', 709, 360, '85px sans-serif', '#ffd600', 6);
+        drawEngravedText('✦   ✦   ✦', 709, 430, '36px serif', '#eab308', 4);
 
-        // Name (Ultra bold 135px)
-        drawEngravedText(nombre, 1024, 540, 'bold 135px serif', '#ffffff', 12);
+        // 2. Title of Honor (if present)
+        let currentY = 510;
+        if (honor) {
+            drawEngravedText(`👑 ${honor}`, 709, currentY, 'bold 48px serif', '#fef08a', 6);
+            currentY += 80;
+        }
 
-        // Nickname
-        let currentY = 710;
+        // 3. Main Pet Name (Ultra bold 125px)
+        drawEngravedText(nombre, 709, currentY + 70, 'bold 125px serif', '#ffffff', 10);
+        currentY += 190;
+
+        // 4. Nickname
         if (apodo) {
-            drawEngravedText(apodo, 1024, currentY, 'bold italic 90px serif', '#ffd600', 10);
-            currentY += 190;
+            drawEngravedText(apodo, 709, currentY, 'bold italic 72px serif', '#ffd600', 8);
+            currentY += 120;
         }
 
-        // Dates (Large, ultra-crisp 95px bold sans-serif)
+        // 5. Upper Decorative Divider
+        drawEngravedText('✦ ────────── 🐾 ────────── ✦', 709, currentY + 20, 'bold 32px serif', '#ffd600', 4);
+        currentY += 100;
+
+        // 6. Dates (Large, ultra-crisp 72px bold sans-serif)
         if (fechas) {
-            drawEngravedText(fechas, 1024, currentY, 'bold 95px sans-serif', '#fef08a', 10);
-            currentY += 210;
+            drawEngravedText(fechas, 709, currentY, 'bold 72px sans-serif', '#fef08a', 8);
+            currentY += 110;
         }
 
-        // Epitaph (Large 85px bold italic serif with prominent vertical space)
+        // 7. Lower Decorative Divider
+        drawEngravedText('❖ ────────────── ❖', 709, currentY, 'bold 32px serif', '#d4af37', 4);
+        currentY += 120;
+
+        // 8. Epitaph (Large multiline italic text)
         if (epitafio) {
-            ctx.font = 'bold italic 85px serif';
+            ctx.font = 'bold italic 64px serif';
             const words = epitafio.split(' ');
             let line = '';
-            let lineY = currentY + 30;
+            let lineY = currentY;
 
             for (let i = 0; i < words.length; i++) {
                 const testLine = line + words[i] + ' ';
-                if (ctx.measureText(testLine).width > 1650 && i > 0) {
-                    drawEngravedText(line.trim(), 1024, lineY, 'bold italic 85px serif', '#ffffff', 10);
+                if (ctx.measureText(testLine).width > 1150 && i > 0) {
+                    drawEngravedText(line.trim(), 709, lineY, 'bold italic 64px serif', '#ffffff', 8);
                     line = words[i] + ' ';
-                    lineY += 120;
+                    lineY += 92;
                 } else {
                     line = testLine;
                 }
             }
             if (line) {
-                drawEngravedText(line.trim(), 1024, lineY, 'bold italic 85px serif', '#ffffff', 10);
+                drawEngravedText(line.trim(), 709, lineY, 'bold italic 64px serif', '#ffffff', 8);
             }
         }
+
+        // 9. Bottom Corner Filigree
+        drawEngravedText('✦', 160, 1950, 'bold 44px serif', '#ffd600', 4);
+        drawEngravedText('✦', 1258, 1950, 'bold 44px serif', '#ffd600', 4);
+        drawEngravedText('❖ BOSQUEPATITAS ❖', 709, 1950, 'bold 30px sans-serif', 'rgba(255,214,0,0.65)', 2);
 
         const texture = new THREE.CanvasTexture(canvas);
         return texture;
@@ -604,58 +653,82 @@ document.addEventListener('DOMContentLoaded', () => {
     function createTombstoneModel(tombData = null) {
         const group = new THREE.Group();
 
-        const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x4d5358, roughness: 0.85, metalness: 0.1 });
-        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x7c848a, roughness: 0.75, metalness: 0.15 });
+        const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x3d4248, roughness: 0.85, metalness: 0.1 });
+        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x6b727a, roughness: 0.75, metalness: 0.15 });
         const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.7 });
 
-        const baseGeo = new THREE.BoxGeometry(1.2, 0.18, 0.7);
+        // Base pedestal (Layer 1)
+        const baseGeo = new THREE.BoxGeometry(1.3, 0.18, 0.75);
         const baseMesh = new THREE.Mesh(baseGeo, darkStoneMat);
         baseMesh.position.y = 0.09;
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
         group.add(baseMesh);
 
-        const subBaseGeo = new THREE.BoxGeometry(1.0, 0.18, 0.55);
+        // Sub-base step (Layer 2)
+        const subBaseGeo = new THREE.BoxGeometry(1.1, 0.18, 0.6);
         const subBaseMesh = new THREE.Mesh(subBaseGeo, stoneMat);
         subBaseMesh.position.y = 0.27;
         subBaseMesh.castShadow = true;
         subBaseMesh.receiveShadow = true;
         group.add(subBaseMesh);
 
-        const mData = tombData ? (tombData.mascota_data || {}) : null;
+        // Monolithic Arched Headstone Body
+        const width = 0.90;
+        const straightH = 0.85;
+        const radius = width / 2; // 0.45
+        const totalH = straightH + radius; // 1.30
+        const depth = 0.22;
 
-        let bodyMat = stoneMat;
-        if (mData && (mData.nombre || mData.apodos || mData.epitafio)) {
-            const texture = createEngravedStoneTexture(mData);
-            bodyMat = [
-                stoneMat, // right
-                stoneMat, // left
-                stoneMat, // top
-                stoneMat, // bottom
-                new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, metalness: 0.1 }), // front (+Z)
-                stoneMat  // back (-Z)
-            ];
-        }
+        const shape = new THREE.Shape();
+        shape.moveTo(-radius, 0);
+        shape.lineTo(radius, 0);
+        shape.lineTo(radius, straightH);
+        shape.absarc(0, straightH, radius, 0, Math.PI, false);
+        shape.lineTo(-radius, 0);
 
-        const bodyGeo = new THREE.BoxGeometry(0.8, 0.8, 0.22);
-        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-        bodyMesh.position.y = 0.76;
+        const extrudeSettings = {
+            depth: depth,
+            bevelEnabled: true,
+            bevelSegments: 3,
+            steps: 1,
+            bevelSize: 0.02,
+            bevelThickness: 0.02
+        };
+
+        const bodyGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        bodyGeo.center();
+
+        const bodyMesh = new THREE.Mesh(bodyGeo, stoneMat);
+        bodyMesh.position.set(0, 0.36 + totalH / 2, 0);
         bodyMesh.castShadow = true;
         bodyMesh.receiveShadow = true;
         group.add(bodyMesh);
 
-        const archGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.22, 24, 1, false, 0, Math.PI);
-        const archMesh = new THREE.Mesh(archGeo, stoneMat);
-        archMesh.rotation.z = Math.PI / 2;
-        archMesh.rotation.y = Math.PI / 2;
-        archMesh.position.y = 1.16;
-        archMesh.castShadow = true;
-        archMesh.receiveShadow = true;
-        group.add(archMesh);
+        const mData = tombData ? (tombData.mascota_data || {}) : null;
 
-        const ornamentGeo = new THREE.OctahedronGeometry(0.09);
+        if (mData && (mData.nombre || mData.apodos || mData.epitafio || (tombData && tombData.title))) {
+            const texture = createEngravedStoneTexture(mData);
+            const frontMat = new THREE.MeshStandardMaterial({
+                map: texture,
+                roughness: 0.5,
+                metalness: 0.1,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -1
+            });
+
+            const frontGeo = new THREE.ShapeGeometry(shape);
+            const frontMesh = new THREE.Mesh(frontGeo, frontMat);
+            frontMesh.position.set(0, 0.36, depth / 2 + 0.021);
+            frontMesh.receiveShadow = true;
+            group.add(frontMesh);
+        }
+
+        // Top Crown Ornament
+        const ornamentGeo = new THREE.OctahedronGeometry(0.08);
         const ornamentMesh = new THREE.Mesh(ornamentGeo, goldMat);
-        ornamentMesh.position.set(0, 1.60, 0.0);
+        ornamentMesh.position.set(0, 0.36 + totalH + 0.06, 0);
         ornamentMesh.castShadow = true;
         group.add(ornamentMesh);
 
@@ -2476,8 +2549,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
                         finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
 
-                        // Pitch angle to inspect headstone face (Y = 0.75m)
-                        const tombstoneCenterY = 0.75;
+                        // Pitch angle to inspect headstone face (Y = 1.0m)
+                        const tombstoneCenterY = 1.0;
                         const finalPitch = Math.atan2(tombstoneCenterY - PLAYER_HEIGHT, approachDist);
 
                         const startX = camera.position.x;
