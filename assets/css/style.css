@@ -48,12 +48,12 @@ html {
     z-index: 10;
 }
 
-/* Tooltip / Card Informativa de Parcela y Tumba (Centrada en Pantalla) */
+/* Tooltip / Card Informativa de Parcela y Tumba (Banner Superior) */
 .bp-tooltip-card {
     position: fixed !important;
-    top: 50% !important;
+    top: 20px !important;
     left: 50% !important;
-    transform: translate(-50%, -50%) !important;
+    transform: translateX(-50%) !important;
     pointer-events: none;
     z-index: 10000;
     background: rgba(11, 23, 17, 0.95);
@@ -72,7 +72,7 @@ html {
 
 .bp-tooltip-card.hidden {
     opacity: 0;
-    transform: translate(-50%, -46%) scale(0.95) !important;
+    transform: translate(-50%, -10px) scale(0.95) !important;
     visibility: hidden;
 }
 

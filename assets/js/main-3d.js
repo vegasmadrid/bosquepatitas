@@ -216,10 +216,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let cameraYaw = 0;
     let targetCameraYaw = 0;
     let cameraPitch = 0;
+    let targetCameraPitch = 0;
     camera.position.set(0, PLAYER_HEIGHT, 15);
     camera.rotation.order = 'YXZ';
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
     renderer.shadowMap.enabled = true;
@@ -510,85 +511,161 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createEngravedStoneTexture(mData) {
         const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
+        canvas.width = 1418;
+        canvas.height = 2048;
         const ctx = canvas.getContext('2d');
 
         // Dark grey granite stone background
-        ctx.fillStyle = '#6b7280';
-        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillStyle = '#4c525a';
+        ctx.fillRect(0, 0, 1418, 2048);
 
-        // Stone texture noise
-        for (let i = 0; i < 6000; i++) {
-            const x = Math.random() * 512;
-            const y = Math.random() * 512;
-            const shade = Math.floor(80 + Math.random() * 80);
-            ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.15)`;
-            ctx.fillRect(x, y, 2, 2);
+        // Stone texture grain & noise
+        for (let i = 0; i < 40000; i++) {
+            const x = Math.random() * 1418;
+            const y = Math.random() * 2048;
+            const shade = Math.floor(60 + Math.random() * 85);
+            ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.18)`;
+            ctx.fillRect(x, y, 4, 4);
         }
 
-        // Inner border
-        ctx.strokeStyle = '#d4af37';
-        ctx.lineWidth = 6;
-        ctx.strokeRect(20, 20, 472, 472);
+        // Helper path for arched contour
+        function traceArchedPath(padding) {
+            const cx = 709;
+            const cy = 709;
+            const r = 709 - padding;
+            const bottomY = 2048 - padding;
+
+            ctx.beginPath();
+            ctx.moveTo(cx - r, bottomY);
+            ctx.lineTo(cx - r, cy);
+            ctx.arc(cx, cy, r, Math.PI, 0, false);
+            ctx.lineTo(cx + r, bottomY);
+            ctx.closePath();
+        }
+
+        // Outer Gold Frame (thick)
+        traceArchedPath(50);
+        ctx.strokeStyle = '#ffd600';
+        ctx.lineWidth = 20;
+        ctx.stroke();
+
+        // Inner Gold Frame (fine)
+        traceArchedPath(82);
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 7;
+        ctx.stroke();
+
+        // Subtle Frame Shadow
+        traceArchedPath(88);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return dateStr;
+        }
 
         const nombre = (mData.nombre || 'Mascota').toUpperCase();
         const apodo = mData.apodos ? `"${mData.apodos}"` : '';
-        const fLlegada = mData.fecha_llegada || '';
-        const fDespedida = mData.fecha_despedida || '';
-        const fechas = (fLlegada || fDespedida) ? `${fLlegada} - ${fDespedida}` : '';
+        const fLlegada = formatDate(mData.fecha_llegada || '');
+        const fDespedida = formatDate(mData.fecha_despedida || '');
+        const fechas = (fLlegada || fDespedida) ? `${fLlegada}  -  ${fDespedida}` : '';
         const epitafio = mData.epitafio ? `"${mData.epitafio}"` : '';
+        const honor = mData.titulo_honor ? mData.titulo_honor.toUpperCase() : '';
 
         ctx.textAlign = 'center';
 
-        // Engraved text styling with shadow effect
-        function drawEngravedText(text, x, y, font, color = '#111827', highlight = '#fef08a') {
+        // Engraved text styling with dark outer outline, deep shadow & high contrast fill
+        function drawEngravedText(text, x, y, font, highlight = '#ffffff', shadowOffset = 8) {
             ctx.font = font;
-            // Shadow
+
+            // Outer black stroke for crisp definition against granite background
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = Math.max(6, shadowOffset);
+            ctx.strokeText(text, x, y);
+
+            // Heavy Deep Shadow for 3D Engraved Effect
             ctx.fillStyle = '#000000';
-            ctx.fillText(text, x + 2, y + 2);
-            // Highlight
+            ctx.fillText(text, x + shadowOffset, y + shadowOffset);
+            ctx.fillText(text, x + shadowOffset / 2, y + shadowOffset / 2);
+
+            // Crisp Highlight
             ctx.fillStyle = highlight;
             ctx.fillText(text, x, y);
         }
 
-        // Paw Icon
-        drawEngravedText('🐾', 256, 80, '40px sans-serif', '#000', '#d4af37');
+        // 1. Top Arch Emblem & Stars (Crown & Paw)
+        drawEngravedText('👑', 709, 230, '115px sans-serif', '#ffd600', 8);
+        drawEngravedText('🐾', 709, 360, '85px sans-serif', '#ffd600', 6);
+        drawEngravedText('✦   ✦   ✦', 709, 430, '36px serif', '#eab308', 4);
 
-        // Name
-        drawEngravedText(nombre, 256, 150, 'bold 36px serif', '#000', '#ffffff');
+        // 2. Title of Honor (if present)
+        let currentY = 510;
+        if (honor) {
+            drawEngravedText(`👑 ${honor}`, 709, currentY, 'bold 48px serif', '#fef08a', 6);
+            currentY += 80;
+        }
 
-        // Nickname
+        // 3. Main Pet Name with auto-scaling to prevent overflowing canvas width
+        let nameFontSize = 125;
+        ctx.font = `bold ${nameFontSize}px serif`;
+        while (ctx.measureText(nombre).width > 1100 && nameFontSize > 50) {
+            nameFontSize -= 5;
+            ctx.font = `bold ${nameFontSize}px serif`;
+        }
+        drawEngravedText(nombre, 709, currentY + 70, `bold ${nameFontSize}px serif`, '#ffffff', 10);
+        currentY += 190;
+
+        // 4. Nickname
         if (apodo) {
-            drawEngravedText(apodo, 256, 210, 'italic 26px serif', '#000', '#ffd600');
+            drawEngravedText(apodo, 709, currentY, 'bold italic 72px serif', '#ffd600', 8);
+            currentY += 110;
         }
 
-        // Dates
+        // 5. Dates (Large, ultra-crisp 80px bold sans-serif with high contrast)
         if (fechas) {
-            drawEngravedText(fechas, 256, 270, 'bold 22px monospace', '#000', '#a7f3d0');
+            let dateFontSize = 80;
+            ctx.font = `bold ${dateFontSize}px sans-serif`;
+            while (ctx.measureText(fechas).width > 1150 && dateFontSize > 40) {
+                dateFontSize -= 4;
+                ctx.font = `bold ${dateFontSize}px sans-serif`;
+            }
+            drawEngravedText(fechas, 709, currentY + 30, `bold ${dateFontSize}px sans-serif`, '#ffeb3b', 8);
+            currentY += 150;
         }
 
-        // Epitaph (wrapped)
+        // 6. Epitaph (Ultra-large, highly legible 80px multiline italic text)
         if (epitafio) {
-            ctx.font = 'italic 20px serif';
+            const epitaphFont = 'bold italic 80px serif';
+            ctx.font = epitaphFont;
             const words = epitafio.split(' ');
             let line = '';
-            let lineY = 350;
+            let lineY = currentY + 20;
 
             for (let i = 0; i < words.length; i++) {
                 const testLine = line + words[i] + ' ';
-                if (ctx.measureText(testLine).width > 420 && i > 0) {
-                    drawEngravedText(line.trim(), 256, lineY, 'italic 20px serif', '#000', '#fef08a');
+                if (ctx.measureText(testLine).width > 1150 && i > 0) {
+                    drawEngravedText(line.trim(), 709, lineY, epitaphFont, '#ffffff', 8);
                     line = words[i] + ' ';
-                    lineY += 32;
+                    lineY += 110;
                 } else {
                     line = testLine;
                 }
             }
             if (line) {
-                drawEngravedText(line.trim(), 256, lineY, 'italic 20px serif', '#000', '#fef08a');
+                drawEngravedText(line.trim(), 709, lineY, epitaphFont, '#ffffff', 8);
             }
         }
+
+        // 9. Bottom Corner Filigree
+        drawEngravedText('✦', 160, 1950, 'bold 44px serif', '#ffd600', 4);
+        drawEngravedText('✦', 1258, 1950, 'bold 44px serif', '#ffd600', 4);
+        drawEngravedText('❖ BOSQUEPATITAS ❖', 709, 1950, 'bold 30px sans-serif', 'rgba(255,214,0,0.65)', 2);
 
         const texture = new THREE.CanvasTexture(canvas);
         return texture;
@@ -597,58 +674,100 @@ document.addEventListener('DOMContentLoaded', () => {
     function createTombstoneModel(tombData = null) {
         const group = new THREE.Group();
 
-        const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x4d5358, roughness: 0.85, metalness: 0.1 });
-        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x7c848a, roughness: 0.75, metalness: 0.15 });
+        const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x3d4248, roughness: 0.85, metalness: 0.1 });
+        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x6b727a, roughness: 0.75, metalness: 0.15 });
         const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.7 });
 
-        const baseGeo = new THREE.BoxGeometry(1.2, 0.18, 0.7);
+        // Base pedestal (Layer 1)
+        const baseGeo = new THREE.BoxGeometry(1.3, 0.18, 0.75);
         const baseMesh = new THREE.Mesh(baseGeo, darkStoneMat);
         baseMesh.position.y = 0.09;
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
         group.add(baseMesh);
 
-        const subBaseGeo = new THREE.BoxGeometry(1.0, 0.18, 0.55);
+        // Sub-base step (Layer 2)
+        const subBaseGeo = new THREE.BoxGeometry(1.1, 0.18, 0.6);
         const subBaseMesh = new THREE.Mesh(subBaseGeo, stoneMat);
         subBaseMesh.position.y = 0.27;
         subBaseMesh.castShadow = true;
         subBaseMesh.receiveShadow = true;
         group.add(subBaseMesh);
 
-        const mData = tombData ? (tombData.mascota_data || {}) : null;
+        // Monolithic Arched Headstone Body
+        const width = 0.90;
+        const straightH = 0.85;
+        const radius = width / 2; // 0.45
+        const totalH = straightH + radius; // 1.30
+        const depth = 0.22;
 
-        let bodyMat = stoneMat;
-        if (mData && (mData.nombre || mData.apodos || mData.epitafio)) {
-            const texture = createEngravedStoneTexture(mData);
-            bodyMat = [
-                stoneMat, // right
-                stoneMat, // left
-                stoneMat, // top
-                stoneMat, // bottom
-                new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, metalness: 0.1 }), // front (+Z)
-                stoneMat  // back (-Z)
-            ];
-        }
+        const shape = new THREE.Shape();
+        shape.moveTo(-radius, 0);
+        shape.lineTo(radius, 0);
+        shape.lineTo(radius, straightH);
+        shape.absarc(0, straightH, radius, 0, Math.PI, false);
+        shape.lineTo(-radius, 0);
 
-        const bodyGeo = new THREE.BoxGeometry(0.8, 0.8, 0.22);
-        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-        bodyMesh.position.y = 0.76;
+        const extrudeSettings = {
+            depth: depth,
+            bevelEnabled: true,
+            bevelSegments: 3,
+            steps: 1,
+            bevelSize: 0.02,
+            bevelThickness: 0.02
+        };
+
+        const bodyGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        bodyGeo.center();
+
+        const bodyMesh = new THREE.Mesh(bodyGeo, stoneMat);
+        bodyMesh.position.set(0, 0.36 + totalH / 2, 0);
         bodyMesh.castShadow = true;
         bodyMesh.receiveShadow = true;
         group.add(bodyMesh);
 
-        const archGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.22, 24, 1, false, 0, Math.PI);
-        const archMesh = new THREE.Mesh(archGeo, stoneMat);
-        archMesh.rotation.z = Math.PI / 2;
-        archMesh.rotation.y = Math.PI / 2;
-        archMesh.position.y = 1.16;
-        archMesh.castShadow = true;
-        archMesh.receiveShadow = true;
-        group.add(archMesh);
+        const mData = tombData ? (tombData.mascota_data || {}) : null;
 
-        const ornamentGeo = new THREE.OctahedronGeometry(0.09);
+        if (mData && (mData.nombre || mData.apodos || mData.epitafio || (tombData && tombData.title))) {
+            const texture = createEngravedStoneTexture(mData);
+            const frontMat = new THREE.MeshStandardMaterial({
+                map: texture,
+                roughness: 0.5,
+                metalness: 0.1,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -1
+            });
+
+            const frontGeo = new THREE.ShapeGeometry(shape);
+
+            // Normalize UV coordinates so canvas texture spans [0, 1] horizontally and vertically
+            const posAttr = frontGeo.attributes.position;
+            const uvAttr = frontGeo.attributes.uv;
+            const minX = -radius;
+            const maxX = radius;
+            const minY = 0;
+            const maxY = totalH;
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const x = posAttr.getX(i);
+                const y = posAttr.getY(i);
+                const u = (x - minX) / (maxX - minX);
+                const v = (y - minY) / (maxY - minY);
+                uvAttr.setXY(i, u, v);
+            }
+            uvAttr.needsUpdate = true;
+
+            const frontMesh = new THREE.Mesh(frontGeo, frontMat);
+            frontMesh.position.set(0, 0.36, depth / 2 + 0.021);
+            frontMesh.receiveShadow = true;
+            group.add(frontMesh);
+        }
+
+        // Top Crown Ornament
+        const ornamentGeo = new THREE.OctahedronGeometry(0.08);
         const ornamentMesh = new THREE.Mesh(ornamentGeo, goldMat);
-        ornamentMesh.position.set(0, 0.9, 0.12);
+        ornamentMesh.position.set(0, 0.36 + totalH + 0.06, 0);
         ornamentMesh.castShadow = true;
         group.add(ornamentMesh);
 
@@ -1330,10 +1449,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isAutoWalking = false;
     let autoWalkTarget = null;
+    let focusedPlotId = null;
+    let walkTimer = 0;
 
     function stopAutoWalk() {
         isAutoWalking = false;
         autoWalkTarget = null;
+        focusedPlotId = null;
+        walkTimer = 0;
+    }
+
+    function resetCameraPitch() {
+        targetCameraPitch = 0;
     }
 
     // Escuchadores Teclado
@@ -1345,22 +1472,28 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'ArrowUp':
             case 'KeyW':
                 keyState.forward = true;
+                resetCameraPitch();
                 break;
             case 'ArrowDown':
             case 'KeyS':
                 keyState.backward = true;
+                resetCameraPitch();
                 break;
             case 'ArrowLeft':
                 keyState.turnLeft = true;
+                resetCameraPitch();
                 break;
             case 'ArrowRight':
                 keyState.turnRight = true;
+                resetCameraPitch();
                 break;
             case 'KeyA':
                 keyState.strafeLeft = true;
+                resetCameraPitch();
                 break;
             case 'KeyD':
                 keyState.strafeRight = true;
+                resetCameraPitch();
                 break;
             default:
                 handled = false;
@@ -1401,6 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentMode !== MODE_GROUND) return;
         e.preventDefault();
         stopAutoWalk();
+        resetCameraPitch();
 
         const scrollSpeed = 1.2;
         const moveZ = e.deltaY > 0 ? 1 : -1; // deltaY > 0 es scroll hacia abajo (retroceder), < 0 avance
@@ -1427,6 +1561,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             touchState[action] = true;
             stopAutoWalk();
+            resetCameraPitch();
             btn.classList.add('active');
         };
 
@@ -1479,6 +1614,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             camera.position.set(targetX, PLAYER_HEIGHT, targetZ);
             cameraPitch = 0;
+            targetCameraPitch = 0;
             targetCameraYaw = cameraYaw;
             camera.rotation.set(0, cameraYaw, 0, 'YXZ');
 
@@ -2397,30 +2533,9 @@ document.addEventListener('DOMContentLoaded', () => {
             tooltip.classList.remove('hidden');
 
             if (ud.type === 'tombstone' || (ud.type === 'plot' && ud.occupied)) {
-                const tumba = ud.tombData || {};
-                const mData = tumba.mascota_data || {};
-                const title = mData.nombre || ((tumba.title && typeof tumba.title === 'object') ? tumba.title.rendered : (tumba.title || 'Mascota Recordada'));
-                const honor = mData.titulo_honor || '';
-                const apodo = mData.apodos || '';
-                const fLlegada = mData.fecha_llegada || '';
-                const fDespedida = mData.fecha_despedida || '';
-                const datesText = (fLlegada || fDespedida) ? `📅 ${fLlegada || '?'} ➔ ${fDespedida || 'Eternidad'}` : '';
-                const epitafio = mData.epitafio || '';
-
-                tooltip.innerHTML = `
-                    <div class="bp-tooltip-header">
-                        <span class="bp-badge occupied">🪦 Lápida Conmemorativa</span>
-                        <h4 class="bp-pet-title" style="font-size:18px; margin-top:4px; color:#ffffff !important; font-weight:800;">${title}</h4>
-                        ${honor ? `<div style="font-size:12px; color:#34d399 !important; font-weight:700; margin-top:2px;">👑 ${honor}</div>` : ''}
-                        ${apodo ? `<div style="font-size:13px; color:#ffd600 !important; font-weight:700; margin-top:2px;">"${apodo}"</div>` : ''}
-                        ${datesText ? `<div style="font-size:11px; color:#a7f3d0 !important; margin-top:4px;">${datesText}</div>` : ''}
-                    </div>
-                    ${epitafio ? `<p class="bp-pet-excerpt" style="font-size:13px; color:#fef08a !important; margin:10px 0; font-style:italic;">"${epitafio}"</p>` : ''}
-                    <div class="bp-tooltip-footer" style="margin-top:8px;">
-                        <small style="color:#94a3b8 !important;">Parcela: ${ud.plotId || 'BosquePatitas'} | Clic para ver ficha completa</small>
-                    </div>
-                `;
+                tooltip.classList.add('hidden');
             } else {
+                tooltip.classList.remove('hidden');
                 tooltip.innerHTML = `
                     <div class="bp-tooltip-header">
                         <span class="bp-badge free">Parcela Disponible</span>
@@ -2448,32 +2563,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (obj.userData && (obj.userData.type === 'plot' || obj.userData.type === 'tombstone')) {
                     const plotGroup = obj.userData.plotGroup || obj.parent;
                     if (plotGroup) {
+                        const plotId = obj.userData.plotId;
                         const targetPos = new THREE.Vector3();
                         plotGroup.getWorldPosition(targetPos);
 
                         if (currentMode === MODE_AERIAL) {
                             if (controls) controls.target.set(targetPos.x, targetPos.y + 0.8, targetPos.z);
                             openModalForObject(obj.userData, plotGroup);
-                        } else {
-                            const rotY = plotGroup.rotation.y || 0;
-                            const approachDist = 2.2;
-
-                            const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
-                            const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
-
-                            let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
-                            finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
-
-                            autoWalkTarget = {
-                                x: targetX,
-                                z: targetZ,
-                                targetPlotPos: targetPos,
-                                finalYaw: finalYaw,
-                                pendingUserData: obj.userData,
-                                pendingPlotGroup: plotGroup
-                            };
-                            isAutoWalking = true;
+                            return;
                         }
+
+                        // If already focused on this plot, second click triggers the modal overlay
+                        if (focusedPlotId === plotId && !isAutoWalking) {
+                            openModalForObject(obj.userData, plotGroup);
+                            return;
+                        }
+
+                        const rotY = plotGroup.rotation.y || 0;
+                        const approachDist = 2.1;
+                        const KNEELING_HEIGHT = 0.75;
+
+                        const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
+                        const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
+
+                        let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
+                        finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
+
+                        // Kneeling position angle: Eye height lowered to 0.75m looking slightly down towards tombstone base / slab (Y = 0.65m)
+                        const tombstoneCenterY = 0.65;
+                        const finalPitch = Math.atan2(tombstoneCenterY - KNEELING_HEIGHT, approachDist);
+
+                        const startX = camera.position.x;
+                        const startZ = camera.position.z;
+                        const totalDist = Math.hypot(targetX - startX, targetZ - startZ);
+
+                        autoWalkTarget = {
+                            startX: startX,
+                            startZ: startZ,
+                            x: targetX,
+                            z: targetZ,
+                            totalDist: totalDist,
+                            targetPlotPos: targetPos,
+                            finalYaw: finalYaw,
+                            finalPitch: finalPitch,
+                            userData: obj.userData,
+                            plotGroup: plotGroup,
+                            plotId: plotId,
+                            phase: 'walk'
+                        };
+                        isAutoWalking = true;
+                        focusedPlotId = null;
+                        targetCameraPitch = 0; // Level horizontal pitch while walking
                     }
                     break;
                 }
@@ -2537,11 +2677,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (totalPointerMove > 5) {
             stopAutoWalk();
+            resetCameraPitch();
         }
 
         const sensitivity = 0.0032;
         targetCameraYaw -= dx * sensitivity;
-        cameraPitch = 0;
     };
 
     const onPointerUp = (event) => {
@@ -2594,39 +2734,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dz = autoWalkTarget.z - camera.position.z;
                 const dist = Math.hypot(dx, dz);
 
-                const finalYaw = (autoWalkTarget.finalYaw !== undefined)
-                    ? autoWalkTarget.finalYaw
-                    : Math.atan2(-(autoWalkTarget.targetPlotPos.x - camera.position.x), -(autoWalkTarget.targetPlotPos.z - camera.position.z));
+                if (autoWalkTarget.phase === 'walk') {
+                    if (dist > 0.12) {
+                        // Walk forward looking towards destination
+                        const moveYaw = Math.atan2(-dx, -dz);
+                        targetCameraYaw = moveYaw;
+                        targetCameraPitch = 0; // Level pitch during walk
 
-                let yawDiff = finalYaw - targetCameraYaw;
-                yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
+                        // Ease-in / Ease-out speed curve
+                        const traveled = autoWalkTarget.totalDist - dist;
+                        let speedFactor = 1.0;
+                        if (autoWalkTarget.totalDist > 0.5) {
+                            const easeIn = Math.min(1.0, traveled / 1.0);
+                            const easeOut = Math.min(1.0, dist / 1.5);
+                            speedFactor = Math.max(0.25, Math.min(easeIn, easeOut));
+                        }
 
-                if (dist > 0.08 || Math.abs(yawDiff) > 0.03) {
-                    if (dist > 0.08) {
-                        const walkSpeed = Math.min(dist, moveSpeed * 1.4);
-                        camera.position.x += (dx / dist) * walkSpeed;
-                        camera.position.z += (dz / dist) * walkSpeed;
+                        const stepSpeed = moveSpeed * 1.5 * speedFactor;
+                        const step = Math.min(dist, stepSpeed);
+                        camera.position.x += (dx / dist) * step;
+                        camera.position.z += (dz / dist) * step;
+
+                        // Subtle human head bobbing
+                        walkTimer += delta * 11 * speedFactor;
+                        camera.position.y = PLAYER_HEIGHT + Math.sin(walkTimer) * 0.035;
                     } else {
+                        // Reached position destination, transition to 'arrive' phase
                         camera.position.x = autoWalkTarget.x;
                         camera.position.z = autoWalkTarget.z;
+                        autoWalkTarget.phase = 'arrive';
+                        walkTimer = 0;
+                        camera.position.y = PLAYER_HEIGHT;
                     }
+                } else if (autoWalkTarget.phase === 'arrive') {
+                    // Turn to face tombstone, tilt camera pitch, and lower eye height (kneel)
+                    targetCameraYaw = autoWalkTarget.finalYaw;
+                    targetCameraPitch = autoWalkTarget.finalPitch;
 
-                    targetCameraYaw += yawDiff * 0.18;
-                } else {
-                    // Posición y orientación frontal exactas alcanzadas
-                    camera.position.x = autoWalkTarget.x;
-                    camera.position.z = autoWalkTarget.z;
-                    targetCameraYaw = finalYaw;
-                    cameraYaw = finalYaw;
+                    const KNEELING_HEIGHT = 0.75;
+                    camera.position.y += (KNEELING_HEIGHT - camera.position.y) * 0.12;
 
-                    const pendingData = autoWalkTarget.pendingUserData;
-                    const pendingGroup = autoWalkTarget.pendingPlotGroup;
-                    stopAutoWalk();
+                    let yawDiff = autoWalkTarget.finalYaw - cameraYaw;
+                    yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
+                    const pitchDiff = Math.abs(autoWalkTarget.finalPitch - cameraPitch);
 
-                    if (pendingData && pendingGroup) {
-                        setTimeout(() => {
-                            openModalForObject(pendingData, pendingGroup);
-                        }, 120);
+                    if (Math.abs(yawDiff) < 0.03 && pitchDiff < 0.03) {
+                        // Arrived and smoothly focused on tombstone
+                        focusedPlotId = autoWalkTarget.plotId;
+                        isAutoWalking = false;
+                        autoWalkTarget = null;
                     }
                 }
             } else {
@@ -2641,6 +2797,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (keyState.strafeLeft) moveX -= 1;
                 if (keyState.strafeRight) moveX += 1;
 
+                const KNEELING_HEIGHT = 0.75;
+                const targetPlayerY = focusedPlotId ? KNEELING_HEIGHT : PLAYER_HEIGHT;
+
                 if (moveX !== 0 || moveZ !== 0) {
                     const len = Math.hypot(moveX, moveZ);
                     moveX /= len;
@@ -2654,22 +2813,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     camera.position.x += dx;
                     camera.position.z += dz;
+
+                    // Manual walking head bobbing
+                    walkTimer += delta * 11;
+                    camera.position.y = PLAYER_HEIGHT + Math.sin(walkTimer) * 0.035;
+                } else {
+                    walkTimer = 0;
+                    camera.position.y += (targetPlayerY - camera.position.y) * 0.12;
                 }
             }
 
-            // Suavizado e inercia de rotación (Damping)
+            // Suavizado e inercia de rotación horizontal (Yaw) y vertical (Pitch)
             let diffYaw = targetCameraYaw - cameraYaw;
             diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
             cameraYaw += diffYaw * 0.15;
 
+            cameraPitch += (targetCameraPitch - cameraPitch) * 0.12;
+
             camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
             camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
-            camera.position.y = PLAYER_HEIGHT;
 
-            cameraPitch = 0;
             camera.rotation.order = 'YXZ';
             camera.rotation.y = cameraYaw;
-            camera.rotation.x = 0;
+            camera.rotation.x = cameraPitch;
             camera.rotation.z = 0;
         } else if (controls) {
             controls.update();
