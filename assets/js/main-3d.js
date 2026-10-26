@@ -281,8 +281,222 @@ document.addEventListener('DOMContentLoaded', () => {
     scene.add(ground);
 
     // ----------------------------------------------------
-    // GENERADORES 3D
+    // REGISTRO DE ANIMACIONES 3D
     // ----------------------------------------------------
+    const animatedCandles = [];
+
+    // ----------------------------------------------------
+    // GENERADORES DE HOMENAJES Y MODELOS 3D
+    // ----------------------------------------------------
+    function createCandle3D() {
+        const candleGroup = new THREE.Group();
+
+        const waxMat = new THREE.MeshStandardMaterial({
+            color: 0xfffae6,
+            roughness: 0.3,
+            metalness: 0.1
+        });
+        const waxGeo = new THREE.CylinderGeometry(0.032, 0.035, 0.18, 12);
+        const waxMesh = new THREE.Mesh(waxGeo, waxMat);
+        waxMesh.position.y = 0.09;
+        waxMesh.castShadow = true;
+        waxMesh.receiveShadow = true;
+        candleGroup.add(waxMesh);
+
+        const wickMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+        const wickGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.03, 6);
+        const wickMesh = new THREE.Mesh(wickGeo, wickMat);
+        wickMesh.position.y = 0.195;
+        candleGroup.add(wickMesh);
+
+        const flameMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        const flameGeo = new THREE.ConeGeometry(0.016, 0.045, 8);
+        const flameMesh = new THREE.Mesh(flameGeo, flameMat);
+        flameMesh.position.y = 0.22;
+        candleGroup.add(flameMesh);
+
+        const flameLight = new THREE.PointLight(0xffa022, 0.6, 1.8, 2);
+        flameLight.position.y = 0.22;
+        candleGroup.add(flameLight);
+
+        animatedCandles.push({
+            light: flameLight,
+            flameMesh: flameMesh,
+            baseIntensity: 0.6,
+            timeOffset: Math.random() * 100
+        });
+
+        return candleGroup;
+    }
+
+    function createFlower3D(isWilted = false) {
+        const flowerGroup = new THREE.Group();
+
+        if (isWilted) {
+            const potMat = new THREE.MeshStandardMaterial({ color: 0x4a3b32, roughness: 0.9 });
+            const potGeo = new THREE.CylinderGeometry(0.07, 0.05, 0.10, 8);
+            const pot = new THREE.Mesh(potGeo, potMat);
+            pot.position.y = 0.05;
+            pot.castShadow = true;
+            flowerGroup.add(pot);
+
+            const wiltedStemMat = new THREE.MeshStandardMaterial({ color: 0x5c4a30, roughness: 0.9 });
+            const wiltedPetalMat = new THREE.MeshStandardMaterial({ color: 0x705139, roughness: 0.9 });
+
+            for (let i = 0; i < 3; i++) {
+                const angle = (i * Math.PI * 2) / 3;
+                const stem = new THREE.Group();
+                stem.rotation.y = angle;
+
+                const stemGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.16, 6);
+                const stemMesh = new THREE.Mesh(stemGeo, wiltedStemMat);
+                stemMesh.position.set(0.03, 0.12, 0);
+                stemMesh.rotation.z = -Math.PI / 3;
+                stem.add(stemMesh);
+
+                const budGeo = new THREE.SphereGeometry(0.022, 6, 6);
+                budGeo.scale(0.8, 1.2, 0.8);
+                const budMesh = new THREE.Mesh(budGeo, wiltedPetalMat);
+                budMesh.position.set(0.07, 0.08, 0);
+                stem.add(budMesh);
+
+                flowerGroup.add(stem);
+            }
+        } else {
+            const potMat = new THREE.MeshStandardMaterial({ color: 0x8d5b4c, roughness: 0.6 });
+            const potGeo = new THREE.CylinderGeometry(0.08, 0.06, 0.12, 10);
+            const pot = new THREE.Mesh(potGeo, potMat);
+            pot.position.y = 0.06;
+            pot.castShadow = true;
+            pot.receiveShadow = true;
+            flowerGroup.add(pot);
+
+            const stemMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.6 });
+            const petalColors = [0xe91e63, 0xffeb3b, 0x9c27b0, 0x2196f3, 0xff5722];
+
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * Math.PI * 2) / 5;
+                const stem = new THREE.Group();
+                stem.rotation.y = angle + Math.random() * 0.2;
+
+                const stemGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.20, 6);
+                const stemMesh = new THREE.Mesh(stemGeo, stemMat);
+                stemMesh.position.set(0.02, 0.15, 0);
+                stemMesh.rotation.z = -0.2;
+                stem.add(stemMesh);
+
+                const pColor = petalColors[i % petalColors.length];
+                const petalMat = new THREE.MeshStandardMaterial({ color: pColor, roughness: 0.5 });
+                const bloomGeo = new THREE.SphereGeometry(0.035, 8, 8);
+                const bloomMesh = new THREE.Mesh(bloomGeo, petalMat);
+                bloomMesh.position.set(0.035, 0.24, 0);
+                bloomMesh.castShadow = true;
+                stem.add(bloomMesh);
+
+                flowerGroup.add(stem);
+            }
+        }
+
+        return flowerGroup;
+    }
+
+    function createTreat3D() {
+        const treatGroup = new THREE.Group();
+
+        const dishMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3, metalness: 0.3 });
+        const dishGeo = new THREE.CylinderGeometry(0.08, 0.06, 0.04, 12);
+        const dish = new THREE.Mesh(dishGeo, dishMat);
+        dish.position.y = 0.02;
+        dish.castShadow = true;
+        dish.receiveShadow = true;
+        treatGroup.add(dish);
+
+        const boneMat = new THREE.MeshStandardMaterial({ color: 0xf5f0e1, roughness: 0.6 });
+        const boneCenterGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.08, 8);
+        const boneCenter = new THREE.Mesh(boneCenterGeo, boneMat);
+        boneCenter.rotation.z = Math.PI / 2;
+        boneCenter.position.y = 0.042;
+        boneCenter.castShadow = true;
+        treatGroup.add(boneCenter);
+
+        const knobGeo = new THREE.SphereGeometry(0.015, 8, 8);
+        const k1 = new THREE.Mesh(knobGeo, boneMat);
+        k1.position.set(-0.04, 0.042, -0.01);
+        treatGroup.add(k1);
+        const k2 = new THREE.Mesh(knobGeo, boneMat);
+        k2.position.set(-0.04, 0.042, 0.01);
+        treatGroup.add(k2);
+        const k3 = new THREE.Mesh(knobGeo, boneMat);
+        k3.position.set(0.04, 0.042, -0.01);
+        treatGroup.add(k3);
+        const k4 = new THREE.Mesh(knobGeo, boneMat);
+        k4.position.set(0.04, 0.042, 0.01);
+        treatGroup.add(k4);
+
+        return treatGroup;
+    }
+
+    function attachTributesToTombstoneGroup(group, mData) {
+        if (!group || !mData) return;
+
+        const existingTributes = group.getObjectByName('tributesContainer');
+        if (existingTributes) {
+            group.remove(existingTributes);
+        }
+
+        const tributesContainer = new THREE.Group();
+        tributesContainer.name = 'tributesContainer';
+
+        const candleSlots = [
+            { x: -0.42, y: 0.36, z: 0.20 },
+            { x:  0.42, y: 0.36, z: 0.20 },
+            { x: -0.28, y: 0.36, z: 0.24 },
+            { x:  0.28, y: 0.36, z: 0.24 }
+        ];
+
+        const flowerSlots = [
+            { x: -0.36, y: 0.18, z: 0.36 },
+            { x:  0.36, y: 0.18, z: 0.36 },
+            { x: -0.18, y: 0.18, z: 0.42 },
+            { x:  0.18, y: 0.18, z: 0.42 }
+        ];
+
+        const treatSlots = [
+            { x: -0.35, y: 0.04, z: 0.58 },
+            { x:  0.35, y: 0.04, z: 0.58 },
+            { x: -0.12, y: 0.04, z: 0.68 },
+            { x:  0.12, y: 0.04, z: 0.68 }
+        ];
+
+        const velas = mData.velas || [];
+        velas.forEach((v, idx) => {
+            const slotIdx = (typeof v.slot === 'number' && v.slot >= 0 && v.slot < 4) ? v.slot : (idx % 4);
+            const pos = candleSlots[slotIdx];
+            const candleMesh = createCandle3D();
+            candleMesh.position.set(pos.x, pos.y, pos.z);
+            tributesContainer.add(candleMesh);
+        });
+
+        const flores = mData.flores || [];
+        flores.forEach((f, idx) => {
+            const slotIdx = (typeof f.slot === 'number' && f.slot >= 0 && f.slot < 4) ? f.slot : (idx % 4);
+            const pos = flowerSlots[slotIdx];
+            const flowerMesh = createFlower3D(f.is_wilted);
+            flowerMesh.position.set(pos.x, pos.y, pos.z);
+            tributesContainer.add(flowerMesh);
+        });
+
+        const premios = mData.premios || [];
+        premios.forEach((p, idx) => {
+            const slotIdx = (typeof p.slot === 'number' && p.slot >= 0 && p.slot < 4) ? p.slot : (idx % 4);
+            const pos = treatSlots[slotIdx];
+            const treatMesh = createTreat3D();
+            treatMesh.position.set(pos.x, pos.y, pos.z);
+            tributesContainer.add(treatMesh);
+        });
+
+        group.add(tributesContainer);
+    }
     function createTreeModel(type = 'oak') {
         const group = new THREE.Group();
         const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9, metalness: 0.1 });
@@ -770,6 +984,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ornamentMesh.position.set(0, 0.36 + totalH + 0.06, 0);
         ornamentMesh.castShadow = true;
         group.add(ornamentMesh);
+
+        // Attach 3D Tributes (candles, flowers, treats)
+        if (mData) {
+            attachTributesToTombstoneGroup(group, mData);
+        }
 
         return group;
     }
@@ -1690,6 +1909,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const sheetModalCloseBtn = document.getElementById('bp-sheet-close');
     if (sheetModalCloseBtn) sheetModalCloseBtn.addEventListener('click', () => petSheetModal.classList.add('hidden'));
 
+    // Close overlays when clicking outside content card on backdrop
+    [petSheetModal, claimModal, helpModal, inventoryModal].forEach(modalEl => {
+        if (modalEl) {
+            modalEl.addEventListener('click', (e) => {
+                if (e.target === modalEl) {
+                    modalEl.classList.add('hidden');
+                }
+            });
+        }
+    });
+
     // ----------------------------------------------------
     // FULLSCREEN 80s ARCADE OVERLAY FUNCTIONALITY
     // ----------------------------------------------------
@@ -1774,6 +2004,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const title = details.nombre || (p.title ? (p.title.rendered || p.title) : 'Mascota');
                 const honor = details.titulo_honor || '';
                 const especie = details.especie_raza || '';
+                const tombState = details.tomb_state || 'cuidada';
+
+                let tombStatusBadge = '';
+                if (tumbaId > 0) {
+                    if (tombState === 'cuidada') {
+                        tombStatusBadge = `<div style="font-size:10px; color:#34d399 !important; font-weight:700; margin-top:3px;">🌟 CUIDADA Y LUMINOSA</div>`;
+                    } else {
+                        tombStatusBadge = `<div style="font-size:10px; color:#fbbf24 !important; font-weight:700; margin-top:3px;">🍂 NECESITA ATENCIÓN (Velas/Flores)</div>`;
+                    }
+                }
 
                 cardsHtml += `
                     <div class="bp-arcade-card">
@@ -1792,7 +2032,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="bp-arcade-stats-mini">
                             <div>💖 Cariño: <strong>${details.stat_carino || 10}/10</strong></div>
                             <div>😼 Travesura: <strong>${details.stat_travesura || 5}/10</strong></div>
-                            <div>📍 Tumba: <strong>${tumbaId > 0 ? 'Sepultada en 3D' : 'Sin tumba'}</strong></div>
+                            <div>📍 Tumba: <strong>${tumbaId > 0 ? 'Sepultada en 3D' : 'Sin tumba'}</strong> ${tombStatusBadge}</div>
                         </div>
 
                         <div class="bp-arcade-actions">
@@ -2270,6 +2510,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let velasCount = mData.count_velas || 0;
         let floresCount = mData.count_flores || 0;
         let premiosCount = mData.count_premios || 0;
+        let wiltedFlores = mData.wilted_flores_count || 0;
+        let tombState = mData.tomb_state || 'cuidada';
+
+        const statusBadgeHtml = tombState === 'cuidada'
+            ? `<span id="bp-badge-status-el" class="bp-pet-badge-verified" style="background:#15803d; color:#ffffff; font-weight:700;">🌟 Cuidada y Luminosa</span>`
+            : `<span id="bp-badge-status-el" class="bp-pet-badge-verified" style="background:#b45309; color:#ffffff; font-weight:700;">🍂 Necesita Cariño</span>`;
 
         const muro = mData.muro_recuerdos || [];
 
@@ -2292,7 +2538,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="bp-pet-sheet-header">
                 ${imgUrl ? `<img src="${imgUrl}" class="bp-pet-sheet-avatar" />` : `<div class="bp-pet-sheet-avatar" style="display:flex; align-items:center; justify-content:center; font-size:36px;">🐾</div>`}
                 <div class="bp-pet-sheet-info">
-                    <span class="bp-pet-badge-verified">✔ Mascota Validada</span>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+                        <span class="bp-pet-badge-verified">✔ Mascota Validada</span>
+                        ${statusBadgeHtml}
+                    </div>
                     <h3>${title}</h3>
                     ${honor ? `<div class="bp-pet-sheet-honor">👑 ${honor}</div>` : ''}
                     ${apodos ? `<div class="bp-pet-sheet-meta">a.k.a. "${apodos}"</div>` : ''}
@@ -2352,22 +2601,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             ` : ''}
 
-            <!-- HOMENAJES INTERACTIVOS (1-CLICK) -->
-            <div class="bp-sheet-sec-title">🕯️ Muestras de Cariño</div>
-            <div class="bp-tributes-row">
-                <button class="bp-tribute-btn" data-type="vela" data-id="${mData.id}">
+            <!-- HOMENAJES INTERACTIVOS -->
+            <div class="bp-sheet-sec-title">🕯️ Muestras de Cariño y Cuidado</div>
+            <div style="font-size:12px; color:#cbd5e1; margin-bottom:12px; line-height:1.4;">
+                Coloca homenajes en la tumba 3D. Las 🕯️ <strong>velas duran 24 horas</strong>, las 🌸 <strong>flores duran 3 días</strong> (puedes regarlas con 🚿 o 🦴 para revivirlas) y los 🦴 <strong>premios duran 24 horas</strong>. Cada visitante puede poner 1 tributo de cada tipo.
+            </div>
+
+            <div class="bp-tributes-row" style="display:flex; flex-wrap:wrap; gap:10px;">
+                <button class="bp-tribute-btn" data-type="vela" data-id="${mData.id}" style="flex:1; min-width:140px;">
                     <span>🕯️ Encender Vela</span>
-                    <span class="bp-tribute-count" id="bp-count-vela">${velasCount}</span>
+                    <span class="bp-tribute-count" id="bp-count-vela">${velasCount}/4</span>
                 </button>
-                <button class="bp-tribute-btn" data-type="flor" data-id="${mData.id}">
-                    <span>🌸 Dejar Flor</span>
-                    <span class="bp-tribute-count" id="bp-count-flor">${floresCount}</span>
+                <button class="bp-tribute-btn" data-type="flor" data-id="${mData.id}" style="flex:1; min-width:140px;">
+                    <span>🌸 Poner Flores</span>
+                    <span class="bp-tribute-count" id="bp-count-flor">${floresCount}/4</span>
                 </button>
-                <button class="bp-tribute-btn" data-type="premio" data-id="${mData.id}">
+                <button class="bp-tribute-btn" data-type="regar" data-id="${mData.id}" style="flex:1; min-width:140px; background:rgba(14, 165, 233, 0.2); border:1px solid #0ea5e9;">
+                    <span>🚿 Regar Flores</span>
+                    <span class="bp-tribute-count">Revive 🌸</span>
+                </button>
+                <button class="bp-tribute-btn" data-type="premio" data-id="${mData.id}" style="flex:1; min-width:140px;">
                     <span>🦴 Dejar Premio</span>
-                    <span class="bp-tribute-count" id="bp-count-premio">${premiosCount}</span>
+                    <span class="bp-tribute-count" id="bp-count-premio">${premiosCount}/4</span>
+                </button>
+                ${wiltedFlores > 0 ? `
+                    <button class="bp-tribute-btn" data-type="limpiar_flores" data-id="${mData.id}" style="flex:1; min-width:140px; background:rgba(239, 68, 68, 0.2); border:1px solid #ef4444;">
+                        <span>🧹 Limpiar Marchitas</span>
+                        <span class="bp-tribute-count" id="bp-count-marchitas">${wiltedFlores}</span>
+                    </button>
+                ` : ''}
+            </div>
+
+            <div style="margin-top:12px; text-align:center;">
+                <button id="bp-btn-share-tomb" class="bp-btn" style="background:rgba(234, 179, 8, 0.18); border:1px solid #eab308; color:#fef08a; padding:10px 18px; border-radius:20px; font-weight:700; font-size:12px; cursor:pointer; width:100%;">
+                    🔗 Compartir Tumba para recibir Flores y Velas
                 </button>
             </div>
+            <div id="bp-tribute-feedback" style="display:none; font-size:12px; margin-top:8px; font-weight:600; text-align:center;"></div>
 
             <!-- MURO DE RECUERDOS -->
             <div class="bp-sheet-sec-title">💬 Libro de Visitas y Muro de Recuerdos</div>
@@ -2381,12 +2651,47 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        // Attach tribute click listeners
+        const feedbackBox = sheetContent.querySelector('#bp-tribute-feedback');
+
+        // Attach Share Tomb button listener
+        const shareBtn = sheetContent.querySelector('#bp-btn-share-tomb');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', () => {
+                const currentUrl = window.location.href.split('#')[0];
+                const shareText = `¡Ven a recordar a ${title} en el Cementerio 3D de BosquePatitas! Enciende una vela o ponle flores aquí: ${currentUrl}`;
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(shareText).then(() => {
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#fef08a';
+                            feedbackBox.textContent = '📋 ¡Mensaje copiado al portapapeles! Envíalo a tus amigos para que pongan flores y velas.';
+                        }
+                    });
+                } else {
+                    prompt('Copia este mensaje y envíalo a tus amigos:', shareText);
+                }
+            });
+        }
+
+        // Attach tribute click listeners with instantaneous 90s retro loading state
         sheetContent.querySelectorAll('.bp-tribute-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tipo = btn.dataset.type;
                 const petId = btn.dataset.id;
                 if (!petId || petId === 'undefined') return;
+
+                btn.disabled = true;
+                const origContent = btn.innerHTML;
+
+                // 90s retro arcade video game loading indicator
+                btn.innerHTML = `<span style="font-family:'Press Start 2P', monospace; font-size:10px; color:#ffd600;">⌛ PROCESANDO...</span>`;
+
+                if (feedbackBox) {
+                    feedbackBox.style.display = 'block';
+                    feedbackBox.style.color = '#ffd600';
+                    feedbackBox.innerHTML = `<span style="font-family:'Press Start 2P', monospace; font-size:11px;">⌛ PROCESANDO HOMENAJE EN 3D...</span>`;
+                }
 
                 const restUrl = (settings.restRoot || '/wp-json/') + 'bosquepatitas/v1/tributo';
 
@@ -2397,9 +2702,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(res => res.json())
                 .then(res => {
-                    if (res.success) {
-                        const countSpan = sheetContent.querySelector(`#bp-count-${tipo}`);
-                        if (countSpan) countSpan.textContent = res.count;
+                    btn.disabled = false;
+                    btn.innerHTML = origContent;
+
+                    if (res.success && res.mascota_data) {
+                        tombData.mascota_data = res.mascota_data;
+                        const d = res.mascota_data;
+
+                        // Fast in-place DOM updates for smooth UI experience
+                        const countVela = sheetContent.querySelector('#bp-count-vela');
+                        if (countVela) countVela.textContent = `${d.count_velas || 0}/4`;
+
+                        const countFlor = sheetContent.querySelector('#bp-count-flor');
+                        if (countFlor) countFlor.textContent = `${d.count_flores || 0}/4`;
+
+                        const countPremio = sheetContent.querySelector('#bp-count-premio');
+                        if (countPremio) countPremio.textContent = `${d.count_premios || 0}/4`;
+
+                        const badgeEl = sheetContent.querySelector('#bp-badge-status-el');
+                        if (badgeEl) {
+                            if (d.tomb_state === 'cuidada') {
+                                badgeEl.style.background = '#15803d';
+                                badgeEl.textContent = '🌟 Cuidada y Luminosa';
+                            } else {
+                                badgeEl.style.background = '#b45309';
+                                badgeEl.textContent = '🍂 Necesita Cariño';
+                            }
+                        }
+
+                        // Update 3D model in scene
+                        const plot = plotManager.plots.find(p => p.tombData && p.tombData.mascota_data && p.tombData.mascota_data.id == petId);
+                        if (plot && plot.tombMesh) {
+                            plot.tombData.mascota_data = d;
+                            attachTributesToTombstoneGroup(plot.tombMesh, d);
+                        }
+
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#34d399';
+                            feedbackBox.textContent = '✨ ¡Homenaje colocado al instante en la tumba 3D!';
+                        }
+                    } else {
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#f87171';
+                            feedbackBox.textContent = res.message || 'No se pudo colocar el homenaje.';
+                        }
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerHTML = origContent;
+                    if (feedbackBox) {
+                        feedbackBox.style.display = 'block';
+                        feedbackBox.style.color = '#f87171';
+                        feedbackBox.textContent = 'Error de conexión.';
                     }
                 });
             });
@@ -2533,9 +2890,27 @@ document.addEventListener('DOMContentLoaded', () => {
             tooltip.classList.remove('hidden');
 
             if (ud.type === 'tombstone' || (ud.type === 'plot' && ud.occupied)) {
-                tooltip.classList.add('hidden');
+                const mData = (ud.tombData ? ud.tombData.mascota_data : null) || {};
+                const name = mData.nombre || (ud.tombData ? (ud.tombData.title ? ud.tombData.title.rendered : 'Tumba') : 'Tumba');
+                const honor = mData.titulo_honor ? `👑 ${mData.titulo_honor}` : '';
+                const tombState = mData.tomb_state || 'cuidada';
+                const statusBadge = tombState === 'cuidada'
+                    ? '<span class="bp-badge cuidada" style="background:#15803d; color:#ffffff; font-size:11px; padding:3px 10px; border-radius:12px; font-weight:700; display:inline-block;">🌟 Cuidada y Luminosa</span>'
+                    : '<span class="bp-badge necesita" style="background:#b45309; color:#ffffff; font-size:11px; padding:3px 10px; border-radius:12px; font-weight:700; display:inline-block;">🍂 Necesita Cariño</span>';
+
+                tooltip.innerHTML = `
+                    <div class="bp-tooltip-header" style="text-align:center;">
+                        <div style="margin-bottom:6px; display:flex; justify-content:center;">
+                            ${statusBadge}
+                        </div>
+                        <h4 class="bp-pet-title" style="font-size:18px; color:#ffffff !important; font-weight:800; margin:0; text-align:center;">${name}</h4>
+                        ${honor ? `<div style="font-size:12px; color:#fef08a; margin-top:2px; text-align:center;">${honor}</div>` : ''}
+                    </div>
+                    <div style="font-size:12px; color:#cbd5e1; margin-top:8px; text-align:center;">
+                        🕯️ Velas: <strong>${mData.count_velas || 0}/4</strong> | 🌸 Flores: <strong>${mData.count_flores || 0}/4</strong> | 🦴 Premios: <strong>${mData.count_premios || 0}/4</strong>
+                    </div>
+                `;
             } else {
-                tooltip.classList.remove('hidden');
                 tooltip.innerHTML = `
                     <div class="bp-tooltip-header">
                         <span class="bp-badge free">Parcela Disponible</span>
@@ -2724,6 +3099,18 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(animate);
 
         const delta = clock.getDelta();
+        const elapsedTime = clock.getElapsedTime();
+
+        // Animate flickering candle lights and flames
+        animatedCandles.forEach(c => {
+            if (c.light) {
+                c.light.intensity = c.baseIntensity + Math.sin(elapsedTime * 12 + c.timeOffset) * 0.12 + Math.cos(elapsedTime * 23 + c.timeOffset) * 0.08;
+            }
+            if (c.flameMesh) {
+                c.flameMesh.scale.x = 1.0 + Math.sin(elapsedTime * 15 + c.timeOffset) * 0.15;
+                c.flameMesh.scale.z = 1.0 + Math.cos(elapsedTime * 15 + c.timeOffset) * 0.15;
+            }
+        });
 
         if (currentMode === MODE_GROUND) {
             const moveSpeed = 8.5 * delta;

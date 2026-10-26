@@ -115,6 +115,9 @@ class BP_Custom_Post_Type {
             'count_velas'      => 'integer',
             'count_flores'     => 'integer',
             'count_premios'    => 'integer',
+            'tributos_velas'   => 'string',
+            'tributos_flores'  => 'string',
+            'tributos_premios' => 'string',
             'muro_recuerdos'   => 'string',
         );
 
@@ -233,6 +236,78 @@ class BP_Custom_Post_Type {
         $muro = !empty($muro_json) ? json_decode($muro_json, true) : array();
         if (!is_array($muro)) $muro = array();
 
+        // Calculate Tribute Statuses
+        $now = time();
+        $candle_duration = 24 * 3600; // 24 hours
+        $flower_duration = 3 * 24 * 3600; // 72 hours
+        $treat_duration  = 24 * 3600; // 24 hours
+
+        // Velas
+        $velas_json = get_post_meta($post->ID, 'tributos_velas', true);
+        $velas_raw = !empty($velas_json) ? json_decode($velas_json, true) : array();
+        if (!is_array($velas_raw)) $velas_raw = array();
+        $active_velas = array();
+        foreach ($velas_raw as $v) {
+            $created = isset($v['created_at']) ? intval($v['created_at']) : $now;
+            if (($now - $created) < $candle_duration) {
+                $active_velas[] = array(
+                    'id'         => isset($v['id']) ? $v['id'] : uniqid('v_'),
+                    'created_at' => $created,
+                    'expires_at' => $created + $candle_duration,
+                    'slot'       => isset($v['slot']) ? intval($v['slot']) : count($active_velas)
+                );
+            }
+        }
+
+        // Flores
+        $flores_json = get_post_meta($post->ID, 'tributos_flores', true);
+        $flores_raw = !empty($flores_json) ? json_decode($flores_json, true) : array();
+        if (!is_array($flores_raw)) $flores_raw = array();
+        $active_flores = array();
+        $fresh_flores_count = 0;
+        $wilted_flores_count = 0;
+        foreach ($flores_raw as $f) {
+            $created = isset($f['created_at']) ? intval($f['created_at']) : $now;
+            $expires = isset($f['expires_at']) ? intval($f['expires_at']) : ($created + $flower_duration);
+            $is_wilted = ($now >= $expires);
+            if ($is_wilted) {
+                $wilted_flores_count++;
+            } else {
+                $fresh_flores_count++;
+            }
+            $active_flores[] = array(
+                'id'         => isset($f['id']) ? $f['id'] : uniqid('f_'),
+                'created_at' => $created,
+                'expires_at' => $expires,
+                'is_wilted'  => $is_wilted,
+                'slot'       => isset($f['slot']) ? intval($f['slot']) : count($active_flores)
+            );
+        }
+
+        // Premios
+        $premios_json = get_post_meta($post->ID, 'tributos_premios', true);
+        $premios_raw = !empty($premios_json) ? json_decode($premios_json, true) : array();
+        if (!is_array($premios_raw)) $premios_raw = array();
+        $active_premios = array();
+        foreach ($premios_raw as $p) {
+            $created = isset($p['created_at']) ? intval($p['created_at']) : $now;
+            if (($now - $created) < $treat_duration) {
+                $active_premios[] = array(
+                    'id'         => isset($p['id']) ? $p['id'] : uniqid('p_'),
+                    'created_at' => $created,
+                    'expires_at' => $created + $treat_duration,
+                    'slot'       => isset($p['slot']) ? intval($p['slot']) : count($active_premios)
+                );
+            }
+        }
+
+        // Determine tomb overall state
+        // "cuidada" if there is at least one active candle OR at least one fresh flower
+        // "necesita_carino" if no active candles and no fresh flowers (or only wilted flowers)
+        $has_active_candles = (count($active_velas) > 0);
+        $has_fresh_flowers  = ($fresh_flores_count > 0);
+        $tomb_state = ($has_active_candles || $has_fresh_flowers) ? 'cuidada' : 'necesita_carino';
+
         return array(
             'id'               => $post->ID,
             'nombre'           => get_the_title($post->ID),
@@ -259,9 +334,15 @@ class BP_Custom_Post_Type {
             'galeria'          => $galeria,
             'is_approved'      => (bool) get_post_meta($post->ID, 'is_approved', true),
             'tumba_id'         => (int) get_post_meta($post->ID, 'tumba_id', true),
-            'count_velas'      => (int) get_post_meta($post->ID, 'count_velas', true),
-            'count_flores'     => (int) get_post_meta($post->ID, 'count_flores', true),
-            'count_premios'    => (int) get_post_meta($post->ID, 'count_premios', true),
+            'count_velas'      => count($active_velas),
+            'count_flores'     => count($active_flores),
+            'count_premios'    => count($active_premios),
+            'velas'            => $active_velas,
+            'flores'           => $active_flores,
+            'premios'          => $active_premios,
+            'fresh_flores_count'  => $fresh_flores_count,
+            'wilted_flores_count' => $wilted_flores_count,
+            'tomb_state'       => $tomb_state,
             'muro_recuerdos'   => $muro,
             'author_name'      => get_the_author_meta('display_name', $post->post_author)
         );
@@ -297,19 +378,227 @@ class BP_Custom_Post_Type {
         $mascota_id = (int) $request->get_param('mascota_id');
         $tipo       = sanitize_text_field($request->get_param('tipo'));
 
-        if (!$mascota_id || !in_array($tipo, array('vela', 'flor', 'premio'))) {
+        if (!$mascota_id || !in_array($tipo, array('vela', 'flor', 'premio', 'regar', 'limpiar_flores'))) {
             return new WP_REST_Response(array('success' => false, 'message' => 'Parámetros inválidos'), 400);
         }
 
-        $meta_key = 'count_' . ($tipo === 'vela' ? 'velas' : ($tipo === 'flor' ? 'flores' : 'premios'));
-        $current  = (int) get_post_meta($mascota_id, $meta_key, true);
-        $new_val  = $current + 1;
-        update_post_meta($mascota_id, $meta_key, $new_val);
+        $mascota = get_post($mascota_id);
+        if (!$mascota || $mascota->post_type !== 'bp_mascota') {
+            return new WP_REST_Response(array('success' => false, 'message' => 'Mascota no encontrada'), 404);
+        }
+
+        $now = time();
+        $candle_duration = 24 * 3600;
+        $flower_duration = 3 * 24 * 3600;
+        $treat_duration  = 24 * 3600;
+        $max_capacity    = 4;
+
+        // Clean active lists helper
+        $get_active_velas = function($id) use ($now, $candle_duration) {
+            $json = get_post_meta($id, 'tributos_velas', true);
+            $raw = !empty($json) ? json_decode($json, true) : array();
+            if (!is_array($raw)) $raw = array();
+            $clean = array();
+            foreach ($raw as $v) {
+                if (($now - intval($v['created_at'])) < $candle_duration) {
+                    $clean[] = $v;
+                }
+            }
+            return $clean;
+        };
+
+        $get_active_flores = function($id) use ($now) {
+            $json = get_post_meta($id, 'tributos_flores', true);
+            $raw = !empty($json) ? json_decode($json, true) : array();
+            if (!is_array($raw)) $raw = array();
+            return $raw;
+        };
+
+        $get_active_premios = function($id) use ($now, $treat_duration) {
+            $json = get_post_meta($id, 'tributos_premios', true);
+            $raw = !empty($json) ? json_decode($json, true) : array();
+            if (!is_array($raw)) $raw = array();
+            $clean = array();
+            foreach ($raw as $p) {
+                if (($now - intval($p['created_at'])) < $treat_duration) {
+                    $clean[] = $p;
+                }
+            }
+            return $clean;
+        };
+
+        // Get user identifier
+        $actor_id = is_user_logged_in() ? ('u_' . get_current_user_id()) : ('ip_' . md5($_SERVER['REMOTE_ADDR'] ?? 'guest'));
+
+        if ($tipo === 'vela') {
+            $velas = $get_active_velas($mascota_id);
+            if (count($velas) >= $max_capacity) {
+                return new WP_REST_Response(array(
+                    'success' => false,
+                    'message' => 'Esta tumba ya tiene el máximo de 4 velas encendidas. ¡Gracias por el apoyo!'
+                ), 400);
+            }
+
+            // Check if this user already has an active candle
+            foreach ($velas as $v) {
+                if (isset($v['actor_id']) && $v['actor_id'] === $actor_id) {
+                    return new WP_REST_Response(array(
+                        'success' => false,
+                        'message' => 'Ya has encendido tu vela en esta tumba hoy. ¡Invita a amigos o familiares a encender las suyas!'
+                    ), 400);
+                }
+            }
+
+            // Occupied slots
+            $used_slots = array_map(function($v) { return isset($v['slot']) ? intval($v['slot']) : 0; }, $velas);
+            $available_slot = 0;
+            for ($s = 0; $s < $max_capacity; $s++) {
+                if (!in_array($s, $used_slots)) {
+                    $available_slot = $s;
+                    break;
+                }
+            }
+
+            $velas[] = array(
+                'id'         => uniqid('v_'),
+                'created_at' => $now,
+                'slot'       => $available_slot,
+                'actor_id'   => $actor_id
+            );
+            update_post_meta($mascota_id, 'tributos_velas', wp_json_encode($velas));
+            update_post_meta($mascota_id, 'count_velas', count($velas));
+
+        } elseif ($tipo === 'flor') {
+            $flores = $get_active_flores($mascota_id);
+
+            // Check if this user already has a fresh flower on this tomb
+            foreach ($flores as $f) {
+                if (isset($f['actor_id']) && $f['actor_id'] === $actor_id && $now < intval($f['expires_at'])) {
+                    return new WP_REST_Response(array(
+                        'success' => false,
+                        'message' => 'Ya has regalado tu ramo de flores a esta mascota. ¡Comparte la tumba para que otras personas pongan sus flores!'
+                    ), 400);
+                }
+            }
+
+            if (count($flores) >= $max_capacity) {
+                // If max flowers, check if any is wilted to replace it
+                $replaced = false;
+                foreach ($flores as $idx => $f) {
+                    if ($now >= intval($f['expires_at'])) {
+                        $flores[$idx]['created_at'] = $now;
+                        $flores[$idx]['expires_at'] = $now + $flower_duration;
+                        $flores[$idx]['actor_id']   = $actor_id;
+                        $replaced = true;
+                        break;
+                    }
+                }
+                if (!$replaced) {
+                    return new WP_REST_Response(array(
+                        'success' => false,
+                        'message' => 'Esta tumba ya tiene los 4 arreglos florales frescos máximos.'
+                    ), 400);
+                }
+            } else {
+                $used_slots = array_map(function($f) { return isset($f['slot']) ? intval($f['slot']) : 0; }, $flores);
+                $available_slot = 0;
+                for ($s = 0; $s < $max_capacity; $s++) {
+                    if (!in_array($s, $used_slots)) {
+                        $available_slot = $s;
+                        break;
+                    }
+                }
+                $flores[] = array(
+                    'id'         => uniqid('f_'),
+                    'created_at' => $now,
+                    'expires_at' => $now + $flower_duration,
+                    'slot'       => $available_slot,
+                    'actor_id'   => $actor_id
+                );
+            }
+            update_post_meta($mascota_id, 'tributos_flores', wp_json_encode($flores));
+            update_post_meta($mascota_id, 'count_flores', count($flores));
+
+        } elseif ($tipo === 'regar') {
+            $flores = $get_active_flores($mascota_id);
+            if (empty($flores)) {
+                return new WP_REST_Response(array(
+                    'success' => false,
+                    'message' => 'No hay flores colocadas en esta tumba para regar.'
+                ), 400);
+            }
+            // Revive and extend all flowers
+            foreach ($flores as $idx => $f) {
+                $flores[$idx]['expires_at'] = $now + $flower_duration;
+            }
+            update_post_meta($mascota_id, 'tributos_flores', wp_json_encode($flores));
+
+        } elseif ($tipo === 'premio') {
+            $premios = $get_active_premios($mascota_id);
+
+            // Check if this user already placed a treat
+            foreach ($premios as $p) {
+                if (isset($p['actor_id']) && $p['actor_id'] === $actor_id) {
+                    return new WP_REST_Response(array(
+                        'success' => false,
+                        'message' => 'Ya has dejado un premio hoy para esta mascota. ¡Invita a más amigos a consentirla!'
+                    ), 400);
+                }
+            }
+
+            if (count($premios) >= $max_capacity) {
+                return new WP_REST_Response(array(
+                    'success' => false,
+                    'message' => 'Ya hay un máximo de 4 premios sobre la losa de esta tumba.'
+                ), 400);
+            }
+
+            $used_slots = array_map(function($p) { return isset($p['slot']) ? intval($p['slot']) : 0; }, $premios);
+            $available_slot = 0;
+            for ($s = 0; $s < $max_capacity; $s++) {
+                if (!in_array($s, $used_slots)) {
+                    $available_slot = $s;
+                    break;
+                }
+            }
+
+            $premios[] = array(
+                'id'         => uniqid('p_'),
+                'created_at' => $now,
+                'slot'       => $available_slot,
+                'actor_id'   => $actor_id
+            );
+            update_post_meta($mascota_id, 'tributos_premios', wp_json_encode($premios));
+            update_post_meta($mascota_id, 'count_premios', count($premios));
+
+            // Bonus perk: Giving a treat also waters/revives all flowers on the tomb!
+            $flores = $get_active_flores($mascota_id);
+            if (!empty($flores)) {
+                foreach ($flores as $idx => $f) {
+                    $flores[$idx]['expires_at'] = $now + $flower_duration;
+                }
+                update_post_meta($mascota_id, 'tributos_flores', wp_json_encode($flores));
+            }
+
+        } elseif ($tipo === 'limpiar_flores') {
+            // Remove wilted flowers
+            $flores = $get_active_flores($mascota_id);
+            $clean_flores = array();
+            foreach ($flores as $f) {
+                if ($now < intval($f['expires_at'])) {
+                    $clean_flores[] = $f;
+                }
+            }
+            update_post_meta($mascota_id, 'tributos_flores', wp_json_encode($clean_flores));
+            update_post_meta($mascota_id, 'count_flores', count($clean_flores));
+        }
+
+        $formatted_data = $this->get_formatted_mascota_data($mascota);
 
         return new WP_REST_Response(array(
-            'success' => true,
-            'tipo'    => $tipo,
-            'count'   => $new_val
+            'success'      => true,
+            'tipo'         => $tipo,
+            'mascota_data' => $formatted_data
         ), 200);
     }
 
