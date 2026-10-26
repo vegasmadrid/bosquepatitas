@@ -1337,10 +1337,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isAutoWalking = false;
     let autoWalkTarget = null;
+    let focusedPlotId = null;
+    let walkTimer = 0;
 
     function stopAutoWalk() {
         isAutoWalking = false;
         autoWalkTarget = null;
+        focusedPlotId = null;
+        walkTimer = 0;
     }
 
     function resetCameraPitch() {
@@ -2447,37 +2451,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (obj.userData && (obj.userData.type === 'plot' || obj.userData.type === 'tombstone')) {
                     const plotGroup = obj.userData.plotGroup || obj.parent;
                     if (plotGroup) {
+                        const plotId = obj.userData.plotId;
                         const targetPos = new THREE.Vector3();
                         plotGroup.getWorldPosition(targetPos);
 
                         if (currentMode === MODE_AERIAL) {
                             if (controls) controls.target.set(targetPos.x, targetPos.y + 0.8, targetPos.z);
                             openModalForObject(obj.userData, plotGroup);
-                        } else {
-                            const rotY = plotGroup.rotation.y || 0;
-                            const approachDist = 1.8;
-
-                            const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
-                            const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
-
-                            let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
-                            finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
-
-                            // Calculate pitch angle so camera looks directly at tombstone face center (Y = 0.75m)
-                            const tombstoneCenterY = 0.75;
-                            const finalPitch = Math.atan2(tombstoneCenterY - PLAYER_HEIGHT, approachDist);
-
-                            autoWalkTarget = {
-                                x: targetX,
-                                z: targetZ,
-                                targetPlotPos: targetPos,
-                                finalYaw: finalYaw,
-                                finalPitch: finalPitch,
-                                pendingUserData: obj.userData,
-                                pendingPlotGroup: plotGroup
-                            };
-                            isAutoWalking = true;
+                            return;
                         }
+
+                        // If already focused on this plot, second click triggers the modal overlay
+                        if (focusedPlotId === plotId && !isAutoWalking) {
+                            openModalForObject(obj.userData, plotGroup);
+                            return;
+                        }
+
+                        const rotY = plotGroup.rotation.y || 0;
+                        const approachDist = 1.8;
+
+                        const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
+                        const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
+
+                        let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
+                        finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
+
+                        // Pitch angle to inspect headstone face (Y = 0.75m)
+                        const tombstoneCenterY = 0.75;
+                        const finalPitch = Math.atan2(tombstoneCenterY - PLAYER_HEIGHT, approachDist);
+
+                        const startX = camera.position.x;
+                        const startZ = camera.position.z;
+                        const totalDist = Math.hypot(targetX - startX, targetZ - startZ);
+
+                        autoWalkTarget = {
+                            startX: startX,
+                            startZ: startZ,
+                            x: targetX,
+                            z: targetZ,
+                            totalDist: totalDist,
+                            targetPlotPos: targetPos,
+                            finalYaw: finalYaw,
+                            finalPitch: finalPitch,
+                            userData: obj.userData,
+                            plotGroup: plotGroup,
+                            plotId: plotId,
+                            phase: 'walk'
+                        };
+                        isAutoWalking = true;
+                        focusedPlotId = null;
+                        targetCameraPitch = 0; // Level horizontal pitch while walking
                     }
                     break;
                 }
@@ -2598,45 +2621,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dz = autoWalkTarget.z - camera.position.z;
                 const dist = Math.hypot(dx, dz);
 
-                const finalYaw = (autoWalkTarget.finalYaw !== undefined)
-                    ? autoWalkTarget.finalYaw
-                    : Math.atan2(-(autoWalkTarget.targetPlotPos.x - camera.position.x), -(autoWalkTarget.targetPlotPos.z - camera.position.z));
+                if (autoWalkTarget.phase === 'walk') {
+                    if (dist > 0.12) {
+                        // Walk forward looking towards destination
+                        const moveYaw = Math.atan2(-dx, -dz);
+                        targetCameraYaw = moveYaw;
+                        targetCameraPitch = 0; // Level pitch during walk
 
-                let yawDiff = finalYaw - targetCameraYaw;
-                yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
+                        // Ease-in / Ease-out speed curve
+                        const traveled = autoWalkTarget.totalDist - dist;
+                        let speedFactor = 1.0;
+                        if (autoWalkTarget.totalDist > 0.5) {
+                            const easeIn = Math.min(1.0, traveled / 1.0);
+                            const easeOut = Math.min(1.0, dist / 1.5);
+                            speedFactor = Math.max(0.25, Math.min(easeIn, easeOut));
+                        }
 
-                if (dist > 0.08 || Math.abs(yawDiff) > 0.03) {
-                    if (dist > 0.08) {
-                        const walkSpeed = Math.min(dist, moveSpeed * 1.4);
-                        camera.position.x += (dx / dist) * walkSpeed;
-                        camera.position.z += (dz / dist) * walkSpeed;
+                        const stepSpeed = moveSpeed * 1.5 * speedFactor;
+                        const step = Math.min(dist, stepSpeed);
+                        camera.position.x += (dx / dist) * step;
+                        camera.position.z += (dz / dist) * step;
+
+                        // Subtle human head bobbing
+                        walkTimer += delta * 11 * speedFactor;
+                        camera.position.y = PLAYER_HEIGHT + Math.sin(walkTimer) * 0.035;
                     } else {
+                        // Reached position destination, transition to 'arrive' phase
                         camera.position.x = autoWalkTarget.x;
                         camera.position.z = autoWalkTarget.z;
+                        autoWalkTarget.phase = 'arrive';
+                        walkTimer = 0;
+                        camera.position.y = PLAYER_HEIGHT;
                     }
+                } else if (autoWalkTarget.phase === 'arrive') {
+                    // Turn to face tombstone and tilt camera pitch down
+                    targetCameraYaw = autoWalkTarget.finalYaw;
+                    targetCameraPitch = autoWalkTarget.finalPitch;
+                    camera.position.y = PLAYER_HEIGHT;
 
-                    targetCameraYaw += yawDiff * 0.18;
-                    if (autoWalkTarget.finalPitch !== undefined) {
-                        targetCameraPitch = autoWalkTarget.finalPitch;
-                    }
-                } else {
-                    // Posición y orientación frontal exactas alcanzadas
-                    camera.position.x = autoWalkTarget.x;
-                    camera.position.z = autoWalkTarget.z;
-                    targetCameraYaw = finalYaw;
-                    cameraYaw = finalYaw;
-                    if (autoWalkTarget.finalPitch !== undefined) {
-                        targetCameraPitch = autoWalkTarget.finalPitch;
-                    }
+                    let yawDiff = autoWalkTarget.finalYaw - cameraYaw;
+                    yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
+                    const pitchDiff = Math.abs(autoWalkTarget.finalPitch - cameraPitch);
 
-                    const pendingData = autoWalkTarget.pendingUserData;
-                    const pendingGroup = autoWalkTarget.pendingPlotGroup;
-                    stopAutoWalk();
-
-                    if (pendingData && pendingGroup) {
-                        setTimeout(() => {
-                            openModalForObject(pendingData, pendingGroup);
-                        }, 120);
+                    if (Math.abs(yawDiff) < 0.03 && pitchDiff < 0.03) {
+                        // Arrived and smoothly focused on tombstone
+                        focusedPlotId = autoWalkTarget.plotId;
+                        isAutoWalking = false;
+                        autoWalkTarget = null;
                     }
                 }
             } else {
@@ -2664,6 +2695,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     camera.position.x += dx;
                     camera.position.z += dz;
+
+                    // Manual walking head bobbing
+                    walkTimer += delta * 11;
+                    camera.position.y = PLAYER_HEIGHT + Math.sin(walkTimer) * 0.035;
+                } else {
+                    walkTimer = 0;
+                    camera.position.y = PLAYER_HEIGHT;
                 }
             }
 
@@ -2676,7 +2714,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
             camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
-            camera.position.y = PLAYER_HEIGHT;
 
             camera.rotation.order = 'YXZ';
             camera.rotation.y = cameraYaw;
