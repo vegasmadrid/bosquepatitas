@@ -624,48 +624,41 @@ document.addEventListener('DOMContentLoaded', () => {
         // 4. Nickname
         if (apodo) {
             drawEngravedText(apodo, 709, currentY, 'bold italic 72px serif', '#ffd600', 8);
-            currentY += 120;
-        }
-
-        // 5. Upper Decorative Divider
-        drawEngravedText('✦ ────────── 🐾 ────────── ✦', 709, currentY + 20, 'bold 32px serif', '#ffd600', 4);
-        currentY += 100;
-
-        // 6. Dates (Large, ultra-crisp 76px bold sans-serif with high contrast)
-        if (fechas) {
-            let dateFontSize = 76;
-            ctx.font = `bold ${dateFontSize}px sans-serif`;
-            while (ctx.measureText(fechas).width > 1100 && dateFontSize > 40) {
-                dateFontSize -= 4;
-                ctx.font = `bold ${dateFontSize}px sans-serif`;
-            }
-            drawEngravedText(fechas, 709, currentY, `bold ${dateFontSize}px sans-serif`, '#ffeb3b', 8);
             currentY += 110;
         }
 
-        // 7. Lower Decorative Divider
-        drawEngravedText('❖ ────────────── ❖', 709, currentY, 'bold 32px serif', '#d4af37', 4);
-        currentY += 120;
+        // 5. Dates (Large, ultra-crisp 80px bold sans-serif with high contrast)
+        if (fechas) {
+            let dateFontSize = 80;
+            ctx.font = `bold ${dateFontSize}px sans-serif`;
+            while (ctx.measureText(fechas).width > 1150 && dateFontSize > 40) {
+                dateFontSize -= 4;
+                ctx.font = `bold ${dateFontSize}px sans-serif`;
+            }
+            drawEngravedText(fechas, 709, currentY + 30, `bold ${dateFontSize}px sans-serif`, '#ffeb3b', 8);
+            currentY += 150;
+        }
 
-        // 8. Epitaph (Large multiline italic text)
+        // 6. Epitaph (Ultra-large, highly legible 80px multiline italic text)
         if (epitafio) {
-            ctx.font = 'bold italic 64px serif';
+            const epitaphFont = 'bold italic 80px serif';
+            ctx.font = epitaphFont;
             const words = epitafio.split(' ');
             let line = '';
-            let lineY = currentY;
+            let lineY = currentY + 20;
 
             for (let i = 0; i < words.length; i++) {
                 const testLine = line + words[i] + ' ';
                 if (ctx.measureText(testLine).width > 1150 && i > 0) {
-                    drawEngravedText(line.trim(), 709, lineY, 'bold italic 64px serif', '#ffffff', 8);
+                    drawEngravedText(line.trim(), 709, lineY, epitaphFont, '#ffffff', 8);
                     line = words[i] + ' ';
-                    lineY += 92;
+                    lineY += 110;
                 } else {
                     line = testLine;
                 }
             }
             if (line) {
-                drawEngravedText(line.trim(), 709, lineY, 'bold italic 64px serif', '#ffffff', 8);
+                drawEngravedText(line.trim(), 709, lineY, epitaphFont, '#ffffff', 8);
             }
         }
 
@@ -2587,7 +2580,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         const rotY = plotGroup.rotation.y || 0;
-                        const approachDist = 1.8;
+                        const approachDist = 2.1;
+                        const KNEELING_HEIGHT = 0.75;
 
                         const targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.x + Math.sin(rotY) * approachDist));
                         const targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPos.z + Math.cos(rotY) * approachDist));
@@ -2595,9 +2589,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         let finalYaw = Math.atan2(-(targetPos.x - targetX), -(targetPos.z - targetZ));
                         finalYaw = Math.atan2(Math.sin(finalYaw), Math.cos(finalYaw));
 
-                        // Pitch angle to inspect headstone face (Y = 1.0m)
-                        const tombstoneCenterY = 1.0;
-                        const finalPitch = Math.atan2(tombstoneCenterY - PLAYER_HEIGHT, approachDist);
+                        // Kneeling position angle: Eye height lowered to 0.75m looking slightly down towards tombstone base / slab (Y = 0.65m)
+                        const tombstoneCenterY = 0.65;
+                        const finalPitch = Math.atan2(tombstoneCenterY - KNEELING_HEIGHT, approachDist);
 
                         const startX = camera.position.x;
                         const startZ = camera.position.z;
@@ -2773,10 +2767,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         camera.position.y = PLAYER_HEIGHT;
                     }
                 } else if (autoWalkTarget.phase === 'arrive') {
-                    // Turn to face tombstone and tilt camera pitch down
+                    // Turn to face tombstone, tilt camera pitch, and lower eye height (kneel)
                     targetCameraYaw = autoWalkTarget.finalYaw;
                     targetCameraPitch = autoWalkTarget.finalPitch;
-                    camera.position.y = PLAYER_HEIGHT;
+
+                    const KNEELING_HEIGHT = 0.75;
+                    camera.position.y += (KNEELING_HEIGHT - camera.position.y) * 0.12;
 
                     let yawDiff = autoWalkTarget.finalYaw - cameraYaw;
                     yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
@@ -2801,6 +2797,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (keyState.strafeLeft) moveX -= 1;
                 if (keyState.strafeRight) moveX += 1;
 
+                const KNEELING_HEIGHT = 0.75;
+                const targetPlayerY = focusedPlotId ? KNEELING_HEIGHT : PLAYER_HEIGHT;
+
                 if (moveX !== 0 || moveZ !== 0) {
                     const len = Math.hypot(moveX, moveZ);
                     moveX /= len;
@@ -2820,7 +2819,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     camera.position.y = PLAYER_HEIGHT + Math.sin(walkTimer) * 0.035;
                 } else {
                     walkTimer = 0;
-                    camera.position.y = PLAYER_HEIGHT;
+                    camera.position.y += (targetPlayerY - camera.position.y) * 0.12;
                 }
             }
 
