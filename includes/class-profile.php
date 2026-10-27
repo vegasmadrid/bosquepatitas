@@ -12,10 +12,15 @@ class BP_Profile {
         add_action('wp_ajax_bp_ajax_delete_mascota', array($this, 'ajax_delete_mascota'));
         add_action('wp_ajax_bp_get_user_mascotas', array($this, 'ajax_get_user_mascotas'));
 
+        // AJAX handlers for user 3D avatar customization
+        add_action('wp_ajax_bp_ajax_save_avatar', array($this, 'ajax_save_avatar'));
+        add_action('wp_ajax_bp_ajax_get_avatar', array($this, 'ajax_get_avatar'));
+
         add_action('wp_ajax_nopriv_bp_ajax_save_mascota', array($this, 'ajax_save_mascota'));
         add_action('wp_ajax_nopriv_bp_ajax_unlink_mascota', array($this, 'ajax_unlink_mascota'));
         add_action('wp_ajax_nopriv_bp_ajax_delete_mascota', array($this, 'ajax_delete_mascota'));
         add_action('wp_ajax_nopriv_bp_get_user_mascotas', array($this, 'ajax_get_user_mascotas'));
+        add_action('wp_ajax_nopriv_bp_ajax_get_avatar', array($this, 'ajax_get_avatar'));
     }
 
     /**
@@ -78,6 +83,74 @@ class BP_Profile {
         </div>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * AJAX Get User Avatar Customization Data
+     */
+    public function ajax_get_avatar() {
+        if (!is_user_logged_in()) {
+            wp_send_json_success($this->get_default_avatar_data());
+        }
+
+        $user_id = get_current_user_id();
+        $avatar_meta = get_user_meta($user_id, 'bp_avatar_config', true);
+
+        if (!is_array($avatar_meta)) {
+            $avatar_meta = $this->get_default_avatar_data();
+        }
+
+        wp_send_json_success($avatar_meta);
+    }
+
+    /**
+     * AJAX Save User Avatar Customization Data
+     */
+    public function ajax_save_avatar() {
+        check_ajax_referer('bp_auth_nonce', 'bp_nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => 'Debes iniciar sesión para guardar tu avatar.'));
+        }
+
+        $user_id = get_current_user_id();
+
+        $skin = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
+        $shirt = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
+        $pants = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
+        $hair_style = isset($_POST['hair_style']) ? sanitize_text_field($_POST['hair_style']) : 'classic';
+        $hair_color = isset($_POST['hair_color']) ? sanitize_text_field($_POST['hair_color']) : '#3b2314';
+        $accessory = isset($_POST['accessory']) ? sanitize_text_field($_POST['accessory']) : 'none';
+        $incognito = isset($_POST['incognito']) ? (int) $_POST['incognito'] : 0;
+
+        $avatar_data = array(
+            'skin'       => $skin,
+            'shirt'      => $shirt,
+            'pants'      => $pants,
+            'hair_style' => $hair_style,
+            'hair_color' => $hair_color,
+            'accessory'  => $accessory,
+            'incognito'  => $incognito
+        );
+
+        update_user_meta($user_id, 'bp_avatar_config', $avatar_data);
+
+        wp_send_json_success(array(
+            'message' => '¡Avatar actualizado con éxito!',
+            'avatar'  => $avatar_data
+        ));
+    }
+
+    private function get_default_avatar_data() {
+        return array(
+            'skin'       => '#ffe0bd',
+            'shirt'      => '#10b981',
+            'pants'      => '#1e3a8a',
+            'hair_style' => 'classic',
+            'hair_color' => '#3b2314',
+            'accessory'  => 'none',
+            'incognito'  => 0
+        );
     }
 
     /**

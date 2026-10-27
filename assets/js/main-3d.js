@@ -23,6 +23,58 @@ document.addEventListener('DOMContentLoaded', () => {
         container.appendChild(tooltip);
     }
 
+    // Radar / Minimap Widget
+    const radarContainer = document.createElement('div');
+    radarContainer.id = 'bp-radar-container';
+    radarContainer.className = 'bp-ui-element';
+    radarContainer.innerHTML = `<canvas id="bp-radar-canvas" width="110" height="110"></canvas>`;
+    container.appendChild(radarContainer);
+
+    // Floating Action Bar (Chat & Emotes)
+    const actionBar = document.createElement('div');
+    actionBar.className = 'bp-action-bar-bottom bp-ui-element';
+    actionBar.innerHTML = `
+        <button id="bp-chat-btn" class="bp-float-btn" title="Chat del Cementerio">💬 <span>Chat</span></button>
+        <button id="bp-emotes-btn" class="bp-float-btn" title="Expresar Gesto 3D">✨ <span>Gestos</span></button>
+    `;
+    container.appendChild(actionBar);
+
+    // Chat Drawer Overlay
+    const chatOverlay = document.createElement('div');
+    chatOverlay.id = 'bp-chat-overlay';
+    chatOverlay.className = 'bp-chat-overlay-box hidden bp-ui-element';
+    chatOverlay.innerHTML = `
+        <div class="bp-chat-header">
+            <span class="bp-chat-title">💬 CHAT BOSQUE 3D</span>
+            <button id="bp-chat-close-btn" class="bp-btn-close-corner">&times;</button>
+        </div>
+        <div class="bp-chat-tabs">
+            <button id="bp-chat-tab-general" class="bp-chat-tab-btn active">🌐 GENERAL</button>
+            <button id="bp-chat-tab-private" class="bp-chat-tab-btn">🔒 PRIVADO</button>
+        </div>
+        <div class="bp-chat-messages" id="bp-chat-messages-box">
+            <div class="bp-chat-msg-row"><span class="bp-chat-msg-user">🤖 BosqueBot:</span><span class="bp-chat-msg-text">¡Bienvenidos al Cementerio 3D! Puedes hablar con otros visitantes en tiempo real o hacer clic en sus muñecos para chat privado.</span></div>
+        </div>
+        <div class="bp-chat-input-row">
+            <input type="text" id="bp-chat-input-text" class="bp-chat-input" placeholder="Escribe un mensaje..." maxlength="120" />
+            <button id="bp-chat-send-btn" class="bp-arcade-btn bp-arcade-btn-green" style="font-size:10px; padding:8px 12px;">ENVIAR</button>
+        </div>
+    `;
+    container.appendChild(chatOverlay);
+
+    // Emotes Radial Menu
+    const emotesMenu = document.createElement('div');
+    emotesMenu.id = 'bp-emotes-menu';
+    emotesMenu.className = 'bp-emotes-menu hidden bp-ui-element';
+    emotesMenu.innerHTML = `
+        <button class="bp-emote-btn" data-emote="wave">👋<span>Saludar</span></button>
+        <button class="bp-emote-btn" data-emote="heart">❤️<span>Corazón</span></button>
+        <button class="bp-emote-btn" data-emote="flower">🌸<span>Flores</span></button>
+        <button class="bp-emote-btn" data-emote="candle">🕯️<span>Vela</span></button>
+        <button class="bp-emote-btn" data-emote="dance">🕺<span>Baile</span></button>
+    `;
+    container.appendChild(emotesMenu);
+
     // Top-Left Floating Controls & Dynamic Modal Header Greeting
     const topBar = document.createElement('div');
     topBar.className = 'bp-top-controls bp-ui-element';
@@ -72,6 +124,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="bp-menu-chevron">➔</div>
                 </li>
 
+                <li class="bp-menu-item" id="bp-menu-item-avatar">
+                    <div class="bp-menu-icon">🧸</div>
+                    <div class="bp-menu-text">
+                        <span class="bp-menu-title">Personalizar Avatar 3D</span>
+                        <span class="bp-menu-desc">Diseña tu muñeco Playmobil Click</span>
+                    </div>
+                    <div class="bp-menu-chevron">➔</div>
+                </li>
+
                 <li class="bp-menu-item" id="bp-menu-item-account" data-url="${accountBtnUrl}">
                     <div class="bp-menu-icon">${settings.isLoggedIn ? '👤' : '🔑'}</div>
                     <div class="bp-menu-text">
@@ -85,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="bp-menu-icon">🛰️</div>
                     <div class="bp-menu-text">
                         <span class="bp-menu-title">Modo de Cámara</span>
-                        <span class="bp-menu-desc" id="bp-slot-view-desc">Alternar a Vista Aérea</span>
+                        <span class="bp-menu-desc" id="bp-slot-view-desc">Vista 1ª Persona / 3ª Persona / Aérea</span>
                     </div>
                     <div class="bp-menu-chevron">➔</div>
                 </li>
@@ -207,11 +268,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
 
     const MODE_GROUND = 'ground';
+    const MODE_AVATAR = 'avatar';
     const MODE_AERIAL = 'aerial';
     let currentMode = MODE_GROUND;
 
     const PLAYER_HEIGHT = 1.6;
     const MAP_LIMIT = 32.2; // Límite de movimiento interno dentro de la verja victoriana (33.0)
+
+    const playerPosition = new THREE.Vector3(0, 0, 15);
 
     let cameraYaw = 0;
     let targetCameraYaw = 0;
@@ -219,6 +283,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let targetCameraPitch = 0;
     camera.position.set(0, PLAYER_HEIGHT, 15);
     camera.rotation.order = 'YXZ';
+
+    // Local player 3D Avatar mesh
+    let localPlayerAvatar = null;
+
+    function rebuildLocalPlayerAvatarMesh() {
+        if (localPlayerAvatar) scene.remove(localPlayerAvatar);
+        const avConfig = settings.avatar || {};
+        if (!avConfig.incognito) {
+            localPlayerAvatar = createPlaymobilAvatarModel(avConfig);
+            localPlayerAvatar.name = 'localPlayerAvatar';
+            localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
+            localPlayerAvatar.visible = (currentMode !== MODE_GROUND);
+            scene.add(localPlayerAvatar);
+        }
+    }
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -284,6 +363,706 @@ document.addEventListener('DOMContentLoaded', () => {
     // REGISTRO DE ANIMACIONES 3D
     // ----------------------------------------------------
     const animatedCandles = [];
+
+    // ----------------------------------------------------
+    // SISTEMA MULTIJUGADOR TIEMPO REAL & VISITANTES
+    // ----------------------------------------------------
+    const myClientId = 'user_' + Math.floor(Math.random() * 1000000);
+    const myName = settings.userName || ('Visitante ' + myClientId.slice(-4));
+    let activeChatTab = 'general';
+    let privateChatTargetId = null;
+    let privateChatTargetName = null;
+
+    const remoteUsers = new Map(); // id -> { id, name, avatarMesh, targetPos, targetYaw, isMoving }
+
+    function createNameTagSprite(nameText) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = 'rgba(6, 15, 11, 0.88)';
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(16, 16, 480, 96, 24);
+        else ctx.rect(16, 16, 480, 96);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#34d399';
+        ctx.font = 'bold 38px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('👤 ' + nameText, 256, 64);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+        const sprite = new THREE.Sprite(spriteMat);
+        sprite.scale.set(1.4, 0.35, 1);
+        return sprite;
+    }
+
+    function showSpeechBubble3D(avatarGroup, text) {
+        if (!avatarGroup) return;
+
+        const oldBubble = avatarGroup.getObjectByName('speechBubble');
+        if (oldBubble) avatarGroup.remove(oldBubble);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 8;
+
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(16, 16, 480, 180, 24);
+        else ctx.rect(16, 16, 480, 180);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(220, 196);
+        ctx.lineTo(256, 240);
+        ctx.lineTo(292, 196);
+        ctx.closePath();
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.textAlign = 'center';
+
+        const words = text.split(' ');
+        let line = '';
+        let lineY = 65;
+
+        for (let i = 0; i < words.length; i++) {
+            const testLine = line + words[i] + ' ';
+            if (ctx.measureText(testLine).width > 440 && i > 0) {
+                ctx.fillText(line.trim(), 256, lineY);
+                line = words[i] + ' ';
+                lineY += 38;
+            } else {
+                line = testLine;
+            }
+        }
+        if (line) ctx.fillText(line.trim(), 256, lineY);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+        const sprite = new THREE.Sprite(spriteMat);
+        sprite.name = 'speechBubble';
+        sprite.scale.set(2.0, 1.0, 1);
+        sprite.position.set(0, 1.85, 0);
+
+        avatarGroup.add(sprite);
+
+        setTimeout(() => {
+            if (avatarGroup.getObjectByName('speechBubble') === sprite) {
+                avatarGroup.remove(sprite);
+            }
+        }, 5000);
+    }
+
+    function triggerEmote3D(avatarGroup, emoteType) {
+        if (!avatarGroup) return;
+
+        const emoteIcons = { wave: '👋', heart: '❤️', flower: '🌸', candle: '🕯️', dance: '🕺' };
+        const icon = emoteIcons[emoteType] || '✨';
+
+        for (let i = 0; i < 6; i++) {
+            const pCanvas = document.createElement('canvas');
+            pCanvas.width = 128;
+            pCanvas.height = 128;
+            const pCtx = pCanvas.getContext('2d');
+            pCtx.font = '72px sans-serif';
+            pCtx.textAlign = 'center';
+            pCtx.textBaseline = 'middle';
+            pCtx.fillText(icon, 64, 64);
+
+            const pTex = new THREE.CanvasTexture(pCanvas);
+            const pSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: pTex, transparent: true }));
+            pSprite.scale.set(0.4, 0.4, 1);
+
+            const startPos = avatarGroup.position.clone().add(new THREE.Vector3(
+                (Math.random() - 0.5) * 0.8,
+                1.2 + Math.random() * 0.4,
+                (Math.random() - 0.5) * 0.8
+            ));
+            pSprite.position.copy(startPos);
+            scene.add(pSprite);
+
+            let startTime = performance.now();
+            function animateParticle(now) {
+                const elapsed = (now - startTime) / 1000;
+                if (elapsed < 1.5) {
+                    pSprite.position.y += 0.015;
+                    pSprite.material.opacity = 1 - (elapsed / 1.5);
+                    requestAnimationFrame(animateParticle);
+                } else {
+                    scene.remove(pSprite);
+                }
+            }
+            requestAnimationFrame(animateParticle);
+        }
+    }
+
+    function addChatMessageToBox(senderName, text, isPrivate = false) {
+        const msgBox = document.getElementById('bp-chat-messages-box');
+        if (!msgBox) return;
+
+        const row = document.createElement('div');
+        row.className = 'bp-chat-msg-row';
+        const tag = isPrivate ? '🔒 [Privado] ' : '';
+        row.innerHTML = `<span class="bp-chat-msg-user">${tag}${senderName}:</span> <span class="bp-chat-msg-text">${text}</span>`;
+        msgBox.appendChild(row);
+        msgBox.scrollTop = msgBox.scrollHeight;
+    }
+
+    function initSimulatedVisitors() {
+        if (settings.pusherKey) return;
+
+        const simulatedData = [
+            { id: 'sim_elena', name: 'Elena', skin: '#f5c29b', shirt: '#ec4899', pants: '#1e293b', hair_style: 'classic', hair_color: '#f59e0b', accessory: 'flower', x: -6, z: 8 },
+            { id: 'sim_marcos', name: 'Marcos', skin: '#ffe0bd', shirt: '#3b82f6', pants: '#3b2314', hair_style: 'cap', hair_color: '#1e293b', accessory: 'lantern', x: 8, z: -10 }
+        ];
+
+        simulatedData.forEach(sim => {
+            const avatarMesh = createPlaymobilAvatarModel(sim);
+            avatarMesh.position.set(sim.x, 0, sim.z);
+
+            const nameTag = createNameTagSprite(sim.name);
+            nameTag.position.set(0, 1.50, 0);
+            avatarMesh.add(nameTag);
+
+            avatarMesh.userData = { type: 'remoteAvatar', userId: sim.id, userName: sim.name };
+            avatarMesh.traverse(child => { if (child.isMesh) child.userData = avatarMesh.userData; });
+
+            scene.add(avatarMesh);
+
+            remoteUsers.set(sim.id, {
+                id: sim.id,
+                name: sim.name,
+                avatarMesh: avatarMesh,
+                targetPos: new THREE.Vector3(sim.x, 0, sim.z),
+                targetYaw: 0,
+                isMoving: false
+            });
+        });
+
+        // AI Wandering loop for simulated visitors
+        setInterval(() => {
+            remoteUsers.forEach(u => {
+                if (u.id.startsWith('sim_')) {
+                    if (Math.random() > 0.4) {
+                        const targetPlot = plotManager.plots[Math.floor(Math.random() * plotManager.plots.length)];
+                        if (targetPlot) {
+                            u.targetPos.set(
+                                Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPlot.position.x + (Math.random() - 0.5) * 2)),
+                                0,
+                                Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, targetPlot.position.z + (Math.random() - 0.5) * 2))
+                            );
+                            u.targetYaw = Math.atan2(-(u.targetPos.x - u.avatarMesh.position.x), -(u.targetPos.z - u.avatarMesh.position.z));
+                            u.isMoving = true;
+                        }
+                    }
+                }
+            });
+        }, 6000);
+    }
+
+    function updateRadarCanvas() {
+        const rCanvas = document.getElementById('bp-radar-canvas');
+        if (!rCanvas) return;
+        const ctx = rCanvas.getContext('2d');
+        const cx = 55;
+        const cy = 55;
+        const scale = 55 / 38;
+
+        ctx.clearRect(0, 0, 110, 110);
+
+        ctx.fillStyle = 'rgba(6, 18, 13, 0.9)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 54, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 35, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Tombs
+        ctx.fillStyle = '#64748b';
+        plotManager.plots.forEach(p => {
+            const px = cx + p.position.x * scale;
+            const py = cy + p.position.z * scale;
+            ctx.fillRect(px - 1, py - 1, 2, 2);
+        });
+
+        // Remote Visitors
+        remoteUsers.forEach(u => {
+            if (u.avatarMesh) {
+                const rx = cx + u.avatarMesh.position.x * scale;
+                const ry = cy + u.avatarMesh.position.z * scale;
+                ctx.fillStyle = '#ffd600';
+                ctx.beginPath();
+                ctx.arc(rx, ry, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+
+        // Local Player Arrow
+        const lx = cx + playerPosition.x * scale;
+        const ly = cy + playerPosition.z * scale;
+
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.rotate(-cameraYaw);
+
+        ctx.fillStyle = '#34d399';
+        ctx.beginPath();
+        ctx.moveTo(0, -6);
+        ctx.lineTo(4, 5);
+        ctx.lineTo(0, 3);
+        ctx.lineTo(-4, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // PUSHER REALTIME CONNECTION HANDLER
+    let pusherChannel = null;
+
+    function initPusherMultiplayer() {
+        if (!settings.pusherKey || typeof Pusher === 'undefined') {
+            initSimulatedVisitors();
+            return;
+        }
+
+        try {
+            const pusher = new Pusher(settings.pusherKey, {
+                cluster: settings.pusherCluster || 'eu',
+                forceTLS: true
+            });
+
+            pusherChannel = pusher.subscribe('bosque-patitas-cemetery');
+
+            pusherChannel.bind('client-user-move', (data) => {
+                if (data.id === myClientId) return;
+
+                let userObj = remoteUsers.get(data.id);
+                if (!userObj) {
+                    const avatarMesh = createPlaymobilAvatarModel(data.avatar || {});
+                    avatarMesh.position.set(data.x, 0, data.z);
+
+                    const nameTag = createNameTagSprite(data.name || 'Visitante');
+                    nameTag.position.set(0, 1.50, 0);
+                    avatarMesh.add(nameTag);
+
+                    avatarMesh.userData = { type: 'remoteAvatar', userId: data.id, userName: data.name };
+                    avatarMesh.traverse(child => { if (child.isMesh) child.userData = avatarMesh.userData; });
+
+                    scene.add(avatarMesh);
+
+                    userObj = {
+                        id: data.id,
+                        name: data.name,
+                        avatarMesh: avatarMesh,
+                        targetPos: new THREE.Vector3(data.x, 0, data.z),
+                        targetYaw: data.yaw || 0,
+                        isMoving: false
+                    };
+                    remoteUsers.set(data.id, userObj);
+                } else {
+                    userObj.targetPos.set(data.x, 0, data.z);
+                    userObj.targetYaw = data.yaw || 0;
+                    userObj.isMoving = data.isMoving || false;
+                }
+            });
+
+            pusherChannel.bind('client-user-chat', (data) => {
+                if (data.id === myClientId) return;
+
+                addChatMessageToBox(data.name, data.text, data.isPrivate);
+
+                const userObj = remoteUsers.get(data.id);
+                if (userObj && userObj.avatarMesh) {
+                    showSpeechBubble3D(userObj.avatarMesh, data.text);
+                }
+            });
+
+            pusherChannel.bind('client-user-emote', (data) => {
+                if (data.id === myClientId) return;
+
+                const userObj = remoteUsers.get(data.id);
+                if (userObj && userObj.avatarMesh) {
+                    triggerEmote3D(userObj.avatarMesh, data.emote);
+                }
+            });
+
+            // Periodically broadcast local player position
+            setInterval(() => {
+                if (pusherChannel && !settings.avatar.incognito) {
+                    pusherChannel.trigger('client-user-move', {
+                        id: myClientId,
+                        name: myName,
+                        x: playerPosition.x,
+                        z: playerPosition.z,
+                        yaw: cameraYaw,
+                        avatar: settings.avatar
+                    });
+                }
+            }, 120);
+
+        } catch (err) {
+            initSimulatedVisitors();
+        }
+    }
+
+    // ----------------------------------------------------
+    // GENERADOR Y ANIMADOR DE MUÑECO ESTILO PLAYMOBIL CLICK 3D
+    // ----------------------------------------------------
+    function createPlaymobilAvatarModel(config = {}) {
+        const skinColor = config.skin || '#ffe0bd';
+        const shirtColor = config.shirt || '#10b981';
+        const pantsColor = config.pants || '#1e3a8a';
+        const hairStyle = config.hair_style || 'classic';
+        const hairColor = config.hair_color || '#3b2314';
+        const accessory = config.accessory || 'none';
+
+        const avatarGroup = new THREE.Group();
+        avatarGroup.name = 'playmobilAvatar';
+
+        // Materials
+        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.4 });
+        const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.5 });
+        const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.5 });
+        const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.6 });
+
+        // 1. LEGS & WAIST (Pivoting around Hip joint at Y = 0.50)
+        const legGroup = new THREE.Group();
+        legGroup.position.set(0, 0, 0);
+
+        // Waist bar
+        const waistGeo = new THREE.BoxGeometry(0.38, 0.08, 0.20);
+        const waistMesh = new THREE.Mesh(waistGeo, pantsMat);
+        waistMesh.position.set(0, 0.50, 0);
+        waistMesh.castShadow = true;
+        legGroup.add(waistMesh);
+
+        const legBoxGeo = new THREE.BoxGeometry(0.16, 0.46, 0.18);
+        const footGeo = new THREE.BoxGeometry(0.16, 0.06, 0.24);
+
+        // Left Leg
+        const leftLegGroup = new THREE.Group();
+        leftLegGroup.name = 'leftLeg';
+        leftLegGroup.position.set(-0.10, 0.48, 0);
+
+        const leftLegMesh = new THREE.Mesh(legBoxGeo, pantsMat);
+        leftLegMesh.position.set(0, -0.23, 0);
+        leftLegMesh.castShadow = true;
+        leftLegGroup.add(leftLegMesh);
+
+        const leftFootMesh = new THREE.Mesh(footGeo, pantsMat);
+        leftFootMesh.position.set(0, -0.43, 0.03);
+        leftFootMesh.castShadow = true;
+        leftLegGroup.add(leftFootMesh);
+
+        legGroup.add(leftLegGroup);
+
+        // Right Leg
+        const rightLegGroup = new THREE.Group();
+        rightLegGroup.name = 'rightLeg';
+        rightLegGroup.position.set(0.10, 0.48, 0);
+
+        const rightLegMesh = new THREE.Mesh(legBoxGeo, pantsMat);
+        rightLegMesh.position.set(0, -0.23, 0);
+        rightLegMesh.castShadow = true;
+        rightLegGroup.add(rightLegMesh);
+
+        const rightFootMesh = new THREE.Mesh(footGeo, pantsMat);
+        rightFootMesh.position.set(0, -0.43, 0.03);
+        rightFootMesh.castShadow = true;
+        rightLegGroup.add(rightFootMesh);
+
+        legGroup.add(rightLegGroup);
+        avatarGroup.add(legGroup);
+
+        // 2. TORSO (Trapezoidal Playmobil shape)
+        const torsoGroup = new THREE.Group();
+        torsoGroup.name = 'torsoGroup';
+        torsoGroup.position.set(0, 0.54, 0);
+
+        const torsoShape = new THREE.Shape();
+        torsoShape.moveTo(-0.19, 0);
+        torsoShape.lineTo(0.19, 0);
+        torsoShape.lineTo(0.16, 0.46);
+        torsoShape.lineTo(-0.16, 0.46);
+        torsoShape.closePath();
+
+        const torsoExtrude = { depth: 0.22, bevelEnabled: true, bevelSize: 0.015, bevelThickness: 0.015, bevelSegments: 2 };
+        const torsoGeo = new THREE.ExtrudeGeometry(torsoShape, torsoExtrude);
+        torsoGeo.center();
+
+        const torsoMesh = new THREE.Mesh(torsoGeo, shirtMat);
+        torsoMesh.position.set(0, 0.23, 0);
+        torsoMesh.castShadow = true;
+        torsoMesh.receiveShadow = true;
+        torsoGroup.add(torsoMesh);
+
+        // Neck ring
+        const neckRingGeo = new THREE.CylinderGeometry(0.09, 0.10, 0.08, 12);
+        const neckRing = new THREE.Mesh(neckRingGeo, skinMat);
+        neckRing.position.set(0, 0.48, 0);
+        torsoGroup.add(neckRing);
+
+        // 3. ARMS (Left & Right)
+        const armUpperGeo = new THREE.CylinderGeometry(0.045, 0.04, 0.32, 10);
+        const handGeo = new THREE.TorusGeometry(0.032, 0.012, 8, 12, Math.PI * 1.5);
+
+        // Left Arm
+        const leftArmGroup = new THREE.Group();
+        leftArmGroup.name = 'leftArm';
+        leftArmGroup.position.set(-0.18, 0.40, 0);
+
+        const leftArmMesh = new THREE.Mesh(armUpperGeo, shirtMat);
+        leftArmMesh.position.set(0, -0.16, 0);
+        leftArmMesh.castShadow = true;
+        leftArmGroup.add(leftArmMesh);
+
+        const leftHand = new THREE.Mesh(handGeo, skinMat);
+        leftHand.rotation.x = Math.PI / 2;
+        leftHand.position.set(0, -0.34, 0.01);
+        leftArmGroup.add(leftHand);
+
+        torsoGroup.add(leftArmGroup);
+
+        // Right Arm
+        const rightArmGroup = new THREE.Group();
+        rightArmGroup.name = 'rightArm';
+        rightArmGroup.position.set(0.18, 0.40, 0);
+
+        const rightArmMesh = new THREE.Mesh(armUpperGeo, shirtMat);
+        rightArmMesh.position.set(0, -0.16, 0);
+        rightArmMesh.castShadow = true;
+        rightArmGroup.add(rightArmMesh);
+
+        const rightHand = new THREE.Mesh(handGeo, skinMat);
+        rightHand.rotation.x = Math.PI / 2;
+        rightHand.position.set(0, -0.34, 0.01);
+        rightArmGroup.add(rightHand);
+
+        // Accessories attached to Right Arm
+        if (accessory === 'lantern') {
+            const lanternMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 });
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+            const lanternBox = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.08), lanternMat);
+            lanternBox.position.set(0, -0.42, 0.06);
+
+            const glowCore = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), glowMat);
+            glowCore.position.set(0, -0.42, 0.06);
+
+            const lanternLight = new THREE.PointLight(0xffbb33, 0.8, 3.5);
+            lanternLight.position.set(0, -0.42, 0.06);
+
+            rightArmGroup.add(lanternBox);
+            rightArmGroup.add(glowCore);
+            rightArmGroup.add(lanternLight);
+        } else if (accessory === 'flower') {
+            const flowerProp = createFlower3D(false);
+            flowerProp.scale.set(0.6, 0.6, 0.6);
+            flowerProp.position.set(0, -0.42, 0.05);
+            rightArmGroup.add(flowerProp);
+        } else if (accessory === 'wand') {
+            const wandMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
+            const wandMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.35, 8), wandMat);
+            wandMesh.position.set(0, -0.40, 0.08);
+            wandMesh.rotation.x = Math.PI / 4;
+
+            const starMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
+            const starMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.04), starMat);
+            starMesh.position.set(0, -0.28, 0.20);
+
+            const starLight = new THREE.PointLight(0x67e8f9, 0.6, 2.5);
+            starLight.position.set(0, -0.28, 0.20);
+
+            rightArmGroup.add(wandMesh);
+            rightArmGroup.add(starMesh);
+            rightArmGroup.add(starLight);
+        }
+
+        torsoGroup.add(rightArmGroup);
+        avatarGroup.add(torsoGroup);
+
+        // 4. HEAD & FACE
+        const headGroup = new THREE.Group();
+        headGroup.name = 'headGroup';
+        headGroup.position.set(0, 1.10, 0);
+
+        const headGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.22, 16);
+        const headMesh = new THREE.Mesh(headGeo, skinMat);
+        headMesh.castShadow = true;
+        headGroup.add(headMesh);
+
+        // Ear bumps
+        const earGeo = new THREE.SphereGeometry(0.03, 8, 8);
+        const leftEar = new THREE.Mesh(earGeo, skinMat);
+        leftEar.position.set(-0.14, 0, 0);
+        const rightEar = new THREE.Mesh(earGeo, skinMat);
+        rightEar.position.set(0.14, 0, 0);
+        headGroup.add(leftEar);
+        headGroup.add(rightEar);
+
+        // Playmobil Face Texture (Eyes + Iconic Smile)
+        const faceCanvas = document.createElement('canvas');
+        faceCanvas.width = 256;
+        faceCanvas.height = 256;
+        const faceCtx = faceCanvas.getContext('2d');
+
+        faceCtx.fillStyle = skinColor;
+        faceCtx.fillRect(0, 0, 256, 256);
+
+        // Classic Playmobil eyes (solid black dots)
+        faceCtx.fillStyle = '#000000';
+        faceCtx.beginPath();
+        faceCtx.arc(90, 110, 14, 0, Math.PI * 2);
+        faceCtx.fill();
+
+        faceCtx.beginPath();
+        faceCtx.arc(166, 110, 14, 0, Math.PI * 2);
+        faceCtx.fill();
+
+        // Eye shines
+        faceCtx.fillStyle = '#ffffff';
+        faceCtx.beginPath();
+        faceCtx.arc(86, 106, 5, 0, Math.PI * 2);
+        faceCtx.fill();
+        faceCtx.beginPath();
+        faceCtx.arc(162, 106, 5, 0, Math.PI * 2);
+        faceCtx.fill();
+
+        // Playmobil iconic curved smile
+        faceCtx.strokeStyle = '#000000';
+        faceCtx.lineWidth = 10;
+        faceCtx.lineCap = 'round';
+        faceCtx.beginPath();
+        faceCtx.arc(128, 145, 36, 0.25 * Math.PI, 0.75 * Math.PI, false);
+        faceCtx.stroke();
+
+        const faceTexture = new THREE.CanvasTexture(faceCanvas);
+        const faceMat = new THREE.MeshBasicMaterial({ map: faceTexture, transparent: true });
+        const facePlaneGeo = new THREE.PlaneGeometry(0.22, 0.22);
+        const facePlane = new THREE.Mesh(facePlaneGeo, faceMat);
+        facePlane.position.set(0, 0.01, 0.142);
+        headGroup.add(facePlane);
+
+        // HAIR & HATS
+        if (hairStyle === 'classic') {
+            const hairCapGeo = new THREE.SphereGeometry(0.155, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.6);
+            const hairCap = new THREE.Mesh(hairCapGeo, hairMat);
+            hairCap.position.set(0, 0.04, 0);
+            hairCap.castShadow = true;
+            headGroup.add(hairCap);
+
+            // Side bangs
+            const bangL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.08), hairMat);
+            bangL.position.set(-0.12, 0.02, 0.10);
+            const bangR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.08), hairMat);
+            bangR.position.set(0.12, 0.02, 0.10);
+            headGroup.add(bangL);
+            headGroup.add(bangR);
+        } else if (hairStyle === 'spiky') {
+            const baseHair = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 12), hairMat);
+            baseHair.position.set(0, 0.05, 0);
+            headGroup.add(baseHair);
+
+            for (let i = -3; i <= 3; i++) {
+                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 5), hairMat);
+                spike.position.set(i * 0.04, 0.16, (3 - Math.abs(i)) * 0.02);
+                spike.rotation.z = -i * 0.15;
+                headGroup.add(spike);
+            }
+        } else if (hairStyle === 'cap') {
+            const capMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 });
+            const capDome = new THREE.Mesh(new THREE.SphereGeometry(0.152, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), capMat);
+            capDome.position.set(0, 0.05, 0);
+
+            const visor = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.02, 0.12), capMat);
+            visor.position.set(0, 0.04, 0.18);
+            visor.rotation.x = 0.15;
+
+            headGroup.add(capDome);
+            headGroup.add(visor);
+        } else if (hairStyle === 'crown') {
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3, metalness: 0.8 });
+            const crownCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.10, 0.10, 8, 1, true), goldMat);
+            crownCyl.position.set(0, 0.16, 0);
+
+            for (let a = 0; a < 8; a++) {
+                const ang = (a * Math.PI * 2) / 8;
+                const pt = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.05, 4), goldMat);
+                pt.position.set(Math.sin(ang) * 0.11, 0.22, Math.cos(ang) * 0.11);
+                headGroup.add(pt);
+            }
+            headGroup.add(crownCyl);
+        } else if (hairStyle === 'hat') {
+            const hatMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+            const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.02, 16), hatMat);
+            brim.position.set(0, 0.12, 0);
+
+            const topHat = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.16, 16), hatMat);
+            topHat.position.set(0, 0.20, 0);
+
+            headGroup.add(brim);
+            headGroup.add(topHat);
+        }
+
+        avatarGroup.add(headGroup);
+
+        return avatarGroup;
+    }
+
+    function updateAvatarAnimation(avatarGroup, isWalking, delta) {
+        if (!avatarGroup) return;
+
+        if (typeof avatarGroup.userData.walkTime !== 'number') avatarGroup.userData.walkTime = 0;
+
+        const leftLeg = avatarGroup.getObjectByName('leftLeg');
+        const rightLeg = avatarGroup.getObjectByName('rightLeg');
+        const leftArm = avatarGroup.getObjectByName('leftArm');
+        const rightArm = avatarGroup.getObjectByName('rightArm');
+        const torsoGroup = avatarGroup.getObjectByName('torsoGroup');
+
+        if (isWalking) {
+            avatarGroup.userData.walkTime += delta * 10;
+            const wt = avatarGroup.userData.walkTime;
+
+            if (leftLeg) leftLeg.rotation.x = Math.sin(wt) * 0.45;
+            if (rightLeg) rightLeg.rotation.x = -Math.sin(wt) * 0.45;
+
+            if (leftArm) leftArm.rotation.x = -Math.sin(wt) * 0.38;
+            if (rightArm) rightArm.rotation.x = Math.sin(wt) * 0.38;
+
+            if (torsoGroup) torsoGroup.position.y = 0.54 + Math.abs(Math.sin(wt)) * 0.03;
+        } else {
+            avatarGroup.userData.walkTime = 0;
+
+            if (leftLeg) leftLeg.rotation.x += (0 - leftLeg.rotation.x) * 0.15;
+            if (rightLeg) rightLeg.rotation.x += (0 - rightLeg.rotation.x) * 0.15;
+
+            if (leftArm) leftArm.rotation.x += (0 - leftArm.rotation.x) * 0.15;
+            if (rightArm) rightArm.rotation.x += (0 - rightArm.rotation.x) * 0.15;
+
+            if (torsoGroup) torsoGroup.position.y += (0.54 - torsoGroup.position.y) * 0.15;
+        }
+    }
 
     // ----------------------------------------------------
     // GENERADORES DE HOMENAJES Y MODELOS 3D
@@ -1619,6 +2398,8 @@ document.addEventListener('DOMContentLoaded', () => {
         scene.add(tree);
     });
 
+    rebuildLocalPlayerAvatarMesh();
+
     // ----------------------------------------------------
     // CONSUMO REST API DE WORDPRESS
     // ----------------------------------------------------
@@ -1817,30 +2598,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentMode === MODE_AERIAL) {
             if (controls) {
                 controls.enabled = true;
-                controls.target.set(camera.position.x, 0.8, camera.position.z);
+                controls.target.set(playerPosition.x, 0.8, playerPosition.z);
             }
-            camera.position.set(camera.position.x, 22, camera.position.z + 18);
-            camera.lookAt(controls ? controls.target : new THREE.Vector3(0, 0, 0));
+            camera.position.set(playerPosition.x, 22, playerPosition.z + 18);
+            camera.lookAt(controls ? controls.target : new THREE.Vector3(playerPosition.x, 0.8, playerPosition.z));
 
-            if (slotViewDesc) slotViewDesc.textContent = 'Alternar a Modo Paseo 3D';
+            if (slotViewDesc) slotViewDesc.textContent = 'Vista Aérea (Clic para 1ª Persona)';
             dpadContainer.style.display = 'none';
-        } else {
-            if (controls) {
-                controls.enabled = false;
-            }
-            const targetX = controls ? controls.target.x : camera.position.x;
-            const targetZ = controls ? controls.target.z : camera.position.z;
+            if (localPlayerAvatar) localPlayerAvatar.visible = true;
+        } else if (currentMode === MODE_AVATAR) {
+            if (controls) controls.enabled = false;
 
-            camera.position.set(targetX, PLAYER_HEIGHT, targetZ);
+            if (slotViewDesc) slotViewDesc.textContent = 'Vista 3ª Persona Avatar (Clic para Aérea)';
+            if (isMobile) dpadContainer.style.display = 'block';
+            if (localPlayerAvatar) localPlayerAvatar.visible = true;
+        } else { // MODE_GROUND
+            if (controls) controls.enabled = false;
+
+            camera.position.set(playerPosition.x, PLAYER_HEIGHT, playerPosition.z);
             cameraPitch = 0;
             targetCameraPitch = 0;
             targetCameraYaw = cameraYaw;
             camera.rotation.set(0, cameraYaw, 0, 'YXZ');
 
-            if (slotViewDesc) slotViewDesc.textContent = 'Alternar a Vista Aérea Orbit';
-            if (isMobile) {
-                dpadContainer.style.display = 'block';
-            }
+            if (slotViewDesc) slotViewDesc.textContent = 'Vista 1ª Persona Ojos (Clic para 3ª Persona)';
+            if (isMobile) dpadContainer.style.display = 'block';
+            if (localPlayerAvatar) localPlayerAvatar.visible = false;
         }
     }
 
@@ -1856,10 +2639,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const menuItemAvatar = document.getElementById('bp-menu-item-avatar');
+
     if (menuItemPets) {
         menuItemPets.addEventListener('click', () => {
             inventoryModal.classList.add('hidden');
             openArcadePetsModal();
+        });
+    }
+
+    if (menuItemAvatar) {
+        menuItemAvatar.addEventListener('click', () => {
+            inventoryModal.classList.add('hidden');
+            openArcadeAvatarModal();
         });
     }
 
@@ -1887,7 +2679,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (menuItemCamera) {
         menuItemCamera.addEventListener('click', () => {
-            setMode(currentMode === MODE_GROUND ? MODE_AERIAL : MODE_GROUND);
+            if (currentMode === MODE_GROUND) setMode(MODE_AVATAR);
+            else if (currentMode === MODE_AVATAR) setMode(MODE_AERIAL);
+            else setMode(MODE_GROUND);
             inventoryModal.classList.add('hidden');
         });
     }
@@ -1983,6 +2777,370 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function renderArcadeTabsHeader(activeTab = 'pets') {
+        return `
+            <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+                <button id="bp-arcade-tab-pets" class="bp-arcade-btn ${activeTab === 'pets' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="font-size:11px; padding:12px 18px;">
+                    🐾 MIS MASCOTAS
+                </button>
+                <button id="bp-arcade-tab-avatar" class="bp-arcade-btn ${activeTab === 'avatar' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="font-size:11px; padding:12px 18px;">
+                    🧸 MI AVATAR 3D (PLAYMOBIL CLICK)
+                </button>
+            </div>
+        `;
+    }
+
+    let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame;
+
+    function initAvatarPreviewCanvas(avatarConfig) {
+        const previewContainer = document.getElementById('bp-avatar-preview-container');
+        if (!previewContainer) return;
+
+        if (previewAnimFrame) cancelAnimationFrame(previewAnimFrame);
+
+        previewContainer.innerHTML = '';
+
+        previewScene = new THREE.Scene();
+        previewScene.background = new THREE.Color(0x0b1711);
+
+        const aspect = (previewContainer.clientWidth / previewContainer.clientHeight) || 1;
+        previewCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 10);
+        previewCamera.position.set(0, 0.75, 2.2);
+        previewCamera.lookAt(0, 0.65, 0);
+
+        previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        previewRenderer.setSize(previewContainer.clientWidth, previewContainer.clientHeight);
+        previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        previewRenderer.shadowMap.enabled = true;
+        previewContainer.appendChild(previewRenderer.domElement);
+
+        const ambientL = new THREE.AmbientLight(0xffffff, 0.85);
+        previewScene.add(ambientL);
+
+        const dirL = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirL.position.set(2, 4, 3);
+        previewScene.add(dirL);
+
+        // Pedestal
+        const pedMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.5, 0.55, 0.08, 16),
+            new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4 })
+        );
+        pedMesh.position.y = -0.04;
+        previewScene.add(pedMesh);
+
+        function rebuildPreviewMesh(cfg) {
+            if (previewAvatarMesh) previewScene.remove(previewAvatarMesh);
+            previewAvatarMesh = createPlaymobilAvatarModel(cfg);
+            previewAvatarMesh.position.set(0, 0, 0);
+            previewScene.add(previewAvatarMesh);
+        }
+
+        rebuildPreviewMesh(avatarConfig);
+
+        // Preview Mouse Drag Rotation
+        let isDragging = false;
+        let prevMouseX = 0;
+
+        const onPreviewDown = (e) => {
+            isDragging = true;
+            prevMouseX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+        };
+
+        const onPreviewMove = (e) => {
+            if (!isDragging || !previewAvatarMesh) return;
+            const curX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+            const dx = curX - prevMouseX;
+            previewAvatarMesh.rotation.y += dx * 0.015;
+            prevMouseX = curX;
+        };
+
+        const onPreviewUp = () => { isDragging = false; };
+
+        previewRenderer.domElement.addEventListener('mousedown', onPreviewDown);
+        window.addEventListener('mousemove', onPreviewMove);
+        window.addEventListener('mouseup', onPreviewUp);
+
+        previewRenderer.domElement.addEventListener('touchstart', onPreviewDown, { passive: true });
+        window.addEventListener('touchmove', onPreviewMove, { passive: true });
+        window.addEventListener('touchend', onPreviewUp, { passive: true });
+
+        // Animation Loop
+        let previewClock = new THREE.Clock();
+        function animatePreview() {
+            previewAnimFrame = requestAnimationFrame(animatePreview);
+
+            if (!isDragging && previewAvatarMesh) {
+                previewAvatarMesh.rotation.y += 0.008;
+            }
+
+            previewRenderer.render(previewScene, previewCamera);
+        }
+
+        animatePreview();
+
+        // Attach Swatch & Form Listeners
+        const currentConfig = Object.assign({}, avatarConfig);
+
+        function updateSwatchActive(containerId, activeVal) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.querySelectorAll('.bp-color-swatch').forEach(sw => {
+                const col = sw.dataset.color;
+                if (col === activeVal) {
+                    sw.style.borderColor = '#ffd600';
+                    sw.style.transform = 'scale(1.15)';
+                } else {
+                    sw.style.borderColor = '#000000';
+                    sw.style.transform = 'scale(1.0)';
+                }
+            });
+        }
+
+        ['skin', 'shirt', 'pants', 'hair'].forEach(type => {
+            const containerId = `bp-swatches-${type}`;
+            const el = document.getElementById(containerId);
+            if (el) {
+                el.querySelectorAll('.bp-color-swatch').forEach(sw => {
+                    sw.addEventListener('click', () => {
+                        const col = sw.dataset.color;
+                        if (type === 'hair') currentConfig.hair_color = col;
+                        else currentConfig[type] = col;
+
+                        updateSwatchActive(containerId, col);
+                        rebuildPreviewMesh(currentConfig);
+                    });
+                });
+            }
+        });
+
+        const selectHair = document.getElementById('bp-select-hair-style');
+        if (selectHair) {
+            selectHair.addEventListener('change', () => {
+                currentConfig.hair_style = selectHair.value;
+                rebuildPreviewMesh(currentConfig);
+            });
+        }
+
+        const selectAcc = document.getElementById('bp-select-accessory');
+        if (selectAcc) {
+            selectAcc.addEventListener('change', () => {
+                currentConfig.accessory = selectAcc.value;
+                rebuildPreviewMesh(currentConfig);
+            });
+        }
+
+        const chkIncognito = document.getElementById('bp-chk-incognito');
+        if (chkIncognito) {
+            chkIncognito.addEventListener('change', () => {
+                currentConfig.incognito = chkIncognito.checked ? 1 : 0;
+            });
+        }
+
+        const saveBtn = document.getElementById('bp-btn-save-avatar');
+        const feedbackBox = document.getElementById('bp-avatar-feedback');
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                saveBtn.disabled = true;
+                saveBtn.textContent = '💾 GUARDANDO AVATAR...';
+
+                const formData = new FormData();
+                formData.append('action', 'bp_ajax_save_avatar');
+                formData.append('skin', currentConfig.skin);
+                formData.append('shirt', currentConfig.shirt);
+                formData.append('pants', currentConfig.pants);
+                formData.append('hair_style', currentConfig.hair_style);
+                formData.append('hair_color', currentConfig.hair_color);
+                formData.append('accessory', currentConfig.accessory);
+                formData.append('incognito', currentConfig.incognito ? 1 : 0);
+                formData.append('bp_nonce', settings.authNonce || settings.nonce);
+
+                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+
+                fetch(ajaxUrl, { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(res => {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '💾 GUARDAR Y APLICAR AVATAR 3D';
+
+                    if (res.success) {
+                        settings.avatar = currentConfig;
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#34d399';
+                            feedbackBox.textContent = '✨ ¡Avatar actualizado y guardado!';
+                        }
+
+                        // Rebuild local player avatar if in scene
+                        if (typeof rebuildLocalPlayerAvatarMesh === 'function') {
+                            rebuildLocalPlayerAvatarMesh();
+                        }
+                    } else {
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#f87171';
+                            feedbackBox.textContent = res.data ? res.data.message : 'Error al guardar.';
+                        }
+                    }
+                })
+                .catch(() => {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '💾 GUARDAR Y APLICAR AVATAR 3D';
+                    if (feedbackBox) {
+                        feedbackBox.style.display = 'block';
+                        feedbackBox.style.color = '#f87171';
+                        feedbackBox.textContent = 'Error de conexión.';
+                    }
+                });
+            });
+        }
+    }
+
+    function openArcadeAvatarModal() {
+        const arcadeContent = document.getElementById('bp-arcade-content');
+        if (!arcadeContent) return;
+
+        arcadePetsModal.classList.remove('hidden');
+
+        if (!settings.isLoggedIn) {
+            arcadeContent.innerHTML = `
+                <div style="text-align:center; padding:60px 20px;">
+                    <p style="font-family:'Press Start 2P', monospace; font-size:14px; color:#ffd600; margin-bottom:20px;">
+                        🕹️ INSERT COIN / ACCESO REQUERIDO
+                    </p>
+                    <p style="color:#a7f3d0; font-size:14px; margin-bottom:24px;">
+                        Debes iniciar sesión o registrarte para personalizar tu avatar Playmobil Click 3D.
+                    </p>
+                    <a href="${settings.loginUrl}" class="bp-arcade-btn bp-arcade-btn-yellow" style="display:inline-block; text-decoration:none; font-size:12px; padding:14px 24px;">
+                        🔑 INICIAR SESIÓN / REGISTRARSE
+                    </a>
+                </div>
+            `;
+            return;
+        }
+
+        const avatar = settings.avatar || {
+            skin: '#ffe0bd',
+            shirt: '#10b981',
+            pants: '#1e3a8a',
+            hair_style: 'classic',
+            hair_color: '#3b2314',
+            accessory: 'none',
+            incognito: 0
+        };
+
+        arcadeContent.innerHTML = `
+            ${renderArcadeTabsHeader('avatar')}
+
+            <div class="bp-arcade-form-box" style="border-color:#34d399;">
+                <h4 style="color:#34d399;">🧸 PERSONALIZADOR DE AVATAR PLAYMOBIL CLICK 3D</h4>
+
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:start;">
+
+                    <!-- CONTROLES RETRO DE TUNEO -->
+                    <div>
+                        <!-- SKIN COLOR -->
+                        <div style="margin-bottom:16px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
+                                ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
+                                    <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- SHIRT / TORSO COLOR -->
+                        <div style="margin-bottom:16px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
+                                ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
+                                    <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- PANTS COLOR -->
+                        <div style="margin-bottom:16px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN</label>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
+                                ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
+                                    <div class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#ffd600' : '#000000'};"></div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- HAIR STYLE -->
+                        <div style="margin-bottom:16px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
+                            <select id="bp-select-hair-style" class="bp-arcade-input">
+                                <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico Playmobil</option>
+                                <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky 90s</option>
+                                <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra Rápida</option>
+                                <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona Real</option>
+                                <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero Elegante</option>
+                            </select>
+                        </div>
+
+                        <!-- HAIR COLOR -->
+                        <div style="margin-bottom:16px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO</label>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
+                                ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
+                                    <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- ACCESSORY -->
+                        <div style="margin-bottom:16px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">6. ACCESORIO EN MANO</label>
+                            <select id="bp-select-accessory" class="bp-arcade-input">
+                                <option value="none" ${avatar.accessory === 'none' ? 'selected' : ''}>🚫 Ninguno (Manos libres)</option>
+                                <option value="lantern" ${avatar.accessory === 'lantern' ? 'selected' : ''}>🏮 Linterna Brillante</option>
+                                <option value="flower" ${avatar.accessory === 'flower' ? 'selected' : ''}>🌸 Flor del Bosque</option>
+                                <option value="wand" ${avatar.accessory === 'wand' ? 'selected' : ''}>🪄 Varita Mágica de Estrellas</option>
+                            </select>
+                        </div>
+
+                        <!-- INCOGNITO CHECKBOX -->
+                        <div style="margin-bottom:20px; background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
+                            <label style="font-size:12px; color:#a7f3d0; cursor:pointer; display:flex; align-items:center; gap:8px;">
+                                <input type="checkbox" id="bp-chk-incognito" ${avatar.incognito ? 'checked' : ''} style="width:18px; height:18px; accent-color:#10b981;" />
+                                <span>👻 Visitar en solitario / Modo Incógnito (ocultar mi avatar a los demás)</span>
+                            </label>
+                        </div>
+
+                        <div id="bp-avatar-feedback" style="display:none; font-size:12px; margin-bottom:12px; color:#2ecc71;"></div>
+
+                        <button id="bp-btn-save-avatar" class="bp-arcade-btn bp-arcade-btn-yellow" style="font-size:11px; padding:14px 22px; width:100%;">
+                            💾 GUARDAR Y APLICAR AVATAR 3D
+                        </button>
+                    </div>
+
+                    <!-- LIVE 3D PREVIEW BOX -->
+                    <div style="text-align:center;">
+                        <div style="font-family:'Press Start 2P', monospace; font-size:11px; color:#ffd600; margin-bottom:10px;">
+                            🕹️ VISTA PREVIA EN VIVO 3D
+                        </div>
+                        <div id="bp-avatar-preview-container" style="width:100%; height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;"></div>
+                        <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa</div>
+                    </div>
+
+                </div>
+            </div>
+        `;
+
+        // Wire Tab buttons
+        const tabPetsBtn = document.getElementById('bp-arcade-tab-pets');
+        if (tabPetsBtn) {
+            tabPetsBtn.addEventListener('click', () => openArcadePetsModal());
+        }
+
+        // Setup Live Preview Scene
+        initAvatarPreviewCanvas(avatar);
+    }
+
     function renderArcadePetsScreen(pets, editPet = null) {
         const arcadeContent = document.getElementById('bp-arcade-content');
         if (!arcadeContent) return;
@@ -2052,6 +3210,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const inGrave = editData ? (editData.tumba_id || 0) : 0;
 
         arcadeContent.innerHTML = `
+            ${renderArcadeTabsHeader('pets')}
+
             <div style="margin-bottom:20px; font-family:'Press Start 2P', monospace; font-size:11px; color:#34d399;">
                 GRID DE SELECCIÓN DE PERSONAJES (${Array.isArray(pets) ? pets.length : 0} REGISTRADAS)
             </div>
@@ -2059,6 +3219,141 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="bp-arcade-grid">
                 ${cardsHtml}
             </div>
+
+            <!-- FORMULARIO RETRO EDITAR / CREAR MASCOTA -->
+            <div id="bp-arcade-form-drawer" class="bp-arcade-form-box ${editPet ? '' : 'hidden'}">
+                <h4>${editPet ? '✏️ EDITAR FICHA DE PERSONAJE' : '🐾 REGISTRO DE NUEVA MASCOTA'}</h4>
+
+                ${inGrave > 0 ? `
+                    <div style="background:rgba(225, 29, 72, 0.2); border:1px solid #e11d48; color:#fca5a5; padding:12px; border-radius:6px; font-size:12px; margin-bottom:15px;">
+                        ⚠️ Esta mascota está actualmente en una tumba 3D. Debes retirarla de la tumba antes de modificar su ficha.
+                    </div>
+                ` : `
+                    <form id="bp-arcade-pet-form" enctype="multipart/form-data">
+                        <input type="hidden" name="mascota_id" value="${editPet ? (editPet.id || editPet.ID) : 0}" />
+                        <input type="hidden" name="bp_nonce" value="${settings.authNonce || settings.nonce}" />
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">1. NOMBRE REAL *</label>
+                                <input type="text" name="nombre" class="bp-arcade-input" maxlength="50" required value="${editData ? (editData.nombre || editPet.post_title || '') : ''}" placeholder="Ej: Toby" />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">2. APODOS (MÁX. 30 CAT.)</label>
+                                <input type="text" name="apodos" class="bp-arcade-input" maxlength="30" value="${editData ? (editData.apodos || '') : ''}" placeholder='Ej: "Sr. Salchicha"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">3. EPITAFIO (FRASE PARA LA LÁPIDA, MÁX. 60 CAT.)</label>
+                                <input type="text" name="epitafio" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.epitafio || '') : ''}" placeholder='Ej: "Siempre estarás corriendo feliz en nuestros corazones"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">4. TÍTULO DE HONOR (MÁX. 30 CAT.)</label>
+                                <input type="text" name="titulo_honor" class="bp-arcade-input" maxlength="30" value="${editData ? (editData.titulo_honor || '') : ''}" placeholder='Ej: "Reina del Sofá"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">5. ESPECIE Y RAZA</label>
+                                <input type="text" name="especie_raza" class="bp-arcade-input" maxlength="50" value="${editData ? (editData.especie_raza || '') : ''}" placeholder='Ej: "Perro / Mezcla"' />
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:15px;">
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FECHA LLEGADA</label>
+                                <input type="date" name="fecha_llegada" class="bp-arcade-input" value="${editData ? (editData.fecha_llegada || '') : ''}" />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FECHA DESPEDIDA</label>
+                                <input type="date" name="fecha_despedida" class="bp-arcade-input" value="${editData ? (editData.fecha_despedida || '') : ''}" />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FOTOGRAFÍA</label>
+                                <input type="file" name="foto_mascota" class="bp-arcade-input" accept="image/*" />
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:10px; margin-bottom:15px; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px;">
+                            <div>
+                                <label style="font-size:10px; color:#34d399;">CARIÑO (1-10)</label>
+                                <input type="number" min="1" max="10" name="stat_carino" class="bp-arcade-input" value="${editData ? (editData.stat_carino || 10) : 10}" />
+                            </div>
+                            <div>
+                                <label style="font-size:10px; color:#34d399;">TRAVESURA (1-10)</label>
+                                <input type="number" min="1" max="10" name="stat_travesura" class="bp-arcade-input" value="${editData ? (editData.stat_travesura || 5) : 5}" />
+                            </div>
+                            <div>
+                                <label style="font-size:10px; color:#34d399;">AMOR BAÑO (1-10)</label>
+                                <input type="number" min="1" max="10" name="stat_bano" class="bp-arcade-input" value="${editData ? (editData.stat_bano || 3) : 3}" />
+                            </div>
+                            <div>
+                                <label style="font-size:10px; color:#34d399;">CARA PENA (1-10)</label>
+                                <input type="number" min="1" max="10" name="stat_pena" class="bp-arcade-input" value="${editData ? (editData.stat_pena || 10) : 10}" />
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">SUPERPODER DESTACADO</label>
+                                <input type="text" name="superpoder" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.superpoder || '') : ''}" placeholder='Ej: "Detectar premios a 3 km"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">ARCHIENEMIGO MORTAL</label>
+                                <input type="text" name="archienemigo" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.archienemigo || '') : ''}" placeholder='Ej: "La aspiradora"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">COMIDA FAVORITA</label>
+                                <input type="text" name="comida_favorita" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.comida_favorita || '') : ''}" placeholder='Ej: "Jamón york"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">JUGUETE ESTRELLA</label>
+                                <input type="text" name="juguete_estrella" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.juguete_estrella || '') : ''}" placeholder='Ej: "Pelota de tenis"' />
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LUGAR FAVORITO</label>
+                                <input type="text" name="lugar_favorito" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.lugar_favorito || '') : ''}" placeholder='Ej: "Rincón del sofá"' />
+                            </div>
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">TRAVESURA ÉPICA</label>
+                                <input type="text" name="travesura_epica" class="bp-arcade-input" maxlength="100" value="${editData ? (editData.travesura_epica || '') : ''}" placeholder='Ej: "Se comió la tarta de cumpleaños"' />
+                            </div>
+                            <div style="grid-column: span 2;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">BANDA SONORA (ENLACE YOUTUBE O SPOTIFY)</label>
+                                <input type="url" name="soundtrack_url" class="bp-arcade-input" maxlength="200" value="${editData ? (editData.soundtrack_url || '') : ''}" placeholder="https://www.youtube.com/watch?v=..." />
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom:15px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LA GRAN ANÉCDOTA / HISTORIA *</label>
+                            <textarea name="historia" rows="3" class="bp-arcade-input" maxlength="2000" required placeholder="Cuéntanos su historia...">${editData ? (editData.historia || editPet.post_content || '') : ''}</textarea>
+                        </div>
+
+                        <div style="margin-bottom:15px;">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">CARTA DE DESPEDIDA</label>
+                            <textarea name="carta_despedida" rows="3" class="bp-arcade-input" maxlength="2000" placeholder="Tu mensaje personal de amor y despedida...">${editData ? (editData.carta_despedida || '') : ''}</textarea>
+                        </div>
+
+                        <div id="bp-arcade-feedback" style="display:none; font-size:12px; margin-bottom:12px; color:#2ecc71;"></div>
+
+                        <div style="display:flex; gap:10px;">
+                            <button type="submit" class="bp-arcade-btn bp-arcade-btn-green" style="font-size:11px; padding:12px 20px;">
+                                🕹️ ENVIAR FICHA PARA VALIDACIÓN
+                            </button>
+                            <button type="button" id="bp-arcade-cancel-form" class="bp-arcade-btn bp-arcade-btn-yellow" style="font-size:11px; padding:12px 20px;">
+                                CANCELAR
+                            </button>
+                        </div>
+                    </form>
+                `}
+            </div>
+        `;
+
+        // Wire Tab Switchers
+        const tabAvatarBtn = document.getElementById('bp-arcade-tab-avatar');
+        if (tabAvatarBtn) {
+            tabAvatarBtn.addEventListener('click', () => openArcadeAvatarModal());
+        }
 
             <!-- FORMULARIO RETRO EDITAR / CREAR MASCOTA -->
             <div id="bp-arcade-form-drawer" class="bp-arcade-form-box ${editPet ? '' : 'hidden'}">
@@ -2870,21 +4165,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (foundData) {
             const ud = foundData.userData;
-            const rect = container.getBoundingClientRect();
-            let clientX = event.clientX;
-            let clientY = event.clientY;
 
-            if (typeof clientX !== 'number') {
-                if (event.touches && event.touches.length > 0) {
-                    clientX = event.touches[0].clientX;
-                    clientY = event.touches[0].clientY;
-                } else if (event.changedTouches && event.changedTouches.length > 0) {
-                    clientX = event.changedTouches[0].clientX;
-                    clientY = event.changedTouches[0].clientY;
-                } else {
-                    clientX = 0;
-                    clientY = 0;
-                }
+            if (ud.type === 'remoteAvatar') {
+                tooltip.classList.remove('hidden');
+                tooltip.innerHTML = `
+                    <div class="bp-tooltip-header" style="text-align:center;">
+                        <span class="bp-badge free" style="background:#10b981; color:#ffffff;">👤 Visitante en Línea</span>
+                        <h4 class="bp-pet-title" style="font-size:16px; color:#ffffff !important; margin-top:4px;">${ud.userName || 'Visitante'}</h4>
+                    </div>
+                    <p class="bp-pet-excerpt" style="color:#a7f3d0 !important; font-size:12px; margin:6px 0;">Haz clic para entablar conversación privada.</p>
+                `;
+                container.style.cursor = 'pointer';
+                return;
             }
 
             tooltip.classList.remove('hidden');
@@ -2935,6 +4227,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (intersects.length > 0) {
             for (let i = 0; i < intersects.length; i++) {
                 const obj = intersects[i].object;
+
+                if (obj.userData && obj.userData.type === 'remoteAvatar') {
+                    const userId = obj.userData.userId;
+                    const userName = obj.userData.userName;
+
+                    privateChatTargetId = userId;
+                    privateChatTargetName = userName;
+                    activeChatTab = 'private';
+
+                    if (chatTabPrivate && chatTabGeneral) {
+                        chatTabPrivate.classList.add('active');
+                        chatTabGeneral.classList.remove('active');
+                        chatTabPrivate.textContent = `🔒 ${userName}`;
+                    }
+
+                    if (chatOverlay) chatOverlay.classList.remove('hidden');
+
+                    addChatMessageToBox('🤖 BosqueBot', `Has iniciado conversación privada con ${userName}. ¡Saluda! 👋`, true);
+                    return;
+                }
+
                 if (obj.userData && (obj.userData.type === 'plot' || obj.userData.type === 'tombstone')) {
                     const plotGroup = obj.userData.plotGroup || obj.parent;
                     if (plotGroup) {
@@ -3112,23 +4425,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        if (currentMode === MODE_GROUND) {
-            const moveSpeed = 8.5 * delta;
-            const turnSpeed = 2.2 * delta;
+        const moveSpeed = 8.5 * delta;
+        const turnSpeed = 2.2 * delta;
+        let isMoving = false;
 
+        if (currentMode === MODE_GROUND || currentMode === MODE_AVATAR) {
             if (isAutoWalking && autoWalkTarget) {
-                const dx = autoWalkTarget.x - camera.position.x;
-                const dz = autoWalkTarget.z - camera.position.z;
+                const dx = autoWalkTarget.x - playerPosition.x;
+                const dz = autoWalkTarget.z - playerPosition.z;
                 const dist = Math.hypot(dx, dz);
 
                 if (autoWalkTarget.phase === 'walk') {
                     if (dist > 0.12) {
-                        // Walk forward looking towards destination
+                        isMoving = true;
                         const moveYaw = Math.atan2(-dx, -dz);
                         targetCameraYaw = moveYaw;
-                        targetCameraPitch = 0; // Level pitch during walk
+                        targetCameraPitch = 0;
 
-                        // Ease-in / Ease-out speed curve
                         const traveled = autoWalkTarget.totalDist - dist;
                         let speedFactor = 1.0;
                         if (autoWalkTarget.totalDist > 0.5) {
@@ -3139,34 +4452,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         const stepSpeed = moveSpeed * 1.5 * speedFactor;
                         const step = Math.min(dist, stepSpeed);
-                        camera.position.x += (dx / dist) * step;
-                        camera.position.z += (dz / dist) * step;
+                        playerPosition.x += (dx / dist) * step;
+                        playerPosition.z += (dz / dist) * step;
 
-                        // Subtle human head bobbing
                         walkTimer += delta * 11 * speedFactor;
-                        camera.position.y = PLAYER_HEIGHT + Math.sin(walkTimer) * 0.035;
                     } else {
-                        // Reached position destination, transition to 'arrive' phase
-                        camera.position.x = autoWalkTarget.x;
-                        camera.position.z = autoWalkTarget.z;
+                        playerPosition.x = autoWalkTarget.x;
+                        playerPosition.z = autoWalkTarget.z;
                         autoWalkTarget.phase = 'arrive';
                         walkTimer = 0;
-                        camera.position.y = PLAYER_HEIGHT;
                     }
                 } else if (autoWalkTarget.phase === 'arrive') {
-                    // Turn to face tombstone, tilt camera pitch, and lower eye height (kneel)
                     targetCameraYaw = autoWalkTarget.finalYaw;
                     targetCameraPitch = autoWalkTarget.finalPitch;
-
-                    const KNEELING_HEIGHT = 0.75;
-                    camera.position.y += (KNEELING_HEIGHT - camera.position.y) * 0.12;
 
                     let yawDiff = autoWalkTarget.finalYaw - cameraYaw;
                     yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff));
                     const pitchDiff = Math.abs(autoWalkTarget.finalPitch - cameraPitch);
 
                     if (Math.abs(yawDiff) < 0.03 && pitchDiff < 0.03) {
-                        // Arrived and smoothly focused on tombstone
                         focusedPlotId = autoWalkTarget.plotId;
                         isAutoWalking = false;
                         autoWalkTarget = null;
@@ -3184,10 +4488,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (keyState.strafeLeft) moveX -= 1;
                 if (keyState.strafeRight) moveX += 1;
 
-                const KNEELING_HEIGHT = 0.75;
-                const targetPlayerY = focusedPlotId ? KNEELING_HEIGHT : PLAYER_HEIGHT;
-
                 if (moveX !== 0 || moveZ !== 0) {
+                    isMoving = true;
                     const len = Math.hypot(moveX, moveZ);
                     moveX /= len;
                     moveZ /= len;
@@ -3198,35 +4500,80 @@ document.addEventListener('DOMContentLoaded', () => {
                     const dx = (moveX * cosY + moveZ * sinY) * moveSpeed;
                     const dz = (-moveX * sinY + moveZ * cosY) * moveSpeed;
 
-                    camera.position.x += dx;
-                    camera.position.z += dz;
+                    playerPosition.x += dx;
+                    playerPosition.z += dz;
 
-                    // Manual walking head bobbing
                     walkTimer += delta * 11;
-                    camera.position.y = PLAYER_HEIGHT + Math.sin(walkTimer) * 0.035;
                 } else {
                     walkTimer = 0;
-                    camera.position.y += (targetPlayerY - camera.position.y) * 0.12;
                 }
             }
 
-            // Suavizado e inercia de rotación horizontal (Yaw) y vertical (Pitch)
             let diffYaw = targetCameraYaw - cameraYaw;
             diffYaw = Math.atan2(Math.sin(diffYaw), Math.cos(diffYaw));
             cameraYaw += diffYaw * 0.15;
-
             cameraPitch += (targetCameraPitch - cameraPitch) * 0.12;
 
-            camera.position.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.x));
-            camera.position.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, camera.position.z));
+            playerPosition.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, playerPosition.x));
+            playerPosition.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, playerPosition.z));
 
-            camera.rotation.order = 'YXZ';
-            camera.rotation.y = cameraYaw;
-            camera.rotation.x = cameraPitch;
-            camera.rotation.z = 0;
-        } else if (controls) {
-            controls.update();
+            if (localPlayerAvatar) {
+                localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
+                localPlayerAvatar.rotation.y = cameraYaw;
+                updateAvatarAnimation(localPlayerAvatar, isMoving, delta);
+            }
+
+            if (currentMode === MODE_GROUND) {
+                if (localPlayerAvatar) localPlayerAvatar.visible = false;
+                const KNEELING_HEIGHT = 0.75;
+                const targetY = focusedPlotId ? KNEELING_HEIGHT : PLAYER_HEIGHT + (isMoving ? Math.sin(walkTimer) * 0.035 : 0);
+
+                camera.position.set(playerPosition.x, targetY, playerPosition.z);
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = cameraYaw;
+                camera.rotation.x = cameraPitch;
+                camera.rotation.z = 0;
+            } else if (currentMode === MODE_AVATAR) {
+                if (localPlayerAvatar) localPlayerAvatar.visible = true;
+                const followDist = 2.8;
+                const camX = playerPosition.x + Math.sin(cameraYaw) * followDist;
+                const camZ = playerPosition.z + Math.cos(cameraYaw) * followDist;
+                const camY = 1.8 + Math.sin(cameraPitch);
+
+                camera.position.set(camX, camY, camZ);
+                camera.lookAt(playerPosition.x, 1.1, playerPosition.z);
+            }
+        } else if (currentMode === MODE_AERIAL) {
+            if (localPlayerAvatar) {
+                localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
+                localPlayerAvatar.visible = true;
+            }
+            if (controls) controls.update();
         }
+
+        // Remote users interpolation & walking animation
+        remoteUsers.forEach(u => {
+            if (u.avatarMesh) {
+                const rdx = u.targetPos.x - u.avatarMesh.position.x;
+                const rdz = u.targetPos.z - u.avatarMesh.position.z;
+                const rdist = Math.hypot(rdx, rdz);
+
+                if (rdist > 0.08) {
+                    u.avatarMesh.position.x += rdx * 0.1;
+                    u.avatarMesh.position.z += rdz * 0.1;
+
+                    let diffY = u.targetYaw - u.avatarMesh.rotation.y;
+                    diffY = Math.atan2(Math.sin(diffY), Math.cos(diffY));
+                    u.avatarMesh.rotation.y += diffY * 0.15;
+
+                    updateAvatarAnimation(u.avatarMesh, true, delta);
+                } else {
+                    updateAvatarAnimation(u.avatarMesh, false, delta);
+                }
+            }
+        });
+
+        updateRadarCanvas();
 
         renderer.render(scene, camera);
     }

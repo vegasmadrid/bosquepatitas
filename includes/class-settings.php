@@ -55,6 +55,31 @@ class BP_Admin_Settings {
             'sanitize_callback' => 'wp_kses_post',
             'default' => "¡Hola {nombre_usuario}!\n\nNos alegra informarte de que la ficha de tu querida mascota \"{nombre_mascota}\" ha sido revisada y aprobada por nuestro equipo.\n\nAhora tu mascota cuenta con el distintivo de verificación verde ✔ y ya puedes asignarle una parcela libre en el cementerio 3D de BosquePatitas.\n\nAccede a tu perfil o al cementerio 3D para colocar su tumba:\n{link_bosque}\n\nUn cálido abrazo,\nEl equipo de BosquePatitas"
         ));
+
+        // Pusher Realtime Credentials
+        register_setting('bp_settings_group', 'bp_pusher_app_key', array(
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => ''
+        ));
+
+        register_setting('bp_settings_group', 'bp_pusher_cluster', array(
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => 'eu'
+        ));
+
+        register_setting('bp_settings_group', 'bp_pusher_app_secret', array(
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => ''
+        ));
+
+        register_setting('bp_settings_group', 'bp_pusher_app_id', array(
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => ''
+        ));
     }
 
     public function render_settings_page() {
@@ -141,6 +166,40 @@ class BP_Admin_Settings {
                         <td>
                             <textarea name="bp_email_approval_body" rows="8" class="large-text"><?php echo esc_textarea(get_option('bp_email_approval_body', "¡Hola {nombre_usuario}!\n\nNos alegra informarte de que la ficha de tu querida mascota \"{nombre_mascota}\" ha sido revisada y aprobada por nuestro equipo.\n\nAhora tu mascota cuenta con el distintivo de verificación verde ✔ y ya puedes asignarle una parcela libre en el cementerio 3D de BosquePatitas.\n\nAccede a tu perfil o al cementerio 3D para colocar su tumba:\n{link_bosque}\n\nUn cálido abrazo,\nEl equipo de BosquePatitas")); ?></textarea>
                             <p class="description">Puedes usar las siguientes etiquetas automáticas: <code>{nombre_mascota}</code>, <code>{nombre_usuario}</code>, <code>{link_perfil}</code>, <code>{link_bosque}</code>.</p>
+                        </td>
+                    </tr>
+                </table>
+
+                <h2>Configuración de Pusher (Multijugador en Tiempo Real)</h2>
+                <p>Ingresa las credenciales de tu cuenta gratuita de <a href="https://pusher.com" target="_blank" rel="noopener">Pusher Channels</a> para activar la sincronización multi-usuario instantánea en el cementerio 3D.</p>
+
+                <table class="form-table">
+                    <tr valign="top">
+                        <th scope="row">Pusher App Key</th>
+                        <td>
+                            <input type="text" name="bp_pusher_app_key" value="<?php echo esc_attr(get_option('bp_pusher_app_key', '')); ?>" class="regular-text" />
+                            <p class="description">Key pública de tu aplicación en Pusher.</p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Pusher Cluster</th>
+                        <td>
+                            <input type="text" name="bp_pusher_cluster" value="<?php echo esc_attr(get_option('bp_pusher_cluster', 'eu')); ?>" class="regular-text" placeholder="eu" />
+                            <p class="description">Región/Cluster de Pusher (ej: <code>eu</code>, <code>us2</code>, etc.).</p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Pusher App Secret</th>
+                        <td>
+                            <input type="password" name="bp_pusher_app_secret" value="<?php echo esc_attr(get_option('bp_pusher_app_secret', '')); ?>" class="regular-text" />
+                            <p class="description">Secret key de tu aplicación en Pusher.</p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Pusher App ID</th>
+                        <td>
+                            <input type="text" name="bp_pusher_app_id" value="<?php echo esc_attr(get_option('bp_pusher_app_id', '')); ?>" class="regular-text" />
+                            <p class="description">ID numérico de tu aplicación en Pusher.</p>
                         </td>
                     </tr>
                 </table>
