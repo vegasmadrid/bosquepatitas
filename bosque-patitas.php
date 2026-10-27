@@ -39,10 +39,6 @@ class BosquePatitas {
         // Cargar OrbitControls de Three.js
         wp_register_script('three-orbitcontrols', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', array('threejs'), '128', true);
 
-        // Cargar GLTFLoader y DRACOLoader de Three.js para modelos comprimidos ultra-ligeros (< 500 KB)
-        wp_register_script('three-gltfloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js', array('threejs'), '128', true);
-        wp_register_script('three-dracoloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js', array('threejs', 'three-gltfloader'), '128', true);
-
         // Cargar Pusher JS SDK desde CDN
         wp_register_script('pusher-js', 'https://js.pusher.com/8.2.0/pusher.min.js', array(), '8.2.0', true);
 
@@ -50,7 +46,7 @@ class BosquePatitas {
         wp_register_script(
             'bp-main-3d',
             BP_PLUGIN_URL . 'assets/js/main-3d.js',
-            array('threejs', 'three-orbitcontrols', 'three-gltfloader', 'three-dracoloader', 'pusher-js'),
+            array('threejs', 'three-orbitcontrols', 'pusher-js'),
             '1.0.0',
             true
         );
