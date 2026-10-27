@@ -39,11 +39,14 @@ class BosquePatitas {
         // Cargar OrbitControls de Three.js
         wp_register_script('three-orbitcontrols', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', array('threejs'), '128', true);
 
+        // Cargar Pusher JS SDK desde CDN
+        wp_register_script('pusher-js', 'https://js.pusher.com/8.2.0/pusher.min.js', array(), '8.2.0', true);
+
         // Cargar nuestro script 3D principal
         wp_register_script(
             'bp-main-3d',
             BP_PLUGIN_URL . 'assets/js/main-3d.js',
-            array('threejs', 'three-orbitcontrols'),
+            array('threejs', 'three-orbitcontrols', 'pusher-js'),
             '1.0.0',
             true
         );
@@ -82,6 +85,16 @@ class BosquePatitas {
         $profile_url = $profile_page_id ? get_permalink($profile_page_id) : admin_url('profile.php');
 
         $approved_pets = array();
+        $avatar_config = array(
+            'skin'       => '#ffe0bd',
+            'shirt'      => '#10b981',
+            'pants'      => '#1e3a8a',
+            'hair_style' => 'classic',
+            'hair_color' => '#3b2314',
+            'accessory'  => 'none',
+            'incognito'  => 0
+        );
+
         if ($is_logged_in) {
             $pets = get_posts(array(
                 'post_type'      => 'bp_mascota',
@@ -107,7 +120,15 @@ class BosquePatitas {
                     );
                 }
             }
+
+            $user_avatar = get_user_meta($current_user->ID, 'bp_avatar_config', true);
+            if (is_array($user_avatar)) {
+                $avatar_config = array_merge($avatar_config, $user_avatar);
+            }
         }
+
+        $pusher_key     = get_option('bp_pusher_app_key', '');
+        $pusher_cluster = get_option('bp_pusher_cluster', 'eu');
 
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
@@ -120,7 +141,10 @@ class BosquePatitas {
             'userName'      => $is_logged_in ? esc_html($current_user->display_name ?: $current_user->user_login) : '',
             'loginUrl'      => esc_url($login_url),
             'profileUrl'    => esc_url($profile_url),
-            'approvedPets'  => $approved_pets
+            'approvedPets'  => $approved_pets,
+            'avatar'        => $avatar_config,
+            'pusherKey'     => esc_attr($pusher_key),
+            'pusherCluster' => esc_attr($pusher_cluster)
         ));
 
         return '<div id="bp-canvas-container"><div id="bp-loading">Cargando BosquePatitas...</div></div>';
