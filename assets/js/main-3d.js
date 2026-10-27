@@ -659,7 +659,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
             pusherChannel.bind('pusher:subscription_succeeded', (members) => {
                 isPusherSubscribed = true;
+                if (members && members.each) {
+                    members.each((member) => {
+                        if (member.id !== myClientId && member.info) {
+                            const info = member.info || {};
+                            if (!info.incognito) {
+                                // Request updates or initialize basic remote entry if info provided
+                            }
+                        }
+                    });
+                }
                 // Broadcast immediately upon joining
+                if (!settings.avatar.incognito) {
+                    pusherChannel.trigger('client-user-move', {
+                        id: myClientId,
+                        name: myName,
+                        x: playerPosition.x,
+                        z: playerPosition.z,
+                        yaw: cameraYaw,
+                        avatar: settings.avatar
+                    });
+                }
+            });
+
+            pusherChannel.bind('pusher:member_added', (member) => {
+                // When a new member connects, send them our location so they see us immediately
                 if (!settings.avatar.incognito) {
                     pusherChannel.trigger('client-user-move', {
                         id: myClientId,
@@ -2731,6 +2755,107 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sheetModalCloseBtn = document.getElementById('bp-sheet-close');
     if (sheetModalCloseBtn) sheetModalCloseBtn.addEventListener('click', () => petSheetModal.classList.add('hidden'));
+
+    // Wire Floating Chat & Emotes Buttons
+    const btnChat = document.getElementById('bp-chat-btn');
+    const btnChatClose = document.getElementById('bp-chat-close-btn');
+    const btnChatSend = document.getElementById('bp-chat-send-btn');
+    const inputChatText = document.getElementById('bp-chat-input-text');
+    const btnEmotes = document.getElementById('bp-emotes-btn');
+
+    if (btnChat) {
+        btnChat.addEventListener('click', () => {
+            chatOverlay.classList.toggle('hidden');
+            if (!chatOverlay.classList.contains('hidden') && inputChatText) {
+                inputChatText.focus();
+            }
+        });
+    }
+
+    if (btnChatClose) {
+        btnChatClose.addEventListener('click', () => {
+            chatOverlay.classList.add('hidden');
+        });
+    }
+
+    const triggerSendChat = () => {
+        if (!inputChatText) return;
+        const txt = inputChatText.value.trim();
+        if (!txt) return;
+
+        addChatMessageToBox(myName, txt, activeChatTab === 'private');
+
+        if (pusherChannel && isPusherSubscribed) {
+            pusherChannel.trigger('client-user-chat', {
+                id: myClientId,
+                name: myName,
+                text: txt,
+                isPrivate: activeChatTab === 'private',
+                targetId: activeChatTab === 'private' ? privateChatTargetId : null
+            });
+        }
+
+        if (localPlayerAvatar) {
+            showSpeechBubble3D(localPlayerAvatar, txt);
+        }
+
+        inputChatText.value = '';
+    };
+
+    if (btnChatSend) {
+        btnChatSend.addEventListener('click', triggerSendChat);
+    }
+
+    if (inputChatText) {
+        inputChatText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                triggerSendChat();
+            }
+        });
+    }
+
+    if (btnEmotes) {
+        btnEmotes.addEventListener('click', () => {
+            emotesMenu.classList.toggle('hidden');
+        });
+    }
+
+    document.querySelectorAll('.bp-emote-btn').forEach(b => {
+        b.addEventListener('click', () => {
+            const emote = b.dataset.emote;
+            emotesMenu.classList.add('hidden');
+
+            if (localPlayerAvatar) {
+                triggerEmote3D(localPlayerAvatar, emote);
+            }
+
+            if (pusherChannel && isPusherSubscribed) {
+                pusherChannel.trigger('client-user-emote', {
+                    id: myClientId,
+                    emote: emote
+                });
+            }
+        });
+    });
+
+    const tabGen = document.getElementById('bp-chat-tab-general');
+    const tabPriv = document.getElementById('bp-chat-tab-private');
+
+    if (tabGen) {
+        tabGen.addEventListener('click', () => {
+            activeChatTab = 'general';
+            tabGen.classList.add('active');
+            if (tabPriv) tabPriv.classList.remove('active');
+        });
+    }
+
+    if (tabPriv) {
+        tabPriv.addEventListener('click', () => {
+            activeChatTab = 'private';
+            tabPriv.classList.add('active');
+            if (tabGen) tabGen.classList.remove('active');
+        });
+    }
 
     // Close overlays when clicking outside content card on backdrop
     [petSheetModal, claimModal, helpModal, inventoryModal].forEach(modalEl => {

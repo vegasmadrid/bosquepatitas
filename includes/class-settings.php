@@ -6,6 +6,76 @@ class BP_Admin_Settings {
     public function __construct() {
         add_action('admin_menu', array($this, 'add_settings_page'));
         add_action('admin_init', array($this, 'register_settings'));
+        add_action('wp_ajax_bp_ajax_test_pusher', array($this, 'ajax_test_pusher'));
+    }
+
+    public function ajax_test_pusher() {
+        check_ajax_referer('bp_test_pusher_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Acceso denegado.'));
+        }
+
+        $key     = isset($_POST['key']) ? sanitize_text_field($_POST['key']) : get_option('bp_pusher_app_key', '');
+        $cluster = isset($_POST['cluster']) ? sanitize_text_field($_POST['cluster']) : get_option('bp_pusher_cluster', 'eu');
+        $secret  = isset($_POST['secret']) ? sanitize_text_field($_POST['secret']) : get_option('bp_pusher_app_secret', '');
+        $app_id  = isset($_POST['app_id']) ? sanitize_text_field($_POST['app_id']) : get_option('bp_pusher_app_id', '');
+
+        if (empty($key) || empty($secret) || empty($app_id)) {
+            wp_send_json_error(array('message' => 'Por favor, completa todas las credenciales de Pusher (Key, Secret, App ID).'));
+        }
+
+        $res = $this->test_pusher_connection($key, $secret, $app_id, $cluster);
+
+        if ($res['success']) {
+            wp_send_json_success(array('message' => $res['message']));
+        } else {
+            wp_send_json_error(array('message' => $res['message']));
+        }
+    }
+
+    public function test_pusher_connection($key, $secret, $app_id, $cluster) {
+        $timestamp = time();
+        $body = wp_json_encode(array(
+            'name' => 'ping-test',
+            'channels' => array('presence-bosque-patitas-cemetery'),
+            'data' => wp_json_encode(array('message' => 'Test connection from BosquePatitas Admin'))
+        ));
+        $body_md5 = md5($body);
+
+        $params = array(
+            'auth_key'       => $key,
+            'auth_timestamp' => $timestamp,
+            'auth_version'   => '1.0',
+            'body_md5'       => $body_md5
+        );
+        ksort($params);
+
+        $query_string = http_build_query($params);
+        $path = "/apps/{$app_id}/events";
+        $string_to_sign = "POST\n{$path}\n{$query_string}";
+        $signature = hash_hmac('sha256', $string_to_sign, $secret);
+
+        $url = "https://api-{$cluster}.pusher.com{$path}?{$query_string}&auth_signature={$signature}";
+
+        $response = wp_remote_post($url, array(
+            'headers' => array('Content-Type' => 'application/json'),
+            'body'    => $body,
+            'timeout' => 10
+        ));
+
+        if (is_wp_error($response)) {
+            return array('success' => false, 'message' => 'Error HTTP: ' . $response->get_error_message());
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $response_body = wp_remote_retrieve_body($response);
+
+        if ($code === 200) {
+            return array('success' => true, 'message' => '¡Conexión con Pusher exitosa! Evento transmitido correctamente.');
+        } else {
+            return array('success' => false, 'message' => "Error de Pusher (HTTP {$code}): " . $response_body);
+        }
     }
 
     public function add_settings_page() {
@@ -198,11 +268,69 @@ class BP_Admin_Settings {
                     <tr valign="top">
                         <th scope="row">Pusher App ID</th>
                         <td>
-                            <input type="text" name="bp_pusher_app_id" value="<?php echo esc_attr(get_option('bp_pusher_app_id', '')); ?>" class="regular-text" />
+                            <input type="text" id="bp_pusher_app_id" name="bp_pusher_app_id" value="<?php echo esc_attr(get_option('bp_pusher_app_id', '')); ?>" class="regular-text" />
                             <p class="description">ID numérico de tu aplicación en Pusher.</p>
                         </td>
                     </tr>
+                    <tr valign="top">
+                        <th scope="row">Prueba de Conexión</th>
+                        <td>
+                            <button type="button" id="bp-btn-test-pusher" class="button button-secondary">
+                                🔌 Probar Conexión con Pusher
+                            </button>
+                            <span id="bp-pusher-test-status" style="margin-left:12px; font-weight:bold;"></span>
+                        </td>
+                    </tr>
                 </table>
+
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var btn = document.getElementById('bp-btn-test-pusher');
+                    var status = document.getElementById('bp-pusher-test-status');
+                    if (!btn) return;
+
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        btn.disabled = true;
+                        status.style.color = '#eab308';
+                        status.textContent = '⌛ Probando conexión con Pusher...';
+
+                        var key = document.querySelector('input[name="bp_pusher_app_key"]').value;
+                        var cluster = document.querySelector('input[name="bp_pusher_cluster"]').value;
+                        var secret = document.querySelector('input[name="bp_pusher_app_secret"]').value;
+                        var appId = document.querySelector('input[name="bp_pusher_app_id"]').value;
+
+                        var data = new FormData();
+                        data.append('action', 'bp_ajax_test_pusher');
+                        data.append('nonce', '<?php echo wp_create_nonce('bp_test_pusher_nonce'); ?>');
+                        data.append('key', key);
+                        data.append('cluster', cluster);
+                        data.append('secret', secret);
+                        data.append('app_id', appId);
+
+                        fetch(ajaxurl, {
+                            method: 'POST',
+                            body: data
+                        })
+                        .then(function(r) { return r.json(); })
+                        .then(function(res) {
+                            btn.disabled = false;
+                            if (res.success) {
+                                status.style.color = '#15803d';
+                                status.textContent = '✅ ' + res.data.message;
+                            } else {
+                                status.style.color = '#b91c1c';
+                                status.textContent = '❌ ' + (res.data ? res.data.message : 'Error al conectar');
+                            }
+                        })
+                        .catch(function() {
+                            btn.disabled = false;
+                            status.style.color = '#b91c1c';
+                            status.textContent = '❌ Error de conexión al servidor.';
+                        });
+                    });
+                });
+                </script>
 
                 <?php submit_button('Guardar Cambios'); ?>
             </form>
