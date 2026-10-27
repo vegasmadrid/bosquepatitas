@@ -639,6 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // PUSHER REALTIME CONNECTION HANDLER
     let pusherChannel = null;
+    let isPusherSubscribed = false;
 
     function initPusherMultiplayer() {
         if (!settings.pusherKey || typeof Pusher === 'undefined') {
@@ -647,12 +648,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
+            const authEndpoint = (settings.restRoot || '/wp-json/') + 'bosquepatitas/v1/pusher-auth';
             const pusher = new Pusher(settings.pusherKey, {
                 cluster: settings.pusherCluster || 'eu',
+                authEndpoint: authEndpoint,
                 forceTLS: true
             });
 
-            pusherChannel = pusher.subscribe('bosque-patitas-cemetery');
+            pusherChannel = pusher.subscribe('presence-bosque-patitas-cemetery');
+
+            pusherChannel.bind('pusher:subscription_succeeded', (members) => {
+                isPusherSubscribed = true;
+                // Broadcast immediately upon joining
+                if (!settings.avatar.incognito) {
+                    pusherChannel.trigger('client-user-move', {
+                        id: myClientId,
+                        name: myName,
+                        x: playerPosition.x,
+                        z: playerPosition.z,
+                        yaw: cameraYaw,
+                        avatar: settings.avatar
+                    });
+                }
+            });
+
+            pusherChannel.bind('pusher:member_removed', (member) => {
+                const remoteId = member.id;
+                remoteUsers.forEach((u, key) => {
+                    if (u.id === remoteId || key === remoteId) {
+                        if (u.avatarMesh) scene.remove(u.avatarMesh);
+                        remoteUsers.delete(key);
+                    }
+                });
+            });
 
             pusherChannel.bind('client-user-move', (data) => {
                 if (data.id === myClientId) return;
@@ -709,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Periodically broadcast local player position
             setInterval(() => {
-                if (pusherChannel && !settings.avatar.incognito) {
+                if (pusherChannel && isPusherSubscribed && !settings.avatar.incognito) {
                     pusherChannel.trigger('client-user-move', {
                         id: myClientId,
                         name: myName,
@@ -2399,6 +2427,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     rebuildLocalPlayerAvatarMesh();
+    initPusherMultiplayer();
 
     // ----------------------------------------------------
     // CONSUMO REST API DE WORDPRESS

@@ -372,6 +372,49 @@ class BP_Custom_Post_Type {
             'callback' => array($this, 'handle_rest_desasignar_tumba'),
             'permission_callback' => function() { return is_user_logged_in(); }
         ));
+
+        register_rest_route('bosquepatitas/v1', '/pusher-auth', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'handle_rest_pusher_auth'),
+            'permission_callback' => '__return_true'
+        ));
+    }
+
+    public function handle_rest_pusher_auth($request) {
+        $socket_id    = sanitize_text_field($request->get_param('socket_id'));
+        $channel_name = sanitize_text_field($request->get_param('channel_name'));
+
+        $key    = get_option('bp_pusher_app_key', '');
+        $secret = get_option('bp_pusher_app_secret', '');
+
+        if (empty($key) || empty($secret) || empty($socket_id) || empty($channel_name)) {
+            return new WP_REST_Response(array('error' => 'Pusher no configurado o parámetros no válidos'), 400);
+        }
+
+        $user_id   = is_user_logged_in() ? ('u_' . get_current_user_id()) : ('guest_' . substr(md5($_SERVER['REMOTE_ADDR'] ?? uniqid()), 0, 8));
+        $user_name = is_user_logged_in() ? wp_get_current_user()->display_name : ('Visitante ' . substr($user_id, -4));
+
+        $channel_data = wp_json_encode(array(
+            'user_id'   => $user_id,
+            'user_info' => array(
+                'name' => $user_name
+            )
+        ));
+
+        if (strpos($channel_name, 'presence-') === 0) {
+            $string_to_sign = $socket_id . ':' . $channel_name . ':' . $channel_data;
+            $signature = hash_hmac('sha256', $string_to_sign, $secret);
+            return new WP_REST_Response(array(
+                'auth'         => $key . ':' . $signature,
+                'channel_data' => $channel_data
+            ), 200);
+        } else {
+            $string_to_sign = $socket_id . ':' . $channel_name;
+            $signature = hash_hmac('sha256', $string_to_sign, $secret);
+            return new WP_REST_Response(array(
+                'auth' => $key . ':' . $signature
+            ), 200);
+        }
     }
 
     public function handle_rest_tributo($request) {
