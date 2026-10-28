@@ -917,7 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // GENERADOR Y ANIMADOR DE PERSONAJE 3D DEL BOSQUE (GLTF + PROCEDURAL)
     // ----------------------------------------------------
-    function createBosqueAvatarModel(config = {}) {
+    function createBosqueAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
         const rpmUrl = config.rpm_url || '';
         const petSpecies = config.pet_species || 'dog';
@@ -1002,6 +1002,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     avatarGroup.add(gltfMesh);
+
+                    if (typeof onLoadCallback === 'function') {
+                        onLoadCallback(gltfMesh);
+                    }
                 },
                 () => {
                     const fallbackMesh = buildProceduralAvatarMesh(config);
@@ -3216,28 +3220,39 @@ document.addEventListener('DOMContentLoaded', () => {
         dirL.position.set(2, 4, 3);
         previewScene.add(dirL);
 
-        // Pedestal
+        // Pedestal (positioned at Y = -0.01 so avatar rests on Y = 0)
         const pedMesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.5, 0.55, 0.08, 16),
+            new THREE.CylinderGeometry(0.65, 0.7, 0.02, 32),
             new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4 })
         );
-        pedMesh.position.y = -0.04;
+        pedMesh.position.y = -0.01;
         previewScene.add(pedMesh);
 
         previewRebuildFn = function(cfg) {
             if (previewAvatarMesh) previewScene.remove(previewAvatarMesh);
-            previewAvatarMesh = createBosqueAvatarModel(cfg);
+            previewAvatarMesh = createBosqueAvatarModel(cfg, (loadedMesh) => {
+                if (!loadedMesh) return;
+
+                // 1. Calculate actual dimensions
+                const box = new THREE.Box3().setFromObject(loadedMesh);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+
+                // 2. Center origin & ground feet on Y = 0
+                loadedMesh.position.x -= center.x;
+                loadedMesh.position.z -= center.z;
+                loadedMesh.position.y -= box.min.y;
+
+                // 3. Dynamic camera framing
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const fov = previewCamera.fov * (Math.PI / 180);
+                let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.2;
+
+                previewCamera.position.set(0, size.y * 0.6, cameraZ);
+                previewCamera.lookAt(new THREE.Vector3(0, size.y * 0.5, 0));
+            });
             previewAvatarMesh.position.set(0, 0, 0);
             previewScene.add(previewAvatarMesh);
-
-            // Frame camera according to avatar type
-            if (cfg.avatar_type === 'human') {
-                previewCamera.position.set(0, 0.75, 2.4);
-                previewCamera.lookAt(0, 0.65, 0);
-            } else {
-                previewCamera.position.set(0, 0.55, 1.8);
-                previewCamera.lookAt(0, 0.35, 0);
-            }
         };
 
         previewRebuildFn(avatarConfig);
