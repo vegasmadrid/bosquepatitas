@@ -932,24 +932,54 @@ document.addEventListener('DOMContentLoaded', () => {
         const avatarGroup = new THREE.Group();
         avatarGroup.name = 'bosqueAvatar';
 
+        const pluginUrl = settings.pluginUrl || '/';
         let targetGlbUrl = '';
-        if (avatarType === 'human' && rpmUrl) {
-            targetGlbUrl = rpmUrl;
-        } else if (avatarType === 'pet') {
-            const pluginUrl = settings.pluginUrl || '/';
+
+        if (avatarType === 'human') {
+            targetGlbUrl = `${pluginUrl}assets/models/human_base.glb`;
+        } else {
             targetGlbUrl = `${pluginUrl}assets/models/${petSpecies}.glb`;
         }
 
-        if (targetGlbUrl && typeof loadGLTFModelCached === 'function') {
+        if (typeof loadGLTFModelCached === 'function') {
             loadGLTFModelCached(
                 targetGlbUrl,
                 (gltfMesh, animations) => {
                     gltfMesh.position.set(0, 0, 0);
                     gltfMesh.scale.set(0.9, 0.9, 0.9);
+
+                    // Apply modular node visibility and material color tinting
                     gltfMesh.traverse(child => {
                         if (child.isMesh) {
                             child.castShadow = true;
                             child.receiveShadow = true;
+
+                            const nodeName = child.name || (child.parent ? child.parent.name : '');
+
+                            // Node Visibility logic for Human modular parts
+                            if (avatarType === 'human') {
+                                if (nodeName.startsWith('hair_') || nodeName === 'cap' || nodeName === 'crown' || nodeName === 'hat') {
+                                    child.visible = (nodeName === hairStyle || (hairStyle === 'classic' && nodeName === 'hair_classic') || (hairStyle === 'spiky' && nodeName === 'hair_spiky'));
+                                } else if (nodeName.startsWith('accessory_')) {
+                                    child.visible = (nodeName === `accessory_${accessory}`);
+                                }
+                            }
+
+                            // Material Color Tinting
+                            if (child.material) {
+                                child.material = child.material.clone();
+                                const matName = child.material.name || '';
+
+                                if (matName === 'mat_skin' && config.skin) {
+                                    child.material.color.set(config.skin);
+                                } else if (matName === 'mat_shirt' && config.shirt) {
+                                    child.material.color.set(config.shirt);
+                                } else if (matName === 'mat_pants' && config.pants) {
+                                    child.material.color.set(config.pants);
+                                } else if (matName === 'mat_hair' && config.hair_color) {
+                                    child.material.color.set(config.hair_color);
+                                }
+                            }
                         }
                     });
 
@@ -963,7 +993,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     avatarGroup.add(gltfMesh);
                 },
                 () => {
-                    // Fallback to procedural model on GLTF error
                     const fallbackMesh = buildProceduralAvatarMesh(config);
                     avatarGroup.add(fallbackMesh);
                 }
@@ -3416,26 +3445,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:start;">
 
                     <div>
-                        <!-- HUMAN READY PLAYER ME SECTION -->
+                        <!-- HUMAN MODULAR SECTION -->
                         <div id="bp-avatar-section-human" style="${curType === 'human' ? 'display:block;' : 'display:none;'}">
-                            <div style="background:rgba(16,185,129,0.1); border:1px solid #10b981; padding:14px; border-radius:8px; margin-bottom:18px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">
-                                    🎨 CREADOR 3D READY PLAYER ME
-                                </label>
-                                <p style="font-size:11px; color:#a7f3d0; margin:0 0 10px 0;">
-                                    Crea tu avatar hiper-realista o estilo de cómic en Ready Player Me. La URL .glb se capturará automáticamente al hacer clic en Guardar.
-                                </p>
-                                <button type="button" id="bp-btn-open-rpm-iframe" class="bp-arcade-btn bp-arcade-btn-yellow" style="font-size:10px; padding:10px 14px; width:100%; margin-bottom:10px;">
-                                    ✨ ABRIR CREADOR READY PLAYER ME
-                                </button>
-                                <div style="margin-top:8px;">
-                                    <label style="font-size:10px; color:#ffd600; display:block; margin-bottom:4px;">O PEGA ENLACE .GLB DE READY PLAYER ME / CUSTOM:</label>
-                                    <input type="url" id="bp-input-rpm-url" class="bp-arcade-input" value="${curRpmUrl}" placeholder="https://models.readyplayer.me/....glb" style="font-size:11px;" />
-                                </div>
+                            <div style="font-size:11px; font-weight:700; color:#34d399; margin-bottom:12px;">
+                                👤 PERSONALIZADOR DE TUTOR HUMANO MODULAR (GLB PRO)
                             </div>
-
-                            <!-- PROCEDURAL RETRO CONTROLS -->
-                            <div style="font-size:11px; font-weight:700; color:#34d399; margin-bottom:10px;">o ajusta controles retro directos:</div>
 
                             <!-- SKIN COLOR -->
                             <div style="margin-bottom:16px;">
@@ -3542,16 +3556,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
 
-            <!-- READY PLAYER ME IFRAME MODAL -->
-            <div id="bp-rpm-iframe-modal" class="bp-modal-overlay hidden bp-ui-element" style="z-index:250000;">
-                <div class="bp-modal-card" style="width:95%; max-width:800px; height:85vh; padding:15px; display:flex; flex-direction:column;">
-                    <div class="bp-modal-header" style="margin-bottom:10px; padding-bottom:8px;">
-                        <h3 style="margin:0; font-size:14px; color:#ffd600; font-family:'Press Start 2P', monospace;">🎨 CREADOR READY PLAYER ME</h3>
-                        <button id="bp-rpm-close-btn" class="bp-btn-close-corner">&times;</button>
-                    </div>
-                    <iframe id="bp-rpm-iframe" src="" style="width:100%; height:100%; border:none; border-radius:10px; background:#000;" allow="camera *; microphone *; clipboard-write"></iframe>
-                </div>
-            </div>
         `;
 
         // Wire Tab buttons
