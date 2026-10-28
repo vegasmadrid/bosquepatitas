@@ -968,15 +968,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             // Material Color Tinting
                             if (child.material) {
                                 child.material = child.material.clone();
-                                const matName = child.material.name || '';
+                                const matName = (child.material.name || '').toLowerCase();
 
-                                if (matName === 'mat_skin' && config.skin) {
+                                if ((matName.includes('skin') || matName.includes('body')) && config.skin) {
                                     child.material.color.set(config.skin);
-                                } else if (matName === 'mat_shirt' && config.shirt) {
+                                } else if ((matName.includes('shirt') || matName.includes('clothes') || matName === '') && config.shirt) {
                                     child.material.color.set(config.shirt);
-                                } else if (matName === 'mat_pants' && config.pants) {
+                                } else if (matName.includes('pants') && config.pants) {
                                     child.material.color.set(config.pants);
-                                } else if (matName === 'mat_hair' && config.hair_color) {
+                                } else if (matName.includes('hair') && config.hair_color) {
                                     child.material.color.set(config.hair_color);
                                 }
                             }
