@@ -39,6 +39,10 @@ class BosquePatitas {
         // Cargar OrbitControls de Three.js
         wp_register_script('three-orbitcontrols', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', array('threejs'), '128', true);
 
+        // Cargar GLTFLoader y DRACOLoader para modelos 3D GLTF/Draco
+        wp_register_script('three-gltfloader', BP_PLUGIN_URL . 'assets/js/lib/GLTFLoader.js', array('threejs'), '128', true);
+        wp_register_script('three-dracoloader', BP_PLUGIN_URL . 'assets/js/lib/DRACOLoader.js', array('threejs', 'three-gltfloader'), '128', true);
+
         // Cargar Pusher JS SDK desde CDN
         wp_register_script('pusher-js', 'https://js.pusher.com/8.2.0/pusher.min.js', array(), '8.2.0', true);
 
@@ -46,7 +50,7 @@ class BosquePatitas {
         wp_register_script(
             'bp-main-3d',
             BP_PLUGIN_URL . 'assets/js/main-3d.js',
-            array('threejs', 'three-orbitcontrols', 'pusher-js'),
+            array('threejs', 'three-orbitcontrols', 'three-gltfloader', 'three-dracoloader', 'pusher-js'),
             '1.0.0',
             true
         );
@@ -134,6 +138,8 @@ class BosquePatitas {
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
             'apiUrl'        => esc_url_raw(rest_url('wp/v2/tumbas')),
             'restRoot'      => esc_url_raw(rest_url()),
+            'pluginUrl'     => esc_url_raw(BP_PLUGIN_URL),
+            'dracoPath'     => esc_url_raw(BP_PLUGIN_URL . 'assets/draco/'),
             'nonce'         => wp_create_nonce('wp_rest'),
             'authNonce'     => wp_create_nonce('bp_auth_nonce'),
             'isLoggedIn'    => $is_logged_in,
