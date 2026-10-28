@@ -3145,7 +3145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame;
+    let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame, previewRebuildFn;
 
     function initAvatarPreviewCanvas(avatarConfig) {
         const previewContainer = document.getElementById('bp-avatar-preview-container');
@@ -3184,14 +3184,14 @@ document.addEventListener('DOMContentLoaded', () => {
         pedMesh.position.y = -0.04;
         previewScene.add(pedMesh);
 
-        function rebuildPreviewMesh(cfg) {
+        previewRebuildFn = function(cfg) {
             if (previewAvatarMesh) previewScene.remove(previewAvatarMesh);
             previewAvatarMesh = createBosqueAvatarModel(cfg);
             previewAvatarMesh.position.set(0, 0, 0);
             previewScene.add(previewAvatarMesh);
-        }
+        };
 
-        rebuildPreviewMesh(avatarConfig);
+        previewRebuildFn(avatarConfig);
 
         // Preview Mouse Drag Rotation
         let isDragging = false;
@@ -3235,7 +3235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         animatePreview();
 
         // Attach Swatch & Form Listeners
-        const currentConfig = Object.assign({}, avatarConfig);
+        const currentConfig = avatarConfig;
 
         function updateSwatchActive(containerId, activeVal) {
             const container = document.getElementById(containerId);
@@ -3263,7 +3263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         else currentConfig[type] = col;
 
                         updateSwatchActive(containerId, col);
-                        rebuildPreviewMesh(currentConfig);
+                        if (previewRebuildFn) previewRebuildFn(currentConfig);
                     });
                 });
             }
@@ -3273,7 +3273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectHair) {
             selectHair.addEventListener('change', () => {
                 currentConfig.hair_style = selectHair.value;
-                rebuildPreviewMesh(currentConfig);
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
             });
         }
 
@@ -3281,7 +3281,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectAcc) {
             selectAcc.addEventListener('change', () => {
                 currentConfig.accessory = selectAcc.value;
-                rebuildPreviewMesh(currentConfig);
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
             });
         }
 
@@ -3379,7 +3379,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const avatar = settings.avatar || {
+        const currentConfig = Object.assign({}, settings.avatar || {
+            avatar_type: 'human',
+            rpm_url: '',
+            pet_species: 'dog',
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
@@ -3387,11 +3390,12 @@ document.addEventListener('DOMContentLoaded', () => {
             hair_color: '#3b2314',
             accessory: 'none',
             incognito: 0
-        };
+        });
 
-        const curType = avatar.avatar_type || 'human';
-        const curRpmUrl = avatar.rpm_url || '';
-        const curPetSpecies = avatar.pet_species || 'dog';
+        const avatar = currentConfig;
+        const curType = currentConfig.avatar_type || 'human';
+        const curRpmUrl = currentConfig.rpm_url || '';
+        const curPetSpecies = currentConfig.pet_species || 'dog';
 
         arcadeContent.innerHTML = `
             ${renderArcadeTabsHeader('avatar')}
@@ -3566,7 +3570,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnTypePet.className = 'bp-arcade-btn bp-arcade-btn-green';
                 if (secHuman) secHuman.style.display = 'block';
                 if (secPet) secPet.style.display = 'none';
-                rebuildPreviewMesh(currentConfig);
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
             });
 
             btnTypePet.addEventListener('click', () => {
@@ -3575,7 +3579,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnTypeHuman.className = 'bp-arcade-btn bp-arcade-btn-green';
                 if (secPet) secPet.style.display = 'block';
                 if (secHuman) secHuman.style.display = 'none';
-                rebuildPreviewMesh(currentConfig);
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
             });
         }
 
@@ -3583,7 +3587,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectPetSpecies) {
             selectPetSpecies.addEventListener('change', () => {
                 currentConfig.pet_species = selectPetSpecies.value;
-                rebuildPreviewMesh(currentConfig);
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
             });
         }
 
@@ -3626,7 +3630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             feedbackBox.textContent = '✨ ¡Avatar de Ready Player Me capturado exitosamente!';
                         }
 
-                        rebuildPreviewMesh(currentConfig);
+                        if (previewRebuildFn) previewRebuildFn(currentConfig);
                     }
                 }
             } catch (e) {
