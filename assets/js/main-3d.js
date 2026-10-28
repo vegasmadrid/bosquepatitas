@@ -946,7 +946,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetGlbUrl,
                 (gltfMesh, animations) => {
                     gltfMesh.position.set(0, 0, 0);
-                    gltfMesh.scale.set(0.9, 0.9, 0.9);
 
                     // Apply modular node visibility and material color tinting
                     gltfMesh.traverse(child => {
@@ -982,6 +981,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                     });
+
+                    // Automatic Bounding Box calculation for uniform height scaling and ground Y alignment
+                    const box = new THREE.Box3().setFromObject(gltfMesh);
+                    const size = new THREE.Vector3();
+                    box.getSize(size);
+
+                    const targetHeight = (avatarType === 'human') ? 1.4 : 0.8;
+                    if (size.y > 0) {
+                        const scaleFactor = targetHeight / size.y;
+                        gltfMesh.scale.setScalar(scaleFactor);
+
+                        // Recalculate box after scaling
+                        box.setFromObject(gltfMesh);
+                        gltfMesh.position.y = -box.min.y;
+                    }
 
                     if (animations && animations.length > 0) {
                         const mixer = new THREE.AnimationMixer(gltfMesh);
@@ -3189,7 +3203,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const aspect = (previewContainer.clientWidth / previewContainer.clientHeight) || 1;
         previewCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 10);
-        previewCamera.position.set(0, 0.75, 2.2);
+        previewCamera.position.set(0, 0.75, 2.4);
         previewCamera.lookAt(0, 0.65, 0);
 
         previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
