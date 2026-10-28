@@ -3425,10 +3425,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <p style="font-size:11px; color:#a7f3d0; margin:0 0 10px 0;">
                                     Crea tu avatar hiper-realista o estilo de cómic en Ready Player Me. La URL .glb se capturará automáticamente al hacer clic en Guardar.
                                 </p>
-                                <button type="button" id="bp-btn-open-rpm-iframe" class="bp-arcade-btn bp-arcade-btn-yellow" style="font-size:10px; padding:10px 14px; width:100%;">
+                                <button type="button" id="bp-btn-open-rpm-iframe" class="bp-arcade-btn bp-arcade-btn-yellow" style="font-size:10px; padding:10px 14px; width:100%; margin-bottom:10px;">
                                     ✨ ABRIR CREADOR READY PLAYER ME
                                 </button>
-                                ${curRpmUrl ? `<div style="font-size:10px; color:#34d399; margin-top:8px; word-break:break-all;">Model: ${curRpmUrl}</div>` : ''}
+                                <div style="margin-top:8px;">
+                                    <label style="font-size:10px; color:#ffd600; display:block; margin-bottom:4px;">O PEGA ENLACE .GLB DE READY PLAYER ME / CUSTOM:</label>
+                                    <input type="url" id="bp-input-rpm-url" class="bp-arcade-input" value="${curRpmUrl}" placeholder="https://models.readyplayer.me/....glb" style="font-size:11px;" />
+                                </div>
                             </div>
 
                             <!-- PROCEDURAL RETRO CONTROLS -->
@@ -3596,6 +3599,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const rpmModal = document.getElementById('bp-rpm-iframe-modal');
         const rpmIframe = document.getElementById('bp-rpm-iframe');
         const rpmCloseBtn = document.getElementById('bp-rpm-close-btn');
+
+        const inputRpmUrl = document.getElementById('bp-input-rpm-url');
+        if (inputRpmUrl) {
+            inputRpmUrl.addEventListener('change', () => {
+                const val = inputRpmUrl.value.trim();
+                if (val) {
+                    currentConfig.rpm_url = val;
+                    currentConfig.avatar_type = 'human';
+                    if (previewRebuildFn) previewRebuildFn(currentConfig);
+                }
+            });
+        }
 
         if (btnOpenRpm && rpmModal && rpmIframe) {
             btnOpenRpm.addEventListener('click', () => {
