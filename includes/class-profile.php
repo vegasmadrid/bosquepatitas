@@ -115,22 +115,28 @@ class BP_Profile {
 
         $user_id = get_current_user_id();
 
-        $skin = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
-        $shirt = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
-        $pants = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
-        $hair_style = isset($_POST['hair_style']) ? sanitize_text_field($_POST['hair_style']) : 'classic';
-        $hair_color = isset($_POST['hair_color']) ? sanitize_text_field($_POST['hair_color']) : '#3b2314';
-        $accessory = isset($_POST['accessory']) ? sanitize_text_field($_POST['accessory']) : 'none';
-        $incognito = isset($_POST['incognito']) ? (int) $_POST['incognito'] : 0;
+        $avatar_type = isset($_POST['avatar_type']) ? sanitize_text_field($_POST['avatar_type']) : 'human';
+        $rpm_url     = isset($_POST['rpm_url']) ? esc_url_raw($_POST['rpm_url']) : '';
+        $pet_species = isset($_POST['pet_species']) ? sanitize_text_field($_POST['pet_species']) : 'dog';
+        $skin        = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
+        $shirt       = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
+        $pants       = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
+        $hair_style  = isset($_POST['hair_style']) ? sanitize_text_field($_POST['hair_style']) : 'classic';
+        $hair_color  = isset($_POST['hair_color']) ? sanitize_text_field($_POST['hair_color']) : '#3b2314';
+        $accessory   = isset($_POST['accessory']) ? sanitize_text_field($_POST['accessory']) : 'none';
+        $incognito   = isset($_POST['incognito']) ? (int) $_POST['incognito'] : 0;
 
         $avatar_data = array(
-            'skin'       => $skin,
-            'shirt'      => $shirt,
-            'pants'      => $pants,
-            'hair_style' => $hair_style,
-            'hair_color' => $hair_color,
-            'accessory'  => $accessory,
-            'incognito'  => $incognito
+            'avatar_type' => $avatar_type,
+            'rpm_url'     => $rpm_url,
+            'pet_species' => $pet_species,
+            'skin'        => $skin,
+            'shirt'       => $shirt,
+            'pants'       => $pants,
+            'hair_style'  => $hair_style,
+            'hair_color'  => $hair_color,
+            'accessory'   => $accessory,
+            'incognito'   => $incognito
         );
 
         update_user_meta($user_id, 'bp_avatar_config', $avatar_data);
@@ -142,14 +148,24 @@ class BP_Profile {
     }
 
     private function get_default_avatar_data() {
+        $skins = array('#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318');
+        $shirts = array('#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff');
+        $pants = array('#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff');
+        $hair_styles = array('classic', 'spiky', 'cap', 'crown', 'hat');
+        $hair_colors = array('#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a');
+        $accessories = array('none', 'lantern', 'flower', 'wand');
+
         return array(
-            'skin'       => '#ffe0bd',
-            'shirt'      => '#10b981',
-            'pants'      => '#1e3a8a',
-            'hair_style' => 'classic',
-            'hair_color' => '#3b2314',
-            'accessory'  => 'none',
-            'incognito'  => 0
+            'avatar_type' => 'human',
+            'rpm_url'     => '',
+            'pet_species' => 'dog',
+            'skin'        => $skins[array_rand($skins)],
+            'shirt'       => $shirts[array_rand($shirts)],
+            'pants'       => $pants[array_rand($pants)],
+            'hair_style'  => $hair_styles[array_rand($hair_styles)],
+            'hair_color'  => $hair_colors[array_rand($hair_colors)],
+            'accessory'   => $accessories[array_rand($accessories)],
+            'incognito'   => 0
         );
     }
 

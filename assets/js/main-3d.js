@@ -75,6 +75,49 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     container.appendChild(emotesMenu);
 
+    // Gated Interaction Modal Overlay (for spectator users)
+    const gatedModal = document.createElement('div');
+    gatedModal.id = 'bp-gated-modal';
+    gatedModal.className = 'bp-modal-overlay hidden bp-ui-element';
+    gatedModal.innerHTML = `
+        <div class="bp-modal-card" style="text-align:center; border-color:#ffd600;">
+            <div class="bp-modal-header" style="justify-content:center;">
+                <h3 style="color:#ffd600; font-family:'Press Start 2P', monospace; font-size:12px;">🔒 INTERACCIÓN RESTRINGIDA</h3>
+            </div>
+            <div class="bp-modal-body" style="padding:15px 0;">
+                <div style="font-size:38px; margin-bottom:12px;">🐾</div>
+                <p style="color:#e2e8f0; font-size:14px; line-height:1.5; margin-bottom:20px;" id="bp-gated-modal-msg">
+                    Estás navegando en <strong>Modo Espectador Invisible</strong>. Inicia sesión o regístrate para interactuar con otros visitantes, chatear, enviar gestos 3D y personalizar tu personaje.
+                </p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <a href="${settings.loginUrl}" class="bp-arcade-btn bp-arcade-btn-yellow" style="display:block; text-decoration:none; font-size:11px; padding:12px 18px;">
+                        🔑 INICIAR SESIÓN / REGISTRARSE
+                    </a>
+                    <button id="bp-gated-close-btn" class="bp-arcade-btn bp-arcade-btn-green" style="font-size:10px; padding:10px;">
+                        SEGUIR COMO ESPECTADOR
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(gatedModal);
+
+    const closeGatedModal = () => gatedModal.classList.add('hidden');
+    document.getElementById('bp-gated-close-btn').addEventListener('click', closeGatedModal);
+    gatedModal.addEventListener('click', (e) => { if (e.target === gatedModal) closeGatedModal(); });
+
+    function checkGatedInteraction(actionName = 'esta función') {
+        if (!settings.isLoggedIn) {
+            const msgEl = document.getElementById('bp-gated-modal-msg');
+            if (msgEl) {
+                msgEl.innerHTML = `Para utilizar <strong>${actionName}</strong> necesitas iniciar sesión o registrarte. ¡Es rápido y podrás personalizar tu personaje 3D!`;
+            }
+            gatedModal.classList.remove('hidden');
+            return false;
+        }
+        return true;
+    }
+
     // Top-Left Floating Controls & Dynamic Modal Header Greeting
     const topBar = document.createElement('div');
     topBar.className = 'bp-top-controls bp-ui-element';
@@ -86,6 +129,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const accountBtnText = settings.isLoggedIn ? 'Ver Perfil' : 'Entrar';
     const accountBtnUrl = settings.isLoggedIn ? settings.profileUrl : settings.loginUrl;
 
+    const spectatorBadgeHtml = !settings.isLoggedIn
+        ? `<div class="bp-spectator-badge" title="Estás navegando de forma invisible para otros usuarios">👁️ Modo Espectador Invisible</div>`
+        : '';
+
     topBar.innerHTML = `
         <button id="bp-inventory-btn" class="bp-menu-trigger bp-menu-trigger-yellow" title="Menú de Opciones" aria-label="Abrir Menú">
             <svg class="bp-menu-icon-yellow" viewBox="0 0 100 100" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -94,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <rect x="20" y="64" width="60" height="12" rx="6" fill="#000000"/>
             </svg>
         </button>
+        ${spectatorBadgeHtml}
     `;
     container.appendChild(topBar);
 
@@ -128,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="bp-menu-icon">🧸</div>
                     <div class="bp-menu-text">
                         <span class="bp-menu-title">Personalizar Avatar 3D</span>
-                        <span class="bp-menu-desc">Diseña tu muñeco Playmobil Click</span>
+                        <span class="bp-menu-desc">Diseña tu Personaje 3D</span>
                     </div>
                     <div class="bp-menu-chevron">➔</div>
                 </li>
@@ -258,6 +306,94 @@ document.addEventListener('DOMContentLoaded', () => {
     container.appendChild(dpadContainer);
 
     // ----------------------------------------------------
+    // GLTFLoader & DRACOLoader CONFIGURATION & CACHING
+    // ----------------------------------------------------
+    const gltfCache = new Map();
+
+    let dracoLoader = null;
+    let gltfLoader = null;
+
+    if (typeof THREE.DRACOLoader !== 'undefined') {
+        dracoLoader = new THREE.DRACOLoader();
+        const dracoPath = settings.dracoPath || ((settings.pluginUrl || '/') + 'assets/draco/');
+        dracoLoader.setDecoderPath(dracoPath);
+    }
+
+    if (typeof THREE.GLTFLoader !== 'undefined') {
+        gltfLoader = new THREE.GLTFLoader();
+        if (dracoLoader) {
+            gltfLoader.setDRACOLoader(dracoLoader);
+        }
+    }
+
+    function loadGLTFModelCached(url, onComplete, onError) {
+        if (!url) {
+            if (onError) onError('URL vacía');
+            return;
+        }
+
+        if (gltfCache.has(url)) {
+            const cachedGltf = gltfCache.get(url);
+            const clone = cachedGltf.scene.clone(true);
+            if (onComplete) onComplete(clone, cachedGltf.animations || []);
+            return;
+        }
+
+        if (!gltfLoader) {
+            if (onError) onError('GLTFLoader no disponible');
+            return;
+        }
+
+        gltfLoader.load(
+            url,
+            (gltf) => {
+                gltfCache.set(url, gltf);
+                const clone = gltf.scene.clone(true);
+                if (onComplete) onComplete(clone, gltf.animations || []);
+            },
+            undefined,
+            (err) => {
+                console.warn('Error cargando modelo GLTF desde:', url, err);
+                if (onError) onError(err);
+            }
+        );
+    }
+
+    // Teleporter Light Beam / Particle Portal Spawn Effect
+    function triggerSpawnBeamEffect(position) {
+        const beamGeo = new THREE.CylinderGeometry(0.8, 0.8, 12, 16, 1, true);
+        const beamMat = new THREE.MeshBasicMaterial({
+            color: 0x67e8f9,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+        beamMesh.position.set(position.x, 6, position.z);
+        scene.add(beamMesh);
+
+        const light = new THREE.PointLight(0x67e8f9, 3, 10);
+        light.position.set(position.x, 1.5, position.z);
+        scene.add(light);
+
+        let startTime = performance.now();
+        function animateBeam(now) {
+            const elapsed = (now - startTime) / 1000;
+            if (elapsed < 1.2) {
+                beamMesh.scale.x = 1.0 - (elapsed / 1.2) * 0.8;
+                beamMesh.scale.z = beamMesh.scale.x;
+                beamMat.opacity = 0.8 * (1.0 - elapsed / 1.2);
+                light.intensity = 3.0 * (1.0 - elapsed / 1.2);
+                requestAnimationFrame(animateBeam);
+            } else {
+                scene.remove(beamMesh);
+                scene.remove(light);
+            }
+        }
+        requestAnimationFrame(animateBeam);
+    }
+
+    // ----------------------------------------------------
     // 1. ESCENA, CÁMARA Y RENDERER
     // ----------------------------------------------------
     const scene = new THREE.Scene();
@@ -291,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (localPlayerAvatar) scene.remove(localPlayerAvatar);
         const avConfig = settings.avatar || {};
         if (!avConfig.incognito) {
-            localPlayerAvatar = createPlaymobilAvatarModel(avConfig);
+            localPlayerAvatar = createBosqueAvatarModel(avConfig);
             localPlayerAvatar.name = 'localPlayerAvatar';
             localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
             localPlayerAvatar.visible = (currentMode !== MODE_GROUND);
@@ -533,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
 
         simulatedData.forEach(sim => {
-            const avatarMesh = createPlaymobilAvatarModel(sim);
+            const avatarMesh = createBosqueAvatarModel(sim);
             avatarMesh.position.set(sim.x, 0, sim.z);
 
             const nameTag = createNameTagSprite(sim.name);
@@ -669,8 +805,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-                // Broadcast immediately upon joining
-                if (!settings.avatar.incognito) {
+                // Broadcast immediately upon joining ONLY if logged in and not incognito
+                if (settings.isLoggedIn && !settings.avatar.incognito) {
                     pusherChannel.trigger('client-user-move', {
                         id: myClientId,
                         name: myName,
@@ -683,8 +819,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             pusherChannel.bind('pusher:member_added', (member) => {
-                // When a new member connects, send them our location so they see us immediately
-                if (!settings.avatar.incognito) {
+                // When a new member connects, send them our location ONLY if logged in and not incognito
+                if (settings.isLoggedIn && !settings.avatar.incognito) {
                     pusherChannel.trigger('client-user-move', {
                         id: myClientId,
                         name: myName,
@@ -711,7 +847,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let userObj = remoteUsers.get(data.id);
                 if (!userObj) {
-                    const avatarMesh = createPlaymobilAvatarModel(data.avatar || {});
+                    const avatarMesh = createBosqueAvatarModel(data.avatar || {});
                     avatarMesh.position.set(data.x, 0, data.z);
 
                     const nameTag = createNameTagSprite(data.name || 'Visitante');
@@ -759,9 +895,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Periodically broadcast local player position
+            // Periodically broadcast local player position ONLY if logged in and not incognito
             setInterval(() => {
-                if (pusherChannel && isPusherSubscribed && !settings.avatar.incognito) {
+                if (pusherChannel && isPusherSubscribed && settings.isLoggedIn && !settings.avatar.incognito) {
                     pusherChannel.trigger('client-user-move', {
                         id: myClientId,
                         name: myName,
@@ -779,9 +915,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // GENERADOR Y ANIMADOR DE MUÑECO ESTILO PLAYMOBIL CLICK 3D
+    // GENERADOR Y ANIMADOR DE PERSONAJE 3D DEL BOSQUE (GLTF + PROCEDURAL)
     // ----------------------------------------------------
-    function createPlaymobilAvatarModel(config = {}) {
+    function createBosqueAvatarModel(config = {}, onLoadCallback = null) {
+        const avatarType = config.avatar_type || 'human';
+        const rpmUrl = config.rpm_url || '';
+        const petSpecies = config.pet_species || 'dog';
+
         const skinColor = config.skin || '#ffe0bd';
         const shirtColor = config.shirt || '#10b981';
         const pantsColor = config.pants || '#1e3a8a';
@@ -790,7 +930,133 @@ document.addEventListener('DOMContentLoaded', () => {
         const accessory = config.accessory || 'none';
 
         const avatarGroup = new THREE.Group();
-        avatarGroup.name = 'playmobilAvatar';
+        avatarGroup.name = 'bosqueAvatar';
+
+        const pluginUrl = settings.pluginUrl || '/';
+        let targetGlbUrl = '';
+
+        if (avatarType === 'human') {
+            targetGlbUrl = `${pluginUrl}assets/models/human_base.glb`;
+        } else {
+            targetGlbUrl = `${pluginUrl}assets/models/${petSpecies}.glb`;
+        }
+
+        if (typeof loadGLTFModelCached === 'function') {
+            loadGLTFModelCached(
+                targetGlbUrl,
+                (gltfMesh, animations) => {
+                    gltfMesh.position.set(0, 0, 0);
+
+                    // Apply modular node visibility and material color tinting
+                    gltfMesh.traverse(child => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+
+                            const nodeName = child.name || (child.parent ? child.parent.name : '');
+
+                            // Node Visibility logic for Human modular parts
+                            if (avatarType === 'human') {
+                                if (nodeName.startsWith('hair_') || nodeName === 'cap' || nodeName === 'crown' || nodeName === 'hat') {
+                                    child.visible = (nodeName === hairStyle || (hairStyle === 'classic' && nodeName === 'hair_classic') || (hairStyle === 'spiky' && nodeName === 'hair_spiky'));
+                                } else if (nodeName.startsWith('accessory_')) {
+                                    child.visible = (nodeName === `accessory_${accessory}`);
+                                }
+                            }
+
+                            // Material Color Tinting
+                            if (child.material) {
+                                child.material = child.material.clone();
+                                const matName = (child.material.name || '').toLowerCase();
+
+                                if ((matName.includes('skin') || matName.includes('body')) && config.skin) {
+                                    child.material.color.set(config.skin);
+                                } else if ((matName.includes('shirt') || matName.includes('clothes') || matName === '') && config.shirt) {
+                                    child.material.color.set(config.shirt);
+                                } else if (matName.includes('pants') && config.pants) {
+                                    child.material.color.set(config.pants);
+                                } else if (matName.includes('hair') && config.hair_color) {
+                                    child.material.color.set(config.hair_color);
+                                }
+                            }
+                        }
+                    });
+
+                    // 1. Remove non-mesh objects (like extra far cameras) that distort Box3 calculations
+                    const camerasToRemove = [];
+                    gltfMesh.traverse(child => {
+                        if (child.isCamera || child.isLight) {
+                            camerasToRemove.push(child);
+                        }
+                    });
+                    camerasToRemove.forEach(c => { if (c.parent) c.parent.remove(c); });
+
+                    // 2. Fix Z-UP orientation for Human Base model
+                    if (avatarType === 'human') {
+                        const zUpNode = gltfMesh.getObjectByName('Z_UP');
+                        if (zUpNode) {
+                            zUpNode.rotation.x = 0; // Correct horizontal Z-UP flattening
+                        }
+                    }
+
+                    // 3. Set explicit species scale & dimensions
+                    if (avatarType === 'human') {
+                        gltfMesh.scale.set(1.0, 1.0, 1.0);
+                    } else if (petSpecies === 'rabbit') {
+                        gltfMesh.scale.set(0.008, 0.008, 0.008);
+                    } else { // dog, cat, fox
+                        gltfMesh.scale.set(0.011, 0.011, 0.011);
+                    }
+
+                    // 4. Calculate accurate mesh bounds after scale normalization
+                    const box = new THREE.Box3().setFromObject(gltfMesh);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+
+                    // 5. Center horizontally & ground feet exactly at Y = 0
+                    gltfMesh.position.x = -center.x;
+                    gltfMesh.position.z = -center.z;
+                    gltfMesh.position.y = -box.min.y;
+
+                    gltfMesh.userData.computedSize = size;
+                    gltfMesh.userData.computedBox = box;
+
+                    if (animations && animations.length > 0) {
+                        const mixer = new THREE.AnimationMixer(gltfMesh);
+                        const action = mixer.clipAction(animations[0]);
+                        action.play();
+                        avatarGroup.userData.mixer = mixer;
+                    }
+
+                    avatarGroup.add(gltfMesh);
+
+                    if (typeof onLoadCallback === 'function') {
+                        onLoadCallback(gltfMesh);
+                    }
+                },
+                () => {
+                    const fallbackMesh = buildProceduralAvatarMesh(config);
+                    avatarGroup.add(fallbackMesh);
+                }
+            );
+
+            return avatarGroup;
+        }
+
+        const proceduralMesh = buildProceduralAvatarMesh(config);
+        avatarGroup.add(proceduralMesh);
+        return avatarGroup;
+    }
+
+    function buildProceduralAvatarMesh(config = {}) {
+        const skinColor = config.skin || '#ffe0bd';
+        const shirtColor = config.shirt || '#10b981';
+        const pantsColor = config.pants || '#1e3a8a';
+        const hairStyle = config.hair_style || 'classic';
+        const hairColor = config.hair_color || '#3b2314';
+        const accessory = config.accessory || 'none';
+
+        const avatarGroup = new THREE.Group();
 
         // Materials
         const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.4 });
@@ -847,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', () => {
         legGroup.add(rightLegGroup);
         avatarGroup.add(legGroup);
 
-        // 2. TORSO (Trapezoidal Playmobil shape)
+        // 2. TORSO (Trapezoidal shape)
         const torsoGroup = new THREE.Group();
         torsoGroup.name = 'torsoGroup';
         torsoGroup.position.set(0, 0.54, 0);
@@ -972,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headGroup.add(leftEar);
         headGroup.add(rightEar);
 
-        // Playmobil Face Texture (Eyes + Iconic Smile)
+        // Face Texture (Eyes + Friendly Smile)
         const faceCanvas = document.createElement('canvas');
         faceCanvas.width = 256;
         faceCanvas.height = 256;
@@ -981,7 +1247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         faceCtx.fillStyle = skinColor;
         faceCtx.fillRect(0, 0, 256, 256);
 
-        // Classic Playmobil eyes (solid black dots)
+        // Eyes (solid black dots)
         faceCtx.fillStyle = '#000000';
         faceCtx.beginPath();
         faceCtx.arc(90, 110, 14, 0, Math.PI * 2);
@@ -1000,7 +1266,7 @@ document.addEventListener('DOMContentLoaded', () => {
         faceCtx.arc(162, 106, 5, 0, Math.PI * 2);
         faceCtx.fill();
 
-        // Playmobil iconic curved smile
+        // Curved smile
         faceCtx.strokeStyle = '#000000';
         faceCtx.lineWidth = 10;
         faceCtx.lineCap = 'round';
@@ -2704,6 +2970,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (menuItemAvatar) {
         menuItemAvatar.addEventListener('click', () => {
             inventoryModal.classList.add('hidden');
+            if (!checkGatedInteraction('la Configuración de Avatar 3D')) return;
             openArcadeAvatarModal();
         });
     }
@@ -2783,6 +3050,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const txt = inputChatText.value.trim();
         if (!txt) return;
 
+        if (!checkGatedInteraction('el Chat en Vivo')) return;
+
         addChatMessageToBox(myName, txt, activeChatTab === 'private');
 
         if (pusherChannel && isPusherSubscribed) {
@@ -2816,6 +3085,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnEmotes) {
         btnEmotes.addEventListener('click', () => {
+            if (!checkGatedInteraction('los Gestos y Emotes 3D')) return;
             emotesMenu.classList.toggle('hidden');
         });
     }
@@ -2824,6 +3094,8 @@ document.addEventListener('DOMContentLoaded', () => {
         b.addEventListener('click', () => {
             const emote = b.dataset.emote;
             emotesMenu.classList.add('hidden');
+
+            if (!checkGatedInteraction('los Gestos y Emotes 3D')) return;
 
             if (localPlayerAvatar) {
                 triggerEmote3D(localPlayerAvatar, emote);
@@ -2938,13 +3210,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     🐾 MIS MASCOTAS
                 </button>
                 <button id="bp-arcade-tab-avatar" class="bp-arcade-btn ${activeTab === 'avatar' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="font-size:11px; padding:12px 18px;">
-                    🧸 MI AVATAR 3D (PLAYMOBIL CLICK)
+                    🧸 MI AVATAR 3D DEL BOSQUE
                 </button>
             </div>
         `;
     }
 
-    let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame;
+    let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame, previewRebuildFn;
 
     function initAvatarPreviewCanvas(avatarConfig) {
         const previewContainer = document.getElementById('bp-avatar-preview-container');
@@ -2957,16 +3229,32 @@ document.addEventListener('DOMContentLoaded', () => {
         previewScene = new THREE.Scene();
         previewScene.background = new THREE.Color(0x0b1711);
 
-        const aspect = (previewContainer.clientWidth / previewContainer.clientHeight) || 1;
+        const width = previewContainer.clientWidth || 320;
+        const height = previewContainer.clientHeight || 320;
+        const aspect = width / height;
+
         previewCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 10);
-        previewCamera.position.set(0, 0.75, 2.2);
+        previewCamera.position.set(0, 0.75, 2.4);
         previewCamera.lookAt(0, 0.65, 0);
 
         previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        previewRenderer.setSize(previewContainer.clientWidth, previewContainer.clientHeight);
+        previewRenderer.setSize(width, height);
         previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         previewRenderer.shadowMap.enabled = true;
         previewContainer.appendChild(previewRenderer.domElement);
+
+        // Keep preview canvas renderer aspect ratio updated on resize
+        const resizeObserver = new ResizeObserver(() => {
+            if (!previewContainer || !previewRenderer || !previewCamera) return;
+            const w = previewContainer.clientWidth;
+            const h = previewContainer.clientHeight;
+            if (w > 0 && h > 0) {
+                previewCamera.aspect = w / h;
+                previewCamera.updateProjectionMatrix();
+                previewRenderer.setSize(w, h);
+            }
+        });
+        resizeObserver.observe(previewContainer);
 
         const ambientL = new THREE.AmbientLight(0xffffff, 0.85);
         previewScene.add(ambientL);
@@ -2975,22 +3263,38 @@ document.addEventListener('DOMContentLoaded', () => {
         dirL.position.set(2, 4, 3);
         previewScene.add(dirL);
 
-        // Pedestal
+        // Pedestal (positioned at Y = -0.01 so avatar rests on Y = 0)
         const pedMesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.5, 0.55, 0.08, 16),
+            new THREE.CylinderGeometry(0.65, 0.7, 0.02, 32),
             new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4 })
         );
-        pedMesh.position.y = -0.04;
+        pedMesh.position.y = -0.01;
         previewScene.add(pedMesh);
 
-        function rebuildPreviewMesh(cfg) {
+        previewRebuildFn = function(cfg) {
             if (previewAvatarMesh) previewScene.remove(previewAvatarMesh);
-            previewAvatarMesh = createPlaymobilAvatarModel(cfg);
+            previewAvatarMesh = createBosqueAvatarModel(cfg, (loadedMesh) => {
+                if (!loadedMesh) return;
+
+                const size = loadedMesh.userData.computedSize || new THREE.Vector3(1, 1, 1);
+
+                // Framing camera dynamically depending on human vs pet species size
+                if (cfg.avatar_type === 'human') {
+                    previewCamera.position.set(0, 0.75, 2.2);
+                    previewCamera.lookAt(new THREE.Vector3(0, 0.65, 0));
+                } else if (cfg.pet_species === 'rabbit') {
+                    previewCamera.position.set(0, 0.35, 1.2);
+                    previewCamera.lookAt(new THREE.Vector3(0, 0.2, 0));
+                } else { // dog, cat
+                    previewCamera.position.set(0, 0.45, 1.5);
+                    previewCamera.lookAt(new THREE.Vector3(0, 0.25, 0));
+                }
+            });
             previewAvatarMesh.position.set(0, 0, 0);
             previewScene.add(previewAvatarMesh);
-        }
+        };
 
-        rebuildPreviewMesh(avatarConfig);
+        previewRebuildFn(avatarConfig);
 
         // Preview Mouse Drag Rotation
         let isDragging = false;
@@ -3034,7 +3338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         animatePreview();
 
         // Attach Swatch & Form Listeners
-        const currentConfig = Object.assign({}, avatarConfig);
+        const currentConfig = avatarConfig;
 
         function updateSwatchActive(containerId, activeVal) {
             const container = document.getElementById(containerId);
@@ -3062,7 +3366,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         else currentConfig[type] = col;
 
                         updateSwatchActive(containerId, col);
-                        rebuildPreviewMesh(currentConfig);
+                        if (previewRebuildFn) previewRebuildFn(currentConfig);
                     });
                 });
             }
@@ -3072,7 +3376,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectHair) {
             selectHair.addEventListener('change', () => {
                 currentConfig.hair_style = selectHair.value;
-                rebuildPreviewMesh(currentConfig);
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
             });
         }
 
@@ -3080,7 +3384,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectAcc) {
             selectAcc.addEventListener('change', () => {
                 currentConfig.accessory = selectAcc.value;
-                rebuildPreviewMesh(currentConfig);
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
             });
         }
 
@@ -3101,6 +3405,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const formData = new FormData();
                 formData.append('action', 'bp_ajax_save_avatar');
+                formData.append('avatar_type', currentConfig.avatar_type || 'human');
+                formData.append('rpm_url', currentConfig.rpm_url || '');
+                formData.append('pet_species', currentConfig.pet_species || 'dog');
                 formData.append('skin', currentConfig.skin);
                 formData.append('shirt', currentConfig.shirt);
                 formData.append('pants', currentConfig.pants);
@@ -3126,9 +3433,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             feedbackBox.textContent = '✨ ¡Avatar actualizado y guardado!';
                         }
 
-                        // Rebuild local player avatar if in scene
+                        // Rebuild local player avatar if in scene and trigger spawn beam effect
                         if (typeof rebuildLocalPlayerAvatarMesh === 'function') {
                             rebuildLocalPlayerAvatarMesh();
+                            triggerSpawnBeamEffect(playerPosition);
                         }
                     } else {
                         if (feedbackBox) {
@@ -3164,7 +3472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         🕹️ INSERT COIN / ACCESO REQUERIDO
                     </p>
                     <p style="color:#a7f3d0; font-size:14px; margin-bottom:24px;">
-                        Debes iniciar sesión o registrarte para personalizar tu avatar Playmobil Click 3D.
+                        Debes iniciar sesión o registrarte para personalizar tu personaje 3D del Bosque.
                     </p>
                     <a href="${settings.loginUrl}" class="bp-arcade-btn bp-arcade-btn-yellow" style="display:inline-block; text-decoration:none; font-size:12px; padding:14px 24px;">
                         🔑 INICIAR SESIÓN / REGISTRARSE
@@ -3174,7 +3482,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const avatar = settings.avatar || {
+        const currentConfig = Object.assign({}, settings.avatar || {
+            avatar_type: 'human',
+            rpm_url: '',
+            pet_species: 'dog',
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
@@ -3182,79 +3493,114 @@ document.addEventListener('DOMContentLoaded', () => {
             hair_color: '#3b2314',
             accessory: 'none',
             incognito: 0
-        };
+        });
+
+        const avatar = currentConfig;
+        const curType = currentConfig.avatar_type || 'human';
+        const curRpmUrl = currentConfig.rpm_url || '';
+        const curPetSpecies = currentConfig.pet_species || 'dog';
 
         arcadeContent.innerHTML = `
             ${renderArcadeTabsHeader('avatar')}
 
             <div class="bp-arcade-form-box" style="border-color:#34d399;">
-                <h4 style="color:#34d399;">🧸 PERSONALIZADOR DE AVATAR PLAYMOBIL CLICK 3D</h4>
+                <h4 style="color:#34d399;">🧸 PERSONALIZADOR DE AVATAR 3D DEL BOSQUE</h4>
+
+                <!-- AVATAR CATEGORY SELECTOR (TUTOR HUMANO vs MASCOTA LOW-POLY) -->
+                <div style="display:flex; gap:12px; margin-bottom:20px;">
+                    <button type="button" id="bp-avatar-type-human" class="bp-arcade-btn ${curType === 'human' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="font-size:11px; padding:12px 18px;">
+                        👤 TUTOR (HUMANO)
+                    </button>
+                    <button type="button" id="bp-avatar-type-pet" class="bp-arcade-btn ${curType === 'pet' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="font-size:11px; padding:12px 18px;">
+                        🐾 MASCOTA (PERRO/GATO/CONEJO)
+                    </button>
+                </div>
 
                 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:start;">
 
-                    <!-- CONTROLES RETRO DE TUNEO -->
                     <div>
-                        <!-- SKIN COLOR -->
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
-                                ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
-                                    <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
-                                `).join('')}
+                        <!-- HUMAN MODULAR SECTION -->
+                        <div id="bp-avatar-section-human" style="${curType === 'human' ? 'display:block;' : 'display:none;'}">
+                            <div style="font-size:11px; font-weight:700; color:#34d399; margin-bottom:12px;">
+                                👤 PERSONALIZADOR DE TUTOR HUMANO MODULAR (GLB PRO)
+                            </div>
+
+                            <!-- SKIN COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
+                                    ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- SHIRT / TORSO COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
+                                    ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- PANTS COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
+                                    ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- HAIR STYLE -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
+                                <select id="bp-select-hair-style" class="bp-arcade-input">
+                                    <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico del Bosque</option>
+                                    <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky 90s</option>
+                                    <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra Rápida</option>
+                                    <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona Real</option>
+                                    <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero Elegante</option>
+                                </select>
+                            </div>
+
+                            <!-- HAIR COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
+                                    ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- ACCESSORY -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">6. ACCESORIO EN MANO</label>
+                                <select id="bp-select-accessory" class="bp-arcade-input">
+                                    <option value="none" ${avatar.accessory === 'none' ? 'selected' : ''}>🚫 Ninguno (Manos libres)</option>
+                                    <option value="lantern" ${avatar.accessory === 'lantern' ? 'selected' : ''}>🏮 Linterna Brillante</option>
+                                    <option value="flower" ${avatar.accessory === 'flower' ? 'selected' : ''}>🌸 Flor del Bosque</option>
+                                    <option value="wand" ${avatar.accessory === 'wand' ? 'selected' : ''}>🪄 Varita Mágica de Estrellas</option>
+                                </select>
                             </div>
                         </div>
 
-                        <!-- SHIRT / TORSO COLOR -->
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
-                                ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
-                                    <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
-                                `).join('')}
+                        <!-- PET LOW-POLY DRACO SECTION -->
+                        <div id="bp-avatar-section-pet" style="${curType === 'pet' ? 'display:block;' : 'display:none;'}">
+                            <div style="margin-bottom:18px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">
+                                    🐕 ESPECIE DE MASCOTA LOW-POLY (< 500 KB DRACO)
+                                </label>
+                                <select id="bp-select-pet-species" class="bp-arcade-input">
+                                    <option value="dog" ${curPetSpecies === 'dog' ? 'selected' : ''}>🐕 Perro Fiel Low-Poly</option>
+                                    <option value="cat" ${curPetSpecies === 'cat' ? 'selected' : ''}>🐈 Gato Curioso Low-Poly</option>
+                                    <option value="rabbit" ${curPetSpecies === 'rabbit' ? 'selected' : ''}>🐇 Conejo Solitario Low-Poly</option>
+                                </select>
                             </div>
-                        </div>
-
-                        <!-- PANTS COLOR -->
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN</label>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
-                                ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
-                                    <div class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#ffd600' : '#000000'};"></div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <!-- HAIR STYLE -->
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
-                            <select id="bp-select-hair-style" class="bp-arcade-input">
-                                <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico Playmobil</option>
-                                <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky 90s</option>
-                                <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra Rápida</option>
-                                <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona Real</option>
-                                <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero Elegante</option>
-                            </select>
-                        </div>
-
-                        <!-- HAIR COLOR -->
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO</label>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
-                                ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
-                                    <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <!-- ACCESSORY -->
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">6. ACCESORIO EN MANO</label>
-                            <select id="bp-select-accessory" class="bp-arcade-input">
-                                <option value="none" ${avatar.accessory === 'none' ? 'selected' : ''}>🚫 Ninguno (Manos libres)</option>
-                                <option value="lantern" ${avatar.accessory === 'lantern' ? 'selected' : ''}>🏮 Linterna Brillante</option>
-                                <option value="flower" ${avatar.accessory === 'flower' ? 'selected' : ''}>🌸 Flor del Bosque</option>
-                                <option value="wand" ${avatar.accessory === 'wand' ? 'selected' : ''}>🪄 Varita Mágica de Estrellas</option>
-                            </select>
                         </div>
 
                         <!-- INCOGNITO CHECKBOX -->
@@ -3283,6 +3629,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 </div>
             </div>
+
         `;
 
         // Wire Tab buttons
@@ -3290,6 +3637,99 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabPetsBtn) {
             tabPetsBtn.addEventListener('click', () => openArcadePetsModal());
         }
+
+        // Wire Type Toggle Buttons
+        const btnTypeHuman = document.getElementById('bp-avatar-type-human');
+        const btnTypePet = document.getElementById('bp-avatar-type-pet');
+        const secHuman = document.getElementById('bp-avatar-section-human');
+        const secPet = document.getElementById('bp-avatar-section-pet');
+
+        if (btnTypeHuman && btnTypePet) {
+            btnTypeHuman.addEventListener('click', () => {
+                currentConfig.avatar_type = 'human';
+                btnTypeHuman.className = 'bp-arcade-btn bp-arcade-btn-yellow';
+                btnTypePet.className = 'bp-arcade-btn bp-arcade-btn-green';
+                if (secHuman) secHuman.style.display = 'block';
+                if (secPet) secPet.style.display = 'none';
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
+            });
+
+            btnTypePet.addEventListener('click', () => {
+                currentConfig.avatar_type = 'pet';
+                btnTypePet.className = 'bp-arcade-btn bp-arcade-btn-yellow';
+                btnTypeHuman.className = 'bp-arcade-btn bp-arcade-btn-green';
+                if (secPet) secPet.style.display = 'block';
+                if (secHuman) secHuman.style.display = 'none';
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
+            });
+        }
+
+        const selectPetSpecies = document.getElementById('bp-select-pet-species');
+        if (selectPetSpecies) {
+            selectPetSpecies.addEventListener('change', () => {
+                currentConfig.pet_species = selectPetSpecies.value;
+                if (previewRebuildFn) previewRebuildFn(currentConfig);
+            });
+        }
+
+        // Wire Ready Player Me Iframe Modal & PostMessage Listener
+        const btnOpenRpm = document.getElementById('bp-btn-open-rpm-iframe');
+        const rpmModal = document.getElementById('bp-rpm-iframe-modal');
+        const rpmIframe = document.getElementById('bp-rpm-iframe');
+        const rpmCloseBtn = document.getElementById('bp-rpm-close-btn');
+
+        const inputRpmUrl = document.getElementById('bp-input-rpm-url');
+        if (inputRpmUrl) {
+            inputRpmUrl.addEventListener('change', () => {
+                const val = inputRpmUrl.value.trim();
+                if (val) {
+                    currentConfig.rpm_url = val;
+                    currentConfig.avatar_type = 'human';
+                    if (previewRebuildFn) previewRebuildFn(currentConfig);
+                }
+            });
+        }
+
+        if (btnOpenRpm && rpmModal && rpmIframe) {
+            btnOpenRpm.addEventListener('click', () => {
+                rpmIframe.src = 'https://readyplayer.me/avatar?frameApi';
+                rpmModal.classList.remove('hidden');
+            });
+        }
+
+        if (rpmCloseBtn && rpmModal) {
+            rpmCloseBtn.addEventListener('click', () => {
+                rpmModal.classList.add('hidden');
+            });
+        }
+
+        window.addEventListener('message', (event) => {
+            try {
+                let data = event.data;
+                if (typeof data === 'string') {
+                    data = JSON.parse(data);
+                }
+
+                if (data && (data.eventName === 'v1.avatar.exported' || data.type === 'v1.avatar.exported')) {
+                    const glbUrl = data.data ? data.data.url : data.url;
+                    if (glbUrl) {
+                        currentConfig.rpm_url = glbUrl;
+                        currentConfig.avatar_type = 'human';
+                        if (rpmModal) rpmModal.classList.add('hidden');
+
+                        if (feedbackBox) {
+                            feedbackBox.style.display = 'block';
+                            feedbackBox.style.color = '#34d399';
+                            feedbackBox.textContent = '✨ ¡Avatar de Ready Player Me capturado exitosamente!';
+                        }
+
+                        if (previewRebuildFn) previewRebuildFn(currentConfig);
+                    }
+                }
+            } catch (e) {
+                // Ignore irrelevant cross-origin messages
+            }
+        });
 
         // Setup Live Preview Scene
         initAvatarPreviewCanvas(avatar);
@@ -4577,9 +5017,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (controls) controls.update();
         }
 
+        // Update local & remote GLTF AnimationMixers
+        if (localPlayerAvatar && localPlayerAvatar.userData && localPlayerAvatar.userData.mixer) {
+            localPlayerAvatar.userData.mixer.update(delta);
+        }
+
         // Remote users interpolation & walking animation
         remoteUsers.forEach(u => {
             if (u.avatarMesh) {
+                if (u.avatarMesh.userData && u.avatarMesh.userData.mixer) {
+                    u.avatarMesh.userData.mixer.update(delta);
+                }
+
                 const rdx = u.targetPos.x - u.avatarMesh.position.x;
                 const rdz = u.targetPos.z - u.avatarMesh.position.z;
                 const rdist = Math.hypot(rdx, rdz);
