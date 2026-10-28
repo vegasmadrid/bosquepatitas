@@ -982,17 +982,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
 
-                    // Explicit scale & alignment per model type to avoid skinned mesh Box3 matrix distortion
-                    if (avatarType === 'human') {
-                        gltfMesh.scale.set(1.0, 1.0, 1.0);
-                        gltfMesh.position.set(0, 0, 0);
-                    } else if (petSpecies === 'rabbit') {
-                        gltfMesh.scale.set(0.45, 0.45, 0.45);
-                        gltfMesh.position.set(0, 0, 0);
-                    } else { // dog, cat, fox
-                        gltfMesh.scale.set(0.011, 0.011, 0.011);
-                        gltfMesh.position.set(0, 0, 0);
-                    }
+                    // Compute size & center once upon GLTF load
+                    const box = new THREE.Box3().setFromObject(gltfMesh);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+
+                    // Center origin & ground feet on Y = 0
+                    gltfMesh.position.x -= center.x;
+                    gltfMesh.position.z -= center.z;
+                    gltfMesh.position.y -= box.min.y;
+
+                    gltfMesh.userData.computedSize = size;
+                    gltfMesh.userData.computedBox = box;
 
                     if (animations && animations.length > 0) {
                         const mixer = new THREE.AnimationMixer(gltfMesh);
@@ -3202,16 +3203,32 @@ document.addEventListener('DOMContentLoaded', () => {
         previewScene = new THREE.Scene();
         previewScene.background = new THREE.Color(0x0b1711);
 
-        const aspect = (previewContainer.clientWidth / previewContainer.clientHeight) || 1;
+        const width = previewContainer.clientWidth || 320;
+        const height = previewContainer.clientHeight || 320;
+        const aspect = width / height;
+
         previewCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 10);
         previewCamera.position.set(0, 0.75, 2.4);
         previewCamera.lookAt(0, 0.65, 0);
 
         previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        previewRenderer.setSize(previewContainer.clientWidth, previewContainer.clientHeight);
+        previewRenderer.setSize(width, height);
         previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         previewRenderer.shadowMap.enabled = true;
         previewContainer.appendChild(previewRenderer.domElement);
+
+        // Keep preview canvas renderer aspect ratio updated on resize
+        const resizeObserver = new ResizeObserver(() => {
+            if (!previewContainer || !previewRenderer || !previewCamera) return;
+            const w = previewContainer.clientWidth;
+            const h = previewContainer.clientHeight;
+            if (w > 0 && h > 0) {
+                previewCamera.aspect = w / h;
+                previewCamera.updateProjectionMatrix();
+                previewRenderer.setSize(w, h);
+            }
+        });
+        resizeObserver.observe(previewContainer);
 
         const ambientL = new THREE.AmbientLight(0xffffff, 0.85);
         previewScene.add(ambientL);
@@ -3233,17 +3250,9 @@ document.addEventListener('DOMContentLoaded', () => {
             previewAvatarMesh = createBosqueAvatarModel(cfg, (loadedMesh) => {
                 if (!loadedMesh) return;
 
-                // 1. Calculate actual dimensions
-                const box = new THREE.Box3().setFromObject(loadedMesh);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
+                const size = loadedMesh.userData.computedSize || new THREE.Vector3(1, 1, 1);
 
-                // 2. Center origin & ground feet on Y = 0
-                loadedMesh.position.x -= center.x;
-                loadedMesh.position.z -= center.z;
-                loadedMesh.position.y -= box.min.y;
-
-                // 3. Dynamic camera framing
+                // Dynamic camera framing computed once on model load
                 const maxDim = Math.max(size.x, size.y, size.z);
                 const fov = previewCamera.fov * (Math.PI / 180);
                 let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.2;
