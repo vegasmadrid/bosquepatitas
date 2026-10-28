@@ -982,19 +982,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
 
-                    // Automatic Bounding Box calculation for uniform height scaling and ground Y alignment
-                    const box = new THREE.Box3().setFromObject(gltfMesh);
-                    const size = new THREE.Vector3();
-                    box.getSize(size);
-
-                    const targetHeight = (avatarType === 'human') ? 1.4 : 0.8;
-                    if (size.y > 0) {
-                        const scaleFactor = targetHeight / size.y;
-                        gltfMesh.scale.setScalar(scaleFactor);
-
-                        // Recalculate box after scaling
-                        box.setFromObject(gltfMesh);
-                        gltfMesh.position.y = -box.min.y;
+                    // Explicit scale & alignment per model type to avoid skinned mesh Box3 matrix distortion
+                    if (avatarType === 'human') {
+                        gltfMesh.scale.set(1.0, 1.0, 1.0);
+                        gltfMesh.position.set(0, 0, 0);
+                    } else if (petSpecies === 'rabbit') {
+                        gltfMesh.scale.set(0.45, 0.45, 0.45);
+                        gltfMesh.position.set(0, 0, 0);
+                    } else { // dog, cat, fox
+                        gltfMesh.scale.set(0.011, 0.011, 0.011);
+                        gltfMesh.position.set(0, 0, 0);
                     }
 
                     if (animations && animations.length > 0) {
@@ -3232,6 +3229,15 @@ document.addEventListener('DOMContentLoaded', () => {
             previewAvatarMesh = createBosqueAvatarModel(cfg);
             previewAvatarMesh.position.set(0, 0, 0);
             previewScene.add(previewAvatarMesh);
+
+            // Frame camera according to avatar type
+            if (cfg.avatar_type === 'human') {
+                previewCamera.position.set(0, 0.75, 2.4);
+                previewCamera.lookAt(0, 0.65, 0);
+            } else {
+                previewCamera.position.set(0, 0.55, 1.8);
+                previewCamera.lookAt(0, 0.35, 0);
+            }
         };
 
         previewRebuildFn(avatarConfig);
