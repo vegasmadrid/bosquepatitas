@@ -982,15 +982,41 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
 
-                    // Compute size & center once upon GLTF load
+                    // 1. Remove non-mesh objects (like extra far cameras) that distort Box3 calculations
+                    const camerasToRemove = [];
+                    gltfMesh.traverse(child => {
+                        if (child.isCamera || child.isLight) {
+                            camerasToRemove.push(child);
+                        }
+                    });
+                    camerasToRemove.forEach(c => { if (c.parent) c.parent.remove(c); });
+
+                    // 2. Fix Z-UP orientation for Human Base model
+                    if (avatarType === 'human') {
+                        const zUpNode = gltfMesh.getObjectByName('Z_UP');
+                        if (zUpNode) {
+                            zUpNode.rotation.x = 0; // Correct horizontal Z-UP flattening
+                        }
+                    }
+
+                    // 3. Set explicit species scale & dimensions
+                    if (avatarType === 'human') {
+                        gltfMesh.scale.set(1.0, 1.0, 1.0);
+                    } else if (petSpecies === 'rabbit') {
+                        gltfMesh.scale.set(0.008, 0.008, 0.008);
+                    } else { // dog, cat, fox
+                        gltfMesh.scale.set(0.011, 0.011, 0.011);
+                    }
+
+                    // 4. Calculate accurate mesh bounds after scale normalization
                     const box = new THREE.Box3().setFromObject(gltfMesh);
                     const center = box.getCenter(new THREE.Vector3());
                     const size = box.getSize(new THREE.Vector3());
 
-                    // Center origin & ground feet on Y = 0
-                    gltfMesh.position.x -= center.x;
-                    gltfMesh.position.z -= center.z;
-                    gltfMesh.position.y -= box.min.y;
+                    // 5. Center horizontally & ground feet exactly at Y = 0
+                    gltfMesh.position.x = -center.x;
+                    gltfMesh.position.z = -center.z;
+                    gltfMesh.position.y = -box.min.y;
 
                     gltfMesh.userData.computedSize = size;
                     gltfMesh.userData.computedBox = box;
@@ -3252,13 +3278,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const size = loadedMesh.userData.computedSize || new THREE.Vector3(1, 1, 1);
 
-                // Dynamic camera framing computed once on model load
-                const maxDim = Math.max(size.x, size.y, size.z);
-                const fov = previewCamera.fov * (Math.PI / 180);
-                let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.2;
-
-                previewCamera.position.set(0, size.y * 0.6, cameraZ);
-                previewCamera.lookAt(new THREE.Vector3(0, size.y * 0.5, 0));
+                // Framing camera dynamically depending on human vs pet species size
+                if (cfg.avatar_type === 'human') {
+                    previewCamera.position.set(0, 0.75, 2.2);
+                    previewCamera.lookAt(new THREE.Vector3(0, 0.65, 0));
+                } else if (cfg.pet_species === 'rabbit') {
+                    previewCamera.position.set(0, 0.35, 1.2);
+                    previewCamera.lookAt(new THREE.Vector3(0, 0.2, 0));
+                } else { // dog, cat
+                    previewCamera.position.set(0, 0.45, 1.5);
+                    previewCamera.lookAt(new THREE.Vector3(0, 0.25, 0));
+                }
             });
             previewAvatarMesh.position.set(0, 0, 0);
             previewScene.add(previewAvatarMesh);
