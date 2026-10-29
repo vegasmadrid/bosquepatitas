@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="bp-menu-icon">🧸</div>
                     <div class="bp-menu-text">
                         <span class="bp-menu-title">Personalizar Avatar 3D</span>
-                        <span class="bp-menu-desc">Diseña tu muñeco Playmobil Click</span>
+                        <span class="bp-menu-desc">Diseña tu tutor humano o avatar animal</span>
                     </div>
                     <div class="bp-menu-chevron">➔</div>
                 </li>
@@ -266,13 +266,29 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="bp-arcade-header">
             <div>
                 <h2 class="bp-arcade-title">🐾 MIS MASCOTAS</h2>
-                <div class="bp-arcade-subtitle">Aquí puedes ver el listado de tus mascotas registradas y dar de alta a nuevas mascotas.</div>
+                <div class="bp-arcade-subtitle">Gestión de fichas de personajes de tus mascotas en BosquePatitas.</div>
             </div>
             <button id="bp-arcade-close" class="bp-arcade-close-btn bp-arcade-exit-btn">VOLVER AL BOSQUE</button>
         </div>
         <div id="bp-arcade-content"></div>
     `;
     container.appendChild(arcadePetsModal);
+
+    // Fullscreen Options Overlay - Personalizar Avatar 3D
+    const arcadeAvatarModal = document.createElement('div');
+    arcadeAvatarModal.id = 'bp-avatar-arcade-modal';
+    arcadeAvatarModal.className = 'bp-arcade-overlay hidden bp-ui-element';
+    arcadeAvatarModal.innerHTML = `
+        <div class="bp-arcade-header">
+            <div>
+                <h2 class="bp-arcade-title">🧸 PERSONALIZAR AVATAR 3D</h2>
+                <div class="bp-arcade-subtitle">Diseña la apariencia de tu tutor humano o avatar animal en tiempo real.</div>
+            </div>
+            <button id="bp-avatar-arcade-close" class="bp-arcade-close-btn bp-arcade-exit-btn">VOLVER AL BOSQUE</button>
+        </div>
+        <div id="bp-avatar-arcade-content"></div>
+    `;
+    container.appendChild(arcadeAvatarModal);
 
     // D-Pad Controles Táctiles en Pantalla
     const dpadContainer = document.createElement('div');
@@ -1071,26 +1087,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Hair Styles
         if (hairStyle === 'classic') {
-            const hairCapGeo = new THREE.SphereGeometry(0.155, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.6);
+            const hairCapGeo = new THREE.SphereGeometry(0.152, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.52);
             const hairCap = new THREE.Mesh(hairCapGeo, hairMat);
-            hairCap.position.set(0, 0.04, 0);
+            hairCap.position.set(0, 0.04, -0.01);
             hairCap.castShadow = true;
             headGroup.add(hairCap);
 
-            const bangL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.08), hairMat);
-            bangL.position.set(-0.12, 0.02, 0.10);
-            const bangR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.08), hairMat);
-            bangR.position.set(0.12, 0.02, 0.10);
+            const bangL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.10, 0.06), hairMat);
+            bangL.position.set(-0.13, 0.06, 0.04);
+            const bangR = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.10, 0.06), hairMat);
+            bangR.position.set(0.13, 0.06, 0.04);
             headGroup.add(bangL);
             headGroup.add(bangR);
         } else if (hairStyle === 'spiky') {
-            const baseHair = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 12), hairMat);
-            baseHair.position.set(0, 0.05, 0);
+            const baseHair = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.52), hairMat);
+            baseHair.position.set(0, 0.05, -0.01);
             headGroup.add(baseHair);
 
             for (let i = -3; i <= 3; i++) {
-                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 5), hairMat);
-                spike.position.set(i * 0.04, 0.16, (3 - Math.abs(i)) * 0.02);
+                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.10, 5), hairMat);
+                spike.position.set(i * 0.04, 0.16, (3 - Math.abs(i)) * 0.01);
                 spike.rotation.z = -i * 0.15;
                 headGroup.add(spike);
             }
@@ -1583,7 +1599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tail) tail.rotation.y = Math.sin(wt * 1.5) * 0.35;
                 if (torso) torso.position.y = 0.26 + Math.abs(Math.sin(wt)) * 0.02;
             } else {
-                avatarGroup.userData.walkTime += delta * 2;
+                avatarGroup.userData.walkTime += delta * 2.5;
                 const wt = avatarGroup.userData.walkTime;
 
                 if (legFL) legFL.rotation.x += (0 - legFL.rotation.x) * 0.15;
@@ -1591,8 +1607,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (legBL) legBL.rotation.x += (0 - legBL.rotation.x) * 0.15;
                 if (legBR) legBR.rotation.x += (0 - legBR.rotation.x) * 0.15;
 
-                if (tail) tail.rotation.y = Math.sin(wt) * 0.12;
-                if (torso) torso.position.y += (0.26 - torso.position.y) * 0.15;
+                // Tail sway & gentle breathing
+                if (tail) tail.rotation.y = Math.sin(wt * 1.2) * 0.18;
+                if (torso) torso.position.y += ((0.26 + Math.sin(wt * 1.5) * 0.006) - torso.position.y) * 0.15;
+
+                // Subtle head tilt idle quirk
+                const headGroup = avatarGroup.getObjectByName('headGroup');
+                if (headGroup) {
+                    headGroup.rotation.z = Math.sin(wt * 0.8) * 0.04;
+                }
             }
         } else {
             const leftLeg = avatarGroup.getObjectByName('leftLeg');
@@ -3221,6 +3244,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleArcadeClose = () => {
         arcadePetsModal.classList.add('hidden');
+        arcadeAvatarModal.classList.add('hidden');
     };
     const arcadeCloseBtn = document.getElementById('bp-arcade-close');
     if (arcadeCloseBtn) {
@@ -3732,10 +3756,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function openArcadeAvatarModal() {
-        const arcadeContent = document.getElementById('bp-arcade-content');
+        const arcadeContent = document.getElementById('bp-avatar-arcade-content');
         if (!arcadeContent) return;
 
-        arcadePetsModal.classList.remove('hidden');
+        arcadePetsModal.classList.add('hidden');
+        arcadeAvatarModal.classList.remove('hidden');
 
         if (!settings.isLoggedIn) {
             arcadeContent.innerHTML = `
@@ -3769,7 +3794,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPet = (avatar.avatar_type === 'pet');
 
         arcadeContent.innerHTML = `
-            ${renderArcadeTabsHeader('avatar')}
 
             <div class="bp-arcade-form-box" style="border-color:#34d399;">
                 <h4 style="color:#34d399;">🧸 PERSONALIZADOR DE AVATAR 3D DEL BOSQUE</h4>
@@ -5174,7 +5198,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (localPlayerAvatar) {
                 localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
-                localPlayerAvatar.rotation.y = cameraYaw;
+                localPlayerAvatar.rotation.y = cameraYaw + Math.PI;
                 updateAvatarAnimation(localPlayerAvatar, isMoving, delta);
             }
 
