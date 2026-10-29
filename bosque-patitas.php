@@ -127,24 +127,34 @@ class BosquePatitas {
             }
         }
 
-        $pusher_key     = get_option('bp_pusher_app_key', '');
-        $pusher_cluster = get_option('bp_pusher_cluster', 'eu');
+        $pusher_key          = get_option('bp_pusher_app_key', '');
+        $pusher_cluster      = get_option('bp_pusher_cluster', 'eu');
+        $show_version_badge  = (get_option('bp_show_version_badge', '1') === '1');
+
+        // Version & revision info
+        $version    = '1.0.1';
+        $revision   = 'Rev 2026.10.29-0850';
+        $build_date = '29/10/2026 08:50';
 
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
-            'apiUrl'        => esc_url_raw(rest_url('wp/v2/tumbas')),
-            'restRoot'      => esc_url_raw(rest_url()),
-            'nonce'         => wp_create_nonce('wp_rest'),
-            'authNonce'     => wp_create_nonce('bp_auth_nonce'),
-            'isLoggedIn'    => $is_logged_in,
-            'currentUserId' => get_current_user_id(),
-            'userName'      => $is_logged_in ? esc_html($current_user->display_name ?: $current_user->user_login) : '',
-            'loginUrl'      => esc_url($login_url),
-            'profileUrl'    => esc_url($profile_url),
-            'approvedPets'  => $approved_pets,
-            'avatar'        => $avatar_config,
-            'pusherKey'     => esc_attr($pusher_key),
-            'pusherCluster' => esc_attr($pusher_cluster)
+            'apiUrl'           => esc_url_raw(rest_url('wp/v2/tumbas')),
+            'restRoot'         => esc_url_raw(rest_url()),
+            'nonce'            => wp_create_nonce('wp_rest'),
+            'authNonce'        => wp_create_nonce('bp_auth_nonce'),
+            'isLoggedIn'       => $is_logged_in,
+            'currentUserId'    => get_current_user_id(),
+            'userName'         => $is_logged_in ? esc_html($current_user->display_name ?: $current_user->user_login) : '',
+            'loginUrl'         => esc_url($login_url),
+            'profileUrl'       => esc_url($profile_url),
+            'approvedPets'     => $approved_pets,
+            'avatar'           => $avatar_config,
+            'pusherKey'        => esc_attr($pusher_key),
+            'pusherCluster'    => esc_attr($pusher_cluster),
+            'showVersionBadge' => $show_version_badge,
+            'version'          => $version,
+            'revision'         => $revision,
+            'buildDate'        => $build_date
         ));
 
         return '<div id="bp-canvas-container"><div id="bp-loading">Cargando BosquePatitas...</div></div>';

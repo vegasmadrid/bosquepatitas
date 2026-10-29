@@ -126,6 +126,13 @@ class BP_Admin_Settings {
             'default' => "¡Hola {nombre_usuario}!\n\nNos alegra informarte de que la ficha de tu querida mascota \"{nombre_mascota}\" ha sido revisada y aprobada por nuestro equipo.\n\nAhora tu mascota cuenta con el distintivo de verificación verde ✔ y ya puedes asignarle una parcela libre en el cementerio 3D de BosquePatitas.\n\nAccede a tu perfil o al cementerio 3D para colocar su tumba:\n{link_bosque}\n\nUn cálido abrazo,\nEl equipo de BosquePatitas"
         ));
 
+        // Info de Versión y Revisión
+        register_setting('bp_settings_group', 'bp_show_version_badge', array(
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => '1'
+        ));
+
         // Pusher Realtime Credentials
         register_setting('bp_settings_group', 'bp_pusher_app_key', array(
             'type' => 'string',
@@ -217,6 +224,17 @@ class BP_Admin_Settings {
                         <td>
                             <input type="url" name="bp_register_redirect_url" value="<?php echo esc_url($register_redirect_url); ?>" class="regular-text" />
                             <p class="description">Dirección URL a la que serán redirigidos los nuevos usuarios inmediatamente tras registrarse.</p>
+                        </td>
+                    </tr>
+
+                    <tr valign="top">
+                        <th scope="row">Mostrar Badge de Versión y Revisión en 3D</th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="bp_show_version_badge" value="1" <?php checked(get_option('bp_show_version_badge', '1'), '1'); ?> />
+                                Mostrar marca de agua con la versión, número de revisión y fecha en la pantalla 3D
+                            </label>
+                            <p class="description">Útil para verificar que los cambios de código y caché estén actualizados en pantalla.</p>
                         </td>
                     </tr>
                 </table>
