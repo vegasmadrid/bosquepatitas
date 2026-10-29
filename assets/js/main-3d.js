@@ -97,6 +97,37 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     container.appendChild(topBar);
 
+    // Version & Revision Badge Overlay (Bottom-Right)
+    if (settings.showVersionBadge !== false) {
+        const verBadge = document.createElement('div');
+        verBadge.id = 'bp-version-badge';
+        verBadge.className = 'bp-ui-element';
+        verBadge.style.cssText = `
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(11, 23, 17, 0.85);
+            border: 1px solid #10b981;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-family: 'Press Start 2P', monospace, sans-serif;
+            font-size: 9px;
+            color: #34d399;
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            text-align: right;
+            line-height: 1.4;
+        `;
+        const verText = settings.version || '1.0.1';
+        const revText = settings.revision || 'Rev 2026.10.29-0850';
+        verBadge.innerHTML = `
+            <div style="color:#ffd600; font-weight:bold;">v${verText}</div>
+            <div style="color:#a7f3d0; font-size:8px;">${revText}</div>
+        `;
+        container.appendChild(verBadge);
+    }
+
     // Modal de Navegación Sleek & Compact Options List
     const inventoryModal = document.createElement('div');
     inventoryModal.id = 'bp-inventory-modal';
@@ -779,9 +810,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // GENERADOR Y ANIMADOR DE MUÑECO ESTILO PLAYMOBIL CLICK 3D
+    // GENERADOR Y ANIMADOR DE AVATARES 3D (TUTOR HUMANO Y MASCOTAS)
     // ----------------------------------------------------
+    function createCapsuleGeometry(radius, length, capSegments = 8, radialSegments = 12) {
+        if (typeof THREE.CapsuleGeometry !== 'undefined') {
+            return new THREE.CapsuleGeometry(radius, length, capSegments, radialSegments);
+        }
+        return new THREE.CylinderGeometry(radius, radius, length, radialSegments);
+    }
+
+    function create3DAvatarModel(config = {}) {
+        const avatarType = config.avatar_type || 'human';
+
+        if (avatarType === 'pet') {
+            const species = config.pet_species || 'dog';
+            if (species === 'cat') {
+                return createCatAvatarModel(config);
+            } else if (species === 'rabbit') {
+                return createRabbitAvatarModel(config);
+            } else {
+                return createDogAvatarModel(config);
+            }
+        } else {
+            return createHumanAvatarModel(config);
+        }
+    }
+
     function createPlaymobilAvatarModel(config = {}) {
+        return create3DAvatarModel(config);
+    }
+
+    // 1. TUTOR HUMANO
+    function createHumanAvatarModel(config = {}) {
         const skinColor = config.skin || '#ffe0bd';
         const shirtColor = config.shirt || '#10b981';
         const pantsColor = config.pants || '#1e3a8a';
@@ -791,18 +851,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const avatarGroup = new THREE.Group();
         avatarGroup.name = 'playmobilAvatar';
+        avatarGroup.userData = { isQuadruped: false };
 
-        // Materials
         const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.4 });
         const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.5 });
         const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.5 });
         const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.6 });
 
-        // 1. LEGS & WAIST (Pivoting around Hip joint at Y = 0.50)
+        // 1. LEGS & WAIST
         const legGroup = new THREE.Group();
         legGroup.position.set(0, 0, 0);
 
-        // Waist bar
         const waistGeo = new THREE.BoxGeometry(0.38, 0.08, 0.20);
         const waistMesh = new THREE.Mesh(waistGeo, pantsMat);
         waistMesh.position.set(0, 0.50, 0);
@@ -847,7 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
         legGroup.add(rightLegGroup);
         avatarGroup.add(legGroup);
 
-        // 2. TORSO (Trapezoidal Playmobil shape)
+        // 2. TORSO
         const torsoGroup = new THREE.Group();
         torsoGroup.name = 'torsoGroup';
         torsoGroup.position.set(0, 0.54, 0);
@@ -869,13 +928,12 @@ document.addEventListener('DOMContentLoaded', () => {
         torsoMesh.receiveShadow = true;
         torsoGroup.add(torsoMesh);
 
-        // Neck ring
         const neckRingGeo = new THREE.CylinderGeometry(0.09, 0.10, 0.08, 12);
         const neckRing = new THREE.Mesh(neckRingGeo, skinMat);
         neckRing.position.set(0, 0.48, 0);
         torsoGroup.add(neckRing);
 
-        // 3. ARMS (Left & Right)
+        // 3. ARMS
         const armUpperGeo = new THREE.CylinderGeometry(0.045, 0.04, 0.32, 10);
         const handGeo = new THREE.TorusGeometry(0.032, 0.012, 8, 12, Math.PI * 1.5);
 
@@ -911,7 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rightHand.position.set(0, -0.34, 0.01);
         rightArmGroup.add(rightHand);
 
-        // Accessories attached to Right Arm
+        // Accessories
         if (accessory === 'lantern') {
             const lanternMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 });
             const glowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
@@ -963,7 +1021,6 @@ document.addEventListener('DOMContentLoaded', () => {
         headMesh.castShadow = true;
         headGroup.add(headMesh);
 
-        // Ear bumps
         const earGeo = new THREE.SphereGeometry(0.03, 8, 8);
         const leftEar = new THREE.Mesh(earGeo, skinMat);
         leftEar.position.set(-0.14, 0, 0);
@@ -972,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headGroup.add(leftEar);
         headGroup.add(rightEar);
 
-        // Playmobil Face Texture (Eyes + Iconic Smile)
+        // Face texture
         const faceCanvas = document.createElement('canvas');
         faceCanvas.width = 256;
         faceCanvas.height = 256;
@@ -981,7 +1038,6 @@ document.addEventListener('DOMContentLoaded', () => {
         faceCtx.fillStyle = skinColor;
         faceCtx.fillRect(0, 0, 256, 256);
 
-        // Classic Playmobil eyes (solid black dots)
         faceCtx.fillStyle = '#000000';
         faceCtx.beginPath();
         faceCtx.arc(90, 110, 14, 0, Math.PI * 2);
@@ -991,7 +1047,6 @@ document.addEventListener('DOMContentLoaded', () => {
         faceCtx.arc(166, 110, 14, 0, Math.PI * 2);
         faceCtx.fill();
 
-        // Eye shines
         faceCtx.fillStyle = '#ffffff';
         faceCtx.beginPath();
         faceCtx.arc(86, 106, 5, 0, Math.PI * 2);
@@ -1000,7 +1055,6 @@ document.addEventListener('DOMContentLoaded', () => {
         faceCtx.arc(162, 106, 5, 0, Math.PI * 2);
         faceCtx.fill();
 
-        // Playmobil iconic curved smile
         faceCtx.strokeStyle = '#000000';
         faceCtx.lineWidth = 10;
         faceCtx.lineCap = 'round';
@@ -1015,7 +1069,7 @@ document.addEventListener('DOMContentLoaded', () => {
         facePlane.position.set(0, 0.01, 0.142);
         headGroup.add(facePlane);
 
-        // HAIR & HATS
+        // Hair Styles
         if (hairStyle === 'classic') {
             const hairCapGeo = new THREE.SphereGeometry(0.155, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.6);
             const hairCap = new THREE.Mesh(hairCapGeo, hairMat);
@@ -1023,7 +1077,6 @@ document.addEventListener('DOMContentLoaded', () => {
             hairCap.castShadow = true;
             headGroup.add(hairCap);
 
-            // Side bangs
             const bangL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.08), hairMat);
             bangL.position.set(-0.12, 0.02, 0.10);
             const bangR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.08), hairMat);
@@ -1077,6 +1130,426 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         avatarGroup.add(headGroup);
+        return avatarGroup;
+    }
+
+    // 2. MASCOTA PERRO
+    function createDogAvatarModel(config = {}) {
+        const furColor = config.skin || '#d97706';
+        const collarColor = config.shirt || '#ef4444';
+        const accentColor = config.pants || '#92400e';
+
+        const avatarGroup = new THREE.Group();
+        avatarGroup.name = 'playmobilAvatar';
+        avatarGroup.userData = { isQuadruped: true };
+
+        const furMat = new THREE.MeshStandardMaterial({ color: furColor, roughness: 0.6 });
+        const collarMat = new THREE.MeshStandardMaterial({ color: collarColor, roughness: 0.4 });
+        const accentMat = new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.6 });
+        const darkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 });
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2, metalness: 0.8 });
+
+        // Torso / Body
+        const torsoGroup = new THREE.Group();
+        torsoGroup.name = 'torsoGroup';
+        torsoGroup.position.set(0, 0.28, 0);
+
+        const bodyGeo = createCapsuleGeometry(0.16, 0.38, 8, 16);
+        const bodyMesh = new THREE.Mesh(bodyGeo, furMat);
+        bodyMesh.rotation.x = Math.PI / 2;
+        bodyMesh.castShadow = true;
+        torsoGroup.add(bodyMesh);
+
+        // Chest puff
+        const chestGeo = new THREE.SphereGeometry(0.17, 12, 12);
+        const chestMesh = new THREE.Mesh(chestGeo, furMat);
+        chestMesh.position.set(0, 0.02, 0.15);
+        torsoGroup.add(chestMesh);
+
+        // Collar & Tag
+        const collarGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.05, 16);
+        const collarMesh = new THREE.Mesh(collarGeo, collarMat);
+        collarMesh.position.set(0, 0.12, 0.22);
+        collarMesh.rotation.x = 0.2;
+        torsoGroup.add(collarMesh);
+
+        const tagMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.032), goldMat);
+        tagMesh.position.set(0, 0.08, 0.36);
+        torsoGroup.add(tagMesh);
+
+        avatarGroup.add(torsoGroup);
+
+        // Head & Snout
+        const headGroup = new THREE.Group();
+        headGroup.name = 'headGroup';
+        headGroup.position.set(0, 0.52, 0.26);
+
+        const headGeo = new THREE.SphereGeometry(0.16, 16, 16);
+        const headMesh = new THREE.Mesh(headGeo, furMat);
+        headMesh.castShadow = true;
+        headGroup.add(headMesh);
+
+        // Snout
+        const snoutGeo = new THREE.CylinderGeometry(0.07, 0.10, 0.16, 12);
+        const snoutMesh = new THREE.Mesh(snoutGeo, accentMat);
+        snoutMesh.rotation.x = Math.PI / 2;
+        snoutMesh.position.set(0, -0.04, 0.14);
+        headGroup.add(snoutMesh);
+
+        // Nose
+        const noseMesh = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), darkMat);
+        noseMesh.position.set(0, -0.02, 0.22);
+        headGroup.add(noseMesh);
+
+        // Eyes
+        const eyeGeo = new THREE.SphereGeometry(0.028, 10, 10);
+        const eyeL = new THREE.Mesh(eyeGeo, darkMat);
+        eyeL.position.set(-0.08, 0.05, 0.13);
+        const eyeR = new THREE.Mesh(eyeGeo, darkMat);
+        eyeR.position.set(0.08, 0.05, 0.13);
+        headGroup.add(eyeL);
+        headGroup.add(eyeR);
+
+        // Eye Shines
+        const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const shineGeo = new THREE.SphereGeometry(0.009, 8, 8);
+        const shineL = new THREE.Mesh(shineGeo, shineMat);
+        shineL.position.set(-0.072, 0.062, 0.152);
+        const shineR = new THREE.Mesh(shineGeo, shineMat);
+        shineR.position.set(0.088, 0.062, 0.152);
+        headGroup.add(shineL);
+        headGroup.add(shineR);
+
+        // Floppy Ears
+        const earGeo = createCapsuleGeometry(0.045, 0.18, 6, 12);
+        const earL = new THREE.Mesh(earGeo, accentMat);
+        earL.position.set(-0.16, 0.02, 0);
+        earL.rotation.z = 0.35;
+        earL.rotation.x = 0.2;
+
+        const earR = new THREE.Mesh(earGeo, accentMat);
+        earR.position.set(0.16, 0.02, 0);
+        earR.rotation.z = -0.35;
+        earR.rotation.x = 0.2;
+
+        headGroup.add(earL);
+        headGroup.add(earR);
+
+        avatarGroup.add(headGroup);
+
+        // 4 Articulated Quadruped Legs
+        const legPositions = [
+            { name: 'legFrontLeft', x: -0.12, y: 0.26, z: 0.18 },
+            { name: 'legFrontRight', x: 0.12, y: 0.26, z: 0.18 },
+            { name: 'legBackLeft', x: -0.12, y: 0.26, z: -0.18 },
+            { name: 'legBackRight', x: 0.12, y: 0.26, z: -0.18 }
+        ];
+
+        const legGeo = createCapsuleGeometry(0.048, 0.20, 6, 12);
+        const pawGeo = new THREE.SphereGeometry(0.055, 10, 10);
+
+        legPositions.forEach(p => {
+            const lg = new THREE.Group();
+            lg.name = p.name;
+            lg.position.set(p.x, p.y, p.z);
+
+            const lm = new THREE.Mesh(legGeo, furMat);
+            lm.position.set(0, -0.10, 0);
+            lm.castShadow = true;
+            lg.add(lm);
+
+            const paw = new THREE.Mesh(pawGeo, accentMat);
+            paw.position.set(0, -0.21, 0.02);
+            lg.add(paw);
+
+            avatarGroup.add(lg);
+        });
+
+        // Tail
+        const tailGroup = new THREE.Group();
+        tailGroup.name = 'tailGroup';
+        tailGroup.position.set(0, 0.32, -0.22);
+
+        const tailGeo = createCapsuleGeometry(0.038, 0.22, 6, 12);
+        const tailMesh = new THREE.Mesh(tailGeo, accentMat);
+        tailMesh.position.set(0, 0.08, -0.08);
+        tailMesh.rotation.x = -0.6;
+        tailGroup.add(tailMesh);
+
+        avatarGroup.add(tailGroup);
+
+        return avatarGroup;
+    }
+
+    // 3. MASCOTA GATO
+    function createCatAvatarModel(config = {}) {
+        const furColor = config.skin || '#334155';
+        const collarColor = config.shirt || '#f59e0b';
+        const accentColor = config.pants || '#1e293b';
+
+        const avatarGroup = new THREE.Group();
+        avatarGroup.name = 'playmobilAvatar';
+        avatarGroup.userData = { isQuadruped: true };
+
+        const furMat = new THREE.MeshStandardMaterial({ color: furColor, roughness: 0.5 });
+        const collarMat = new THREE.MeshStandardMaterial({ color: collarColor, roughness: 0.4 });
+        const accentMat = new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.5 });
+        const pinkMat = new THREE.MeshStandardMaterial({ color: '#f472b6', roughness: 0.5 });
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x34d399, roughness: 0.2 });
+        const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 });
+
+        // Torso / Body
+        const torsoGroup = new THREE.Group();
+        torsoGroup.name = 'torsoGroup';
+        torsoGroup.position.set(0, 0.25, 0);
+
+        const bodyGeo = createCapsuleGeometry(0.13, 0.36, 8, 16);
+        const bodyMesh = new THREE.Mesh(bodyGeo, furMat);
+        bodyMesh.rotation.x = Math.PI / 2;
+        bodyMesh.castShadow = true;
+        torsoGroup.add(bodyMesh);
+
+        // Collar with golden bell
+        const collarGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 16);
+        const collarMesh = new THREE.Mesh(collarGeo, collarMat);
+        collarMesh.position.set(0, 0.10, 0.20);
+        collarMesh.rotation.x = 0.2;
+        torsoGroup.add(collarMesh);
+
+        const bellMesh = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 10), collarMat);
+        bellMesh.position.set(0, 0.06, 0.32);
+        torsoGroup.add(bellMesh);
+
+        avatarGroup.add(torsoGroup);
+
+        // Head & Face
+        const headGroup = new THREE.Group();
+        headGroup.name = 'headGroup';
+        headGroup.position.set(0, 0.48, 0.24);
+
+        const headGeo = new THREE.SphereGeometry(0.14, 16, 16);
+        const headMesh = new THREE.Mesh(headGeo, furMat);
+        headMesh.castShadow = true;
+        headGroup.add(headMesh);
+
+        // Snout & Pink Nose
+        const snoutMesh = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 10), accentMat);
+        snoutMesh.position.set(0, -0.04, 0.11);
+        headGroup.add(snoutMesh);
+
+        const noseMesh = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.02, 4), pinkMat);
+        noseMesh.rotation.x = Math.PI;
+        noseMesh.position.set(0, -0.02, 0.16);
+        headGroup.add(noseMesh);
+
+        // Cat Eyes
+        const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 10), eyeMat);
+        eyeL.position.set(-0.065, 0.04, 0.12);
+        const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 10), eyeMat);
+        eyeR.position.set(0.065, 0.04, 0.12);
+        headGroup.add(eyeL);
+        headGroup.add(eyeR);
+
+        // Slit Pupils
+        const pupilGeo = new THREE.BoxGeometry(0.008, 0.03, 0.008);
+        const pupilL = new THREE.Mesh(pupilGeo, darkMat);
+        pupilL.position.set(-0.065, 0.04, 0.142);
+        const pupilR = new THREE.Mesh(pupilGeo, darkMat);
+        pupilR.position.set(0.065, 0.04, 0.142);
+        headGroup.add(pupilL);
+        headGroup.add(pupilR);
+
+        // Pointy Triangular Ears
+        const earGeo = new THREE.ConeGeometry(0.055, 0.14, 4);
+        const earL = new THREE.Mesh(earGeo, furMat);
+        earL.position.set(-0.09, 0.14, 0.02);
+        earL.rotation.z = -0.25;
+
+        const earInnerL = new THREE.Mesh(new THREE.ConeGeometry(0.038, 0.10, 4), pinkMat);
+        earInnerL.position.set(-0.09, 0.14, 0.028);
+        earInnerL.rotation.z = -0.25;
+
+        const earR = new THREE.Mesh(earGeo, furMat);
+        earR.position.set(0.09, 0.14, 0.02);
+        earR.rotation.z = 0.25;
+
+        const earInnerR = new THREE.Mesh(new THREE.ConeGeometry(0.038, 0.10, 4), pinkMat);
+        earInnerR.position.set(0.09, 0.14, 0.028);
+        earInnerR.rotation.z = 0.25;
+
+        headGroup.add(earL);
+        headGroup.add(earInnerL);
+        headGroup.add(earR);
+        headGroup.add(earInnerR);
+
+        avatarGroup.add(headGroup);
+
+        // 4 Slender Legs
+        const legPositions = [
+            { name: 'legFrontLeft', x: -0.10, y: 0.24, z: 0.16 },
+            { name: 'legFrontRight', x: 0.10, y: 0.24, z: 0.16 },
+            { name: 'legBackLeft', x: -0.10, y: 0.24, z: -0.16 },
+            { name: 'legBackRight', x: 0.10, y: 0.24, z: -0.16 }
+        ];
+
+        const legGeo = createCapsuleGeometry(0.038, 0.18, 6, 12);
+        const pawGeo = new THREE.SphereGeometry(0.045, 10, 10);
+
+        legPositions.forEach(p => {
+            const lg = new THREE.Group();
+            lg.name = p.name;
+            lg.position.set(p.x, p.y, p.z);
+
+            const lm = new THREE.Mesh(legGeo, furMat);
+            lm.position.set(0, -0.09, 0);
+            lm.castShadow = true;
+            lg.add(lm);
+
+            const paw = new THREE.Mesh(pawGeo, accentMat);
+            paw.position.set(0, -0.19, 0.015);
+            lg.add(paw);
+
+            avatarGroup.add(lg);
+        });
+
+        // Long Curved Tail
+        const tailGroup = new THREE.Group();
+        tailGroup.name = 'tailGroup';
+        tailGroup.position.set(0, 0.28, -0.20);
+
+        const tailCurveGeo = new THREE.TorusGeometry(0.16, 0.03, 8, 16, Math.PI * 0.7);
+        const tailMesh = new THREE.Mesh(tailCurveGeo, furMat);
+        tailMesh.position.set(0, 0.12, -0.06);
+        tailMesh.rotation.y = Math.PI / 2;
+        tailGroup.add(tailMesh);
+
+        avatarGroup.add(tailGroup);
+
+        return avatarGroup;
+    }
+
+    // 4. MASCOTA CONEJO
+    function createRabbitAvatarModel(config = {}) {
+        const furColor = config.skin || '#f8fafc';
+        const detailColor = config.shirt || '#ec4899';
+
+        const avatarGroup = new THREE.Group();
+        avatarGroup.name = 'playmobilAvatar';
+        avatarGroup.userData = { isQuadruped: true };
+
+        const furMat = new THREE.MeshStandardMaterial({ color: furColor, roughness: 0.7 });
+        const detailMat = new THREE.MeshStandardMaterial({ color: detailColor, roughness: 0.5 });
+        const pinkMat = new THREE.MeshStandardMaterial({ color: '#f472b6', roughness: 0.5 });
+        const darkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 });
+
+        // Torso / Body
+        const torsoGroup = new THREE.Group();
+        torsoGroup.name = 'torsoGroup';
+        torsoGroup.position.set(0, 0.22, 0);
+
+        const bodyGeo = new THREE.SphereGeometry(0.18, 16, 16);
+        const bodyMesh = new THREE.Mesh(bodyGeo, furMat);
+        bodyMesh.scale.set(0.85, 0.9, 1.15);
+        bodyMesh.castShadow = true;
+        torsoGroup.add(bodyMesh);
+
+        // Ribbon
+        const ribbonMesh = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.02, 8, 16), detailMat);
+        ribbonMesh.rotation.x = Math.PI / 2;
+        ribbonMesh.position.set(0, 0.08, 0.12);
+        torsoGroup.add(ribbonMesh);
+
+        avatarGroup.add(torsoGroup);
+
+        // Head & Ears
+        const headGroup = new THREE.Group();
+        headGroup.name = 'headGroup';
+        headGroup.position.set(0, 0.42, 0.18);
+
+        const headGeo = new THREE.SphereGeometry(0.13, 16, 16);
+        const headMesh = new THREE.Mesh(headGeo, furMat);
+        headMesh.castShadow = true;
+        headGroup.add(headMesh);
+
+        // Twitchy Nose & Cheek Puffs
+        const noseMesh = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), pinkMat);
+        noseMesh.position.set(0, -0.02, 0.14);
+        headGroup.add(noseMesh);
+
+        const cheekL = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), furMat);
+        cheekL.position.set(-0.04, -0.04, 0.11);
+        const cheekR = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), furMat);
+        cheekR.position.set(0.04, -0.04, 0.11);
+        headGroup.add(cheekL);
+        headGroup.add(cheekR);
+
+        // Eyes
+        const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), darkMat);
+        eyeL.position.set(-0.06, 0.03, 0.11);
+        const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), darkMat);
+        eyeR.position.set(0.06, 0.03, 0.11);
+        headGroup.add(eyeL);
+        headGroup.add(eyeR);
+
+        // Tall Bunny Ears
+        const earGeo = createCapsuleGeometry(0.035, 0.24, 6, 12);
+        const earL = new THREE.Mesh(earGeo, furMat);
+        earL.position.set(-0.06, 0.20, -0.02);
+        earL.rotation.z = -0.15;
+        earL.rotation.x = -0.10;
+
+        const earInnerL = new THREE.Mesh(createCapsuleGeometry(0.022, 0.18, 6, 12), pinkMat);
+        earInnerL.position.set(-0.06, 0.20, 0.005);
+        earInnerL.rotation.z = -0.15;
+        earInnerL.rotation.x = -0.10;
+
+        const earR = new THREE.Mesh(earGeo, furMat);
+        earR.position.set(0.06, 0.20, -0.02);
+        earR.rotation.z = 0.15;
+        earR.rotation.x = -0.10;
+
+        const earInnerR = new THREE.Mesh(createCapsuleGeometry(0.022, 0.18, 6, 12), pinkMat);
+        earInnerR.position.set(0.06, 0.20, 0.005);
+        earInnerR.rotation.z = 0.15;
+        earInnerR.rotation.x = -0.10;
+
+        headGroup.add(earL);
+        headGroup.add(earInnerL);
+        headGroup.add(earR);
+        headGroup.add(earInnerR);
+
+        avatarGroup.add(headGroup);
+
+        // 4 Legs
+        const legPositions = [
+            { name: 'legFrontLeft', x: -0.09, y: 0.20, z: 0.12, r: 0.035, h: 0.14 },
+            { name: 'legFrontRight', x: 0.09, y: 0.20, z: 0.12, r: 0.035, h: 0.14 },
+            { name: 'legBackLeft', x: -0.11, y: 0.20, z: -0.12, r: 0.048, h: 0.16 },
+            { name: 'legBackRight', x: 0.11, y: 0.20, z: -0.12, r: 0.048, h: 0.16 }
+        ];
+
+        legPositions.forEach(p => {
+            const lg = new THREE.Group();
+            lg.name = p.name;
+            lg.position.set(p.x, p.y, p.z);
+
+            const lm = new THREE.Mesh(createCapsuleGeometry(p.r, p.h, 6, 12), furMat);
+            lm.position.set(0, -0.07, 0);
+            lm.castShadow = true;
+            lg.add(lm);
+
+            avatarGroup.add(lg);
+        });
+
+        // Fluffy Cotton Tail
+        const tailGroup = new THREE.Group();
+        tailGroup.name = 'tailGroup';
+        tailGroup.position.set(0, 0.22, -0.18);
+
+        const tailMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), furMat);
+        tailGroup.add(tailMesh);
+
+        avatarGroup.add(tailGroup);
 
         return avatarGroup;
     }
@@ -1086,33 +1559,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (typeof avatarGroup.userData.walkTime !== 'number') avatarGroup.userData.walkTime = 0;
 
-        const leftLeg = avatarGroup.getObjectByName('leftLeg');
-        const rightLeg = avatarGroup.getObjectByName('rightLeg');
-        const leftArm = avatarGroup.getObjectByName('leftArm');
-        const rightArm = avatarGroup.getObjectByName('rightArm');
-        const torsoGroup = avatarGroup.getObjectByName('torsoGroup');
+        const isQuadruped = avatarGroup.userData.isQuadruped || false;
 
-        if (isWalking) {
-            avatarGroup.userData.walkTime += delta * 10;
-            const wt = avatarGroup.userData.walkTime;
+        if (isQuadruped) {
+            const legFL = avatarGroup.getObjectByName('legFrontLeft');
+            const legFR = avatarGroup.getObjectByName('legFrontRight');
+            const legBL = avatarGroup.getObjectByName('legBackLeft');
+            const legBR = avatarGroup.getObjectByName('legBackRight');
+            const tail = avatarGroup.getObjectByName('tailGroup');
+            const torso = avatarGroup.getObjectByName('torsoGroup');
 
-            if (leftLeg) leftLeg.rotation.x = Math.sin(wt) * 0.45;
-            if (rightLeg) rightLeg.rotation.x = -Math.sin(wt) * 0.45;
+            if (isWalking) {
+                avatarGroup.userData.walkTime += delta * 12;
+                const wt = avatarGroup.userData.walkTime;
 
-            if (leftArm) leftArm.rotation.x = -Math.sin(wt) * 0.38;
-            if (rightArm) rightArm.rotation.x = Math.sin(wt) * 0.38;
+                const swingAmount = 0.42;
+                if (legFL) legFL.rotation.x = Math.sin(wt) * swingAmount;
+                if (legBR) legBR.rotation.x = Math.sin(wt) * swingAmount;
 
-            if (torsoGroup) torsoGroup.position.y = 0.54 + Math.abs(Math.sin(wt)) * 0.03;
+                if (legFR) legFR.rotation.x = -Math.sin(wt) * swingAmount;
+                if (legBL) legBL.rotation.x = -Math.sin(wt) * swingAmount;
+
+                if (tail) tail.rotation.y = Math.sin(wt * 1.5) * 0.35;
+                if (torso) torso.position.y = 0.26 + Math.abs(Math.sin(wt)) * 0.02;
+            } else {
+                avatarGroup.userData.walkTime += delta * 2;
+                const wt = avatarGroup.userData.walkTime;
+
+                if (legFL) legFL.rotation.x += (0 - legFL.rotation.x) * 0.15;
+                if (legFR) legFR.rotation.x += (0 - legFR.rotation.x) * 0.15;
+                if (legBL) legBL.rotation.x += (0 - legBL.rotation.x) * 0.15;
+                if (legBR) legBR.rotation.x += (0 - legBR.rotation.x) * 0.15;
+
+                if (tail) tail.rotation.y = Math.sin(wt) * 0.12;
+                if (torso) torso.position.y += (0.26 - torso.position.y) * 0.15;
+            }
         } else {
-            avatarGroup.userData.walkTime = 0;
+            const leftLeg = avatarGroup.getObjectByName('leftLeg');
+            const rightLeg = avatarGroup.getObjectByName('rightLeg');
+            const leftArm = avatarGroup.getObjectByName('leftArm');
+            const rightArm = avatarGroup.getObjectByName('rightArm');
+            const torsoGroup = avatarGroup.getObjectByName('torsoGroup');
 
-            if (leftLeg) leftLeg.rotation.x += (0 - leftLeg.rotation.x) * 0.15;
-            if (rightLeg) rightLeg.rotation.x += (0 - rightLeg.rotation.x) * 0.15;
+            if (isWalking) {
+                avatarGroup.userData.walkTime += delta * 10;
+                const wt = avatarGroup.userData.walkTime;
 
-            if (leftArm) leftArm.rotation.x += (0 - leftArm.rotation.x) * 0.15;
-            if (rightArm) rightArm.rotation.x += (0 - rightArm.rotation.x) * 0.15;
+                if (leftLeg) leftLeg.rotation.x = Math.sin(wt) * 0.45;
+                if (rightLeg) rightLeg.rotation.x = -Math.sin(wt) * 0.45;
 
-            if (torsoGroup) torsoGroup.position.y += (0.54 - torsoGroup.position.y) * 0.15;
+                if (leftArm) leftArm.rotation.x = -Math.sin(wt) * 0.38;
+                if (rightArm) rightArm.rotation.x = Math.sin(wt) * 0.38;
+
+                if (torsoGroup) torsoGroup.position.y = 0.54 + Math.abs(Math.sin(wt)) * 0.03;
+            } else {
+                avatarGroup.userData.walkTime += delta * 2;
+                const wt = avatarGroup.userData.walkTime;
+
+                if (leftLeg) leftLeg.rotation.x += (0 - leftLeg.rotation.x) * 0.15;
+                if (rightLeg) rightLeg.rotation.x += (0 - rightLeg.rotation.x) * 0.15;
+
+                if (leftArm) leftArm.rotation.x += (0 - leftArm.rotation.x) * 0.15;
+                if (rightArm) rightArm.rotation.x += (0 - rightArm.rotation.x) * 0.15;
+
+                if (torsoGroup) torsoGroup.position.y += (0.54 - torsoGroup.position.y) * 0.15;
+            }
         }
     }
 
