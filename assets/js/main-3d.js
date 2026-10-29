@@ -1088,7 +1088,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         torsoGroup.add(rightArmGroup);
 
-        // 4. CABEZA Y ROSTRO SUAVE Y REDONDEADOC
+        // 4. CABEZA, ROSTRO Y NUCA
         const headGroup = new THREE.Group();
         headGroup.name = 'headGroup';
         headGroup.position.set(0, 0.56, 0);
