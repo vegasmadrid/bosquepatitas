@@ -115,6 +115,8 @@ class BP_Profile {
 
         $user_id = get_current_user_id();
 
+        $avatar_type = isset($_POST['avatar_type']) ? sanitize_text_field($_POST['avatar_type']) : 'human';
+        $pet_species = isset($_POST['pet_species']) ? sanitize_text_field($_POST['pet_species']) : 'dog';
         $skin = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
         $shirt = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
         $pants = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
@@ -124,13 +126,15 @@ class BP_Profile {
         $incognito = isset($_POST['incognito']) ? (int) $_POST['incognito'] : 0;
 
         $avatar_data = array(
-            'skin'       => $skin,
-            'shirt'      => $shirt,
-            'pants'      => $pants,
-            'hair_style' => $hair_style,
-            'hair_color' => $hair_color,
-            'accessory'  => $accessory,
-            'incognito'  => $incognito
+            'avatar_type' => $avatar_type,
+            'pet_species' => $pet_species,
+            'skin'        => $skin,
+            'shirt'       => $shirt,
+            'pants'       => $pants,
+            'hair_style'  => $hair_style,
+            'hair_color'  => $hair_color,
+            'accessory'   => $accessory,
+            'incognito'   => $incognito
         );
 
         update_user_meta($user_id, 'bp_avatar_config', $avatar_data);
@@ -143,13 +147,15 @@ class BP_Profile {
 
     private function get_default_avatar_data() {
         return array(
-            'skin'       => '#ffe0bd',
-            'shirt'      => '#10b981',
-            'pants'      => '#1e3a8a',
-            'hair_style' => 'classic',
-            'hair_color' => '#3b2314',
-            'accessory'  => 'none',
-            'incognito'  => 0
+            'avatar_type' => 'human',
+            'pet_species' => 'dog',
+            'skin'        => '#ffe0bd',
+            'shirt'       => '#10b981',
+            'pants'       => '#1e3a8a',
+            'hair_style'  => 'classic',
+            'hair_color'  => '#3b2314',
+            'accessory'   => 'none',
+            'incognito'   => 0
         );
     }
 
