@@ -117,17 +117,21 @@ class BP_Profile {
 
         $avatar_type = isset($_POST['avatar_type']) ? sanitize_text_field($_POST['avatar_type']) : 'human';
         $pet_species = isset($_POST['pet_species']) ? sanitize_text_field($_POST['pet_species']) : 'dog';
-        $skin = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
-        $shirt = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
-        $pants = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
-        $hair_style = isset($_POST['hair_style']) ? sanitize_text_field($_POST['hair_style']) : 'classic';
-        $hair_color = isset($_POST['hair_color']) ? sanitize_text_field($_POST['hair_color']) : '#3b2314';
-        $accessory = isset($_POST['accessory']) ? sanitize_text_field($_POST['accessory']) : 'none';
-        $incognito = isset($_POST['incognito']) ? (int) $_POST['incognito'] : 0;
+        $glb_id      = isset($_POST['glb_id']) ? sanitize_text_field($_POST['glb_id']) : '';
+        $glb_url     = isset($_POST['glb_url']) ? esc_url_raw($_POST['glb_url']) : '';
+        $skin        = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
+        $shirt       = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
+        $pants       = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
+        $hair_style  = isset($_POST['hair_style']) ? sanitize_text_field($_POST['hair_style']) : 'classic';
+        $hair_color  = isset($_POST['hair_color']) ? sanitize_text_field($_POST['hair_color']) : '#3b2314';
+        $accessory   = isset($_POST['accessory']) ? sanitize_text_field($_POST['accessory']) : 'none';
+        $incognito   = isset($_POST['incognito']) ? (int) $_POST['incognito'] : 0;
 
         $avatar_data = array(
             'avatar_type' => $avatar_type,
             'pet_species' => $pet_species,
+            'glb_id'      => $glb_id,
+            'glb_url'     => $glb_url,
             'skin'        => $skin,
             'shirt'       => $shirt,
             'pants'       => $pants,
@@ -149,6 +153,8 @@ class BP_Profile {
         return array(
             'avatar_type' => 'human',
             'pet_species' => 'dog',
+            'glb_id'      => '',
+            'glb_url'     => '',
             'skin'        => '#ffe0bd',
             'shirt'       => '#10b981',
             'pants'       => '#1e3a8a',

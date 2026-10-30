@@ -758,7 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let userObj = remoteUsers.get(data.id);
                 if (!userObj) {
-                    const avatarMesh = createPlaymobilAvatarModel(data.avatar || {});
+                    const avatarMesh = create3DAvatarModel(data.avatar || {});
                     avatarMesh.position.set(data.x, 0, data.z);
 
                     const nameTag = createNameTagSprite(data.name || 'Visitante');
@@ -774,6 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: data.id,
                         name: data.name,
                         avatarMesh: avatarMesh,
+                        avatarData: JSON.stringify(data.avatar || {}),
                         targetPos: new THREE.Vector3(data.x, 0, data.z),
                         targetYaw: data.yaw || 0,
                         isMoving: false
@@ -783,6 +784,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     userObj.targetPos.set(data.x, 0, data.z);
                     userObj.targetYaw = data.yaw || 0;
                     userObj.isMoving = data.isMoving || false;
+
+                    const newAvatarStr = JSON.stringify(data.avatar || {});
+                    if (data.avatar && userObj.avatarData !== newAvatarStr) {
+                        userObj.avatarData = newAvatarStr;
+                        if (userObj.avatarMesh) scene.remove(userObj.avatarMesh);
+                        userObj.avatarMesh = create3DAvatarModel(data.avatar || {});
+                        userObj.avatarMesh.position.copy(userObj.targetPos);
+
+                        const nameTag = createNameTagSprite(data.name || 'Visitante');
+                        nameTag.position.set(0, 1.50, 0);
+                        userObj.avatarMesh.add(nameTag);
+
+                        userObj.avatarMesh.userData = { type: 'remoteAvatar', userId: data.id, userName: data.name };
+                        userObj.avatarMesh.traverse(child => { if (child.isMesh) child.userData = userObj.avatarMesh.userData; });
+
+                        scene.add(userObj.avatarMesh);
+                    }
                 }
             });
 
@@ -847,21 +865,110 @@ document.addEventListener('DOMContentLoaded', () => {
         return new THREE.LatheGeometry(points, radialSegments);
     }
 
-    function create3DAvatarModel(config = {}) {
+    const gltfLoaderInstance = (typeof THREE !== 'undefined' && typeof THREE.GLTFLoader !== 'undefined') ? new THREE.GLTFLoader() : null;
+    const glbModelCache = new Map();
+    const activeAnimMixers = [];
+
+    function create3DAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
 
+        if (avatarType === 'glb' || (config.glb_url && config.glb_url !== '')) {
+            return createGLBAvatarModel(config, onLoadCallback);
+        }
+
+        let mesh;
         if (avatarType === 'pet') {
             const species = config.pet_species || 'dog';
             if (species === 'cat') {
-                return createCatAvatarModel(config);
+                mesh = createCatAvatarModel(config);
             } else if (species === 'rabbit') {
-                return createRabbitAvatarModel(config);
+                mesh = createRabbitAvatarModel(config);
             } else {
-                return createDogAvatarModel(config);
+                mesh = createDogAvatarModel(config);
             }
         } else {
-            return createHumanAvatarModel(config);
+            mesh = createHumanAvatarModel(config);
         }
+
+        if (typeof onLoadCallback === 'function') onLoadCallback(mesh);
+        return mesh;
+    }
+
+    function createGLBAvatarModel(config = {}, onLoadCallback = null) {
+        const containerGroup = new THREE.Group();
+        containerGroup.name = 'glbAvatarContainer';
+
+        const glbUrl = config.glb_url;
+        if (!glbUrl || !gltfLoaderInstance) {
+            const fallbackMesh = createHumanAvatarModel(config);
+            containerGroup.add(fallbackMesh);
+            if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
+            return containerGroup;
+        }
+
+        const scaleFactor = parseFloat(config.scale || 1.0) || 1.0;
+        const offsetY = parseFloat(config.offset_y || 0.0) || 0.0;
+
+        function applyGLBScene(gltfData) {
+            const clonedScene = gltfData.scene.clone(true);
+
+            clonedScene.scale.setScalar(scaleFactor);
+            clonedScene.position.y = offsetY;
+
+            clonedScene.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        child.material = child.material.clone();
+                    }
+                }
+            });
+
+            if (gltfData.animations && gltfData.animations.length > 0) {
+                const mixer = new THREE.AnimationMixer(clonedScene);
+                const action = mixer.clipAction(gltfData.animations[0]);
+                action.play();
+                containerGroup.userData.mixer = mixer;
+                containerGroup.userData.animations = gltfData.animations;
+                activeAnimMixers.push(mixer);
+            }
+
+            containerGroup.add(clonedScene);
+
+            if (typeof onLoadCallback === 'function') {
+                onLoadCallback(containerGroup);
+            }
+        }
+
+        if (glbModelCache.has(glbUrl)) {
+            applyGLBScene(glbModelCache.get(glbUrl));
+        } else {
+            const placeholderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
+            const placeholderMaterial = new THREE.MeshBasicMaterial({ color: 0x10b981, wireframe: true });
+            const placeholderMesh = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
+            placeholderMesh.position.y = 0.4;
+            containerGroup.add(placeholderMesh);
+
+            gltfLoaderInstance.load(
+                glbUrl,
+                (gltf) => {
+                    glbModelCache.set(glbUrl, gltf);
+                    containerGroup.remove(placeholderMesh);
+                    applyGLBScene(gltf);
+                },
+                undefined,
+                (err) => {
+                    console.warn('Error al cargar avatar GLB:', glbUrl, err);
+                    containerGroup.remove(placeholderMesh);
+                    const fallbackMesh = createHumanAvatarModel(config);
+                    containerGroup.add(fallbackMesh);
+                    if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
+                }
+            );
+        }
+
+        return containerGroup;
     }
 
     function createPlaymobilAvatarModel(config = {}) {
@@ -3735,6 +3842,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             updateAvatarAnimation(previewAvatarMesh, false, delta);
 
+            if (previewAvatarMesh && previewAvatarMesh.userData && previewAvatarMesh.userData.mixer) {
+                previewAvatarMesh.userData.mixer.update(delta);
+            }
+
             previewRenderer.render(previewScene, previewCamera);
         }
 
@@ -3771,27 +3882,57 @@ document.addEventListener('DOMContentLoaded', () => {
         // Toggle Category Switcher
         const typeHumanBtn = document.getElementById('bp-type-btn-human');
         const typePetBtn = document.getElementById('bp-type-btn-pet');
+        const typeGlbBtn = document.getElementById('bp-type-btn-glb');
         const humanControls = document.getElementById('bp-controls-human');
         const petControls = document.getElementById('bp-controls-pet');
+        const glbControls = document.getElementById('bp-controls-glb');
 
         function toggleCategoryUI(type) {
             currentConfig.avatar_type = type;
+            [typeHumanBtn, typePetBtn, typeGlbBtn].forEach(b => {
+                if (b) {
+                    b.classList.remove('bp-arcade-btn-yellow');
+                    b.classList.add('bp-arcade-btn-green');
+                }
+            });
+
+            if (humanControls) humanControls.style.display = 'none';
+            if (petControls) petControls.style.display = 'none';
+            if (glbControls) glbControls.style.display = 'none';
+
             if (type === 'pet') {
-                if (typeHumanBtn) { typeHumanBtn.classList.remove('bp-arcade-btn-yellow'); typeHumanBtn.classList.add('bp-arcade-btn-green'); }
                 if (typePetBtn) { typePetBtn.classList.remove('bp-arcade-btn-green'); typePetBtn.classList.add('bp-arcade-btn-yellow'); }
-                if (humanControls) humanControls.style.display = 'none';
                 if (petControls) petControls.style.display = 'block';
+            } else if (type === 'glb') {
+                if (typeGlbBtn) { typeGlbBtn.classList.remove('bp-arcade-btn-green'); typeGlbBtn.classList.add('bp-arcade-btn-yellow'); }
+                if (glbControls) glbControls.style.display = 'block';
             } else {
                 if (typeHumanBtn) { typeHumanBtn.classList.remove('bp-arcade-btn-green'); typeHumanBtn.classList.add('bp-arcade-btn-yellow'); }
-                if (typePetBtn) { typePetBtn.classList.remove('bp-arcade-btn-yellow'); typePetBtn.classList.add('bp-arcade-btn-green'); }
                 if (humanControls) humanControls.style.display = 'block';
-                if (petControls) petControls.style.display = 'none';
             }
             rebuildPreviewMesh(currentConfig);
         }
 
         if (typeHumanBtn) typeHumanBtn.addEventListener('click', () => toggleCategoryUI('human'));
         if (typePetBtn) typePetBtn.addEventListener('click', () => toggleCategoryUI('pet'));
+        if (typeGlbBtn) typeGlbBtn.addEventListener('click', () => toggleCategoryUI('glb'));
+
+        // GLB Cards Listener
+        const glbCards = document.querySelectorAll('.bp-glb-card');
+        glbCards.forEach(card => {
+            card.addEventListener('click', () => {
+                glbCards.forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+
+                currentConfig.avatar_type = 'glb';
+                currentConfig.glb_id      = card.dataset.id;
+                currentConfig.glb_url     = card.dataset.url;
+                currentConfig.scale       = parseFloat(card.dataset.scale || '1.0');
+                currentConfig.offset_y    = parseFloat(card.dataset.offsetY || '0.0');
+
+                rebuildPreviewMesh(currentConfig);
+            });
+        });
 
         // Species Selector
         const speciesSelect = document.getElementById('bp-select-pet-species');
@@ -3857,6 +3998,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('action', 'bp_ajax_save_avatar');
                 formData.append('avatar_type', currentConfig.avatar_type || 'human');
                 formData.append('pet_species', currentConfig.pet_species || 'dog');
+                formData.append('glb_id', currentConfig.glb_id || '');
+                formData.append('glb_url', currentConfig.glb_url || '');
                 formData.append('skin', currentConfig.skin);
                 formData.append('shirt', currentConfig.shirt);
                 formData.append('pants', currentConfig.pants);
@@ -3933,6 +4076,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const avatar = Object.assign({
             avatar_type: 'human',
             pet_species: 'dog',
+            glb_id: '',
+            glb_url: '',
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
@@ -3942,20 +4087,25 @@ document.addEventListener('DOMContentLoaded', () => {
             incognito: 0
         }, settings.avatar || {});
 
-        const isPet = (avatar.avatar_type === 'pet');
+        const currentType = avatar.avatar_type || 'human';
+        const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
 
         arcadeContent.innerHTML = `
+            ${renderArcadeTabsHeader('avatar')}
 
-            <div class="bp-arcade-form-box" style="border-color:#34d399;">
-                <h4 style="color:#34d399;">🧸 PERSONALIZADOR DE AVATAR 3D DEL BOSQUE</h4>
+            <div class="bp-arcade-form-box" style="border-color:#34d399; background:rgba(18, 42, 31, 0.9);">
+                <h4 style="color:#ffd600; font-family:'Press Start 2P', monospace; font-size:12px;">🧸 CONFIGURADOR DE AVATAR 3D</h4>
 
-                <!-- CATEGORY SELECTION: TUTOR VS MASCOTA -->
-                <div style="display:flex; gap:12px; margin-bottom:20px; background:rgba(0,0,0,0.3); padding:10px; border-radius:8px;">
-                    <button id="bp-type-btn-human" class="bp-arcade-btn ${!isPet ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:11px; padding:12px;">
+                <!-- CATEGORY SELECTION: TUTOR VS MASCOTA VS GLB -->
+                <div style="display:flex; gap:10px; margin-bottom:20px; background:rgba(0,0,0,0.4); padding:10px; border-radius:8px; flex-wrap:wrap;">
+                    <button id="bp-type-btn-human" class="bp-arcade-btn ${currentType === 'human' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; min-width:130px; font-size:10px; padding:12px;">
                         👤 TUTOR (HUMANO)
                     </button>
-                    <button id="bp-type-btn-pet" class="bp-arcade-btn ${isPet ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:11px; padding:12px;">
+                    <button id="bp-type-btn-pet" class="bp-arcade-btn ${currentType === 'pet' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; min-width:130px; font-size:10px; padding:12px;">
                         🐾 MASCOTA (ANIMAL)
+                    </button>
+                    <button id="bp-type-btn-glb" class="bp-arcade-btn ${currentType === 'glb' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; min-width:130px; font-size:10px; padding:12px;">
+                        📦 AVATARES 3D GLB (${glbList.length})
                     </button>
                 </div>
 
@@ -4018,8 +4168,32 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
+                        <!-- GLB CUSTOMIZATION CONTROLS -->
+                        <div id="bp-controls-glb" style="display:${currentType === 'glb' ? 'block' : 'none'};">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">SELECCIONA UN AVATAR 3D GLB:</label>
+                            ${glbList.length === 0 ? `
+                                <div style="background:rgba(0,0,0,0.3); border:1px dashed #ffd600; padding:15px; border-radius:8px; text-align:center; color:#a7f3d0; font-size:12px; margin-bottom:15px;">
+                                    📦 No hay avatares GLB cargados actualmente en el sistema.<br><small style="color:#a7f3d0;">El administrador puede subirlos desde el panel de WordPress.</small>
+                                </div>
+                            ` : `
+                                <div class="bp-glb-grid">
+                                    ${glbList.map(item => {
+                                        const isSelected = (avatar.glb_id === item.id || avatar.glb_url === item.file_url);
+                                        const thumb = item.icon_url || '';
+                                        return `
+                                            <div class="bp-glb-card ${isSelected ? 'active' : ''}" data-id="${item.id}" data-url="${item.file_url}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}">
+                                                ${thumb ? `<img src="${thumb}" class="bp-glb-thumb" />` : `<div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:24px;">📦</div>`}
+                                                <div class="bp-glb-title">${item.title}</div>
+                                                ${isSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            `}
+                        </div>
+
                         <!-- PET CUSTOMIZATION CONTROLS -->
-                        <div id="bp-controls-pet" style="display:${isPet ? 'block' : 'none'};">
+                        <div id="bp-controls-pet" style="display:${currentType === 'pet' ? 'block' : 'none'};">
                             <!-- ANIMAL SPECIES -->
                             <div style="margin-bottom:16px;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. ESPECIE DE ANIMAL</label>
@@ -5243,6 +5417,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const delta = clock.getDelta();
         const elapsedTime = clock.getElapsedTime();
+
+        // Update active AnimationMixers for GLB 3D models
+        for (let i = activeAnimMixers.length - 1; i >= 0; i--) {
+            const mixer = activeAnimMixers[i];
+            if (mixer && mixer.getRoot()) {
+                mixer.update(delta);
+            } else {
+                activeAnimMixers.splice(i, 1);
+            }
+        }
 
         // Animate flickering candle lights and flames
         animatedCandles.forEach(c => {
