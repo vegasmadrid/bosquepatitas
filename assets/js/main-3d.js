@@ -4114,7 +4114,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <!-- CONTROLES RETRO DE TUNEO -->
                     <div>
                         <!-- HUMAN CUSTOMIZATION CONTROLS -->
-                        <div id="bp-controls-human" style="display:${!isPet ? 'block' : 'none'};">
+                        <div id="bp-controls-human" style="display:${currentType === 'human' ? 'block' : 'none'};">
                             <!-- SKIN COLOR -->
                             <div style="margin-bottom:16px;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
