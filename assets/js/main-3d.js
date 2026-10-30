@@ -342,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const avConfig = settings.avatar || {};
         if (!avConfig.incognito) {
-            localPlayerAvatar = createPlaymobilAvatarModel(avConfig, (meshGroup) => {
+            localPlayerAvatar = create3DAvatarModel(avConfig, (meshGroup) => {
                 if (meshGroup) {
                     meshGroup.name = 'localPlayerAvatar';
                     meshGroup.position.set(playerPosition.x, 0, playerPosition.z);
@@ -1012,9 +1012,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const offsetY = parseFloat(config.offset_y || 0.0) || 0.0;
 
         function applyGLBScene(gltfData) {
-            const clonedScene = cloneGltfScene(gltfData.scene);
+            const model = cloneGltfScene(gltfData.scene);
 
-            clonedScene.traverse(child => {
+            model.traverse(child => {
                 if (child.isMesh || child.isSkinnedMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
@@ -1027,28 +1027,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Recalcular Bounding Box para asegurar escalado dinámico y base de pies exacta en Y = 0
-            const rawBox = new THREE.Box3().setFromObject(clonedScene);
-            const rawSize = new THREE.Vector3();
-            rawBox.getSize(rawSize);
+            // 2. Encajustar escala y centrar de forma automática
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
 
-            // Escalar segun config o auto-escalar si escala predeterminada no fue especificada
-            let finalScale = scaleFactor;
-            if ((!config.scale || config.scale === 1.0) && rawSize.y > 0) {
-                // Escala norma sugerida ~ 1.6 metros de altura
-                finalScale = 1.6 / rawSize.y;
+            // Normalizar escala (Ajustar a 2 unidades de alto aprox.)
+            const maxDim = Math.max(size.x, size.y, size.z);
+            let scale = maxDim > 0 ? (2 / maxDim) : 1;
+            if (config.scale && parseFloat(config.scale) !== 1.0) {
+                scale *= parseFloat(config.scale);
             }
-            clonedScene.scale.setScalar(finalScale);
+            model.scale.setScalar(scale);
 
-            // Re-calcular bounding box escalado
-            const scaledBox = new THREE.Box3().setFromObject(clonedScene);
-            const minY = scaledBox.min.y;
+            // Centrar en la base (sobre la peana)
+            box.setFromObject(model); // Recalcular con nueva escala
+            box.getCenter(center);
+            model.position.sub(center);
+            model.position.y += (box.getSize(new THREE.Vector3()).y / 2) + offsetY; // Apoyar pies en Y=0
 
-            // Ajustar Y para que la base de la malla quede exactamente en el suelo (0.0)
-            clonedScene.position.y = -minY + offsetY;
-
+            // 3. Activar animación de caminata/idle si existe
             if (gltfData.animations && gltfData.animations.length > 0) {
-                const mixer = new THREE.AnimationMixer(clonedScene);
+                const mixer = new THREE.AnimationMixer(model);
                 const action = mixer.clipAction(gltfData.animations[0]);
                 action.play();
                 containerGroup.userData.mixer = mixer;
@@ -1056,7 +1056,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeAnimMixers.push(mixer);
             }
 
-            containerGroup.add(clonedScene);
+            containerGroup.add(model);
 
             if (typeof onLoadCallback === 'function') {
                 onLoadCallback(containerGroup);
@@ -1072,8 +1072,17 @@ document.addEventListener('DOMContentLoaded', () => {
             placeholderMesh.position.y = 0.4;
             containerGroup.add(placeholderMesh);
 
+            // Añadir parametro de version / timestamp para evitar cache antigua
+            let versionedUrl = glbUrl;
+            const cacheBuster = 't=' + (window.BP_Settings && window.BP_Settings.version ? window.BP_Settings.version : Date.now());
+            if (versionedUrl.indexOf('?') === -1) {
+                versionedUrl += '?' + cacheBuster;
+            } else {
+                versionedUrl += '&' + cacheBuster;
+            }
+
             gltfLoaderInstance.load(
-                glbUrl,
+                versionedUrl,
                 (gltf) => {
                     glbModelCache.set(glbUrl, gltf);
                     containerGroup.remove(placeholderMesh);
@@ -1093,8 +1102,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return containerGroup;
     }
 
-    function createPlaymobilAvatarModel(config = {}) {
-        return create3DAvatarModel(config);
+    function createPlaymobilAvatarModel(config = {}, onLoadCallback = null) {
+        return create3DAvatarModel(config, onLoadCallback);
     }
 
     // 1. TUTOR HUMANO (MODELO PROCEDURAL ORGANICO 100% SUAVIZADO Y ESTILIZADO)
