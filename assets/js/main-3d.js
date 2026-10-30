@@ -1168,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headGroup.add(facePlane);
 
         // Cobertura de la nuca y cráneo posterior (Exclusivamente en la mitad trasera Z <= 0)
-        const backNapeGeo = new THREE.SphereGeometry(0.144, 24, 20, Math.PI * 0.5, Math.PI, 0, Math.PI * 0.65);
+        const backNapeGeo = new THREE.SphereGeometry(0.144, 24, 20, Math.PI, Math.PI, 0, Math.PI * 0.65);
         backNapeGeo.scale(1.01, 1.15, 1.05);
         const backNapeHair = new THREE.Mesh(backNapeGeo, hairMat);
         backNapeHair.position.set(0, -0.01, -0.005);
