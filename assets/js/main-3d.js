@@ -981,43 +981,38 @@ document.addEventListener('DOMContentLoaded', () => {
         torsoGroup.add(torsoMesh);
 
         // Detalle de cuello redondeado
-        const collarRing = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.016, 12, 24), shirtMat);
+        const collarRing = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.014, 12, 24), shirtMat);
         collarRing.rotation.x = Math.PI / 2;
         collarRing.position.set(0, 0.38, 0);
         torsoGroup.add(collarRing);
 
-        const neckMesh = new THREE.Mesh(createCapsuleGeometry(0.052, 0.08, 8, 14), skinMat);
-        neckMesh.position.set(0, 0.43, 0);
+        // Cilindro definido para el cuello entre el torso y la cabeza
+        const neckCylinderGeo = new THREE.CylinderGeometry(0.052, 0.058, 0.10, 18);
+        const neckMesh = new THREE.Mesh(neckCylinderGeo, skinMat);
+        neckMesh.position.set(0, 0.44, 0);
         torsoGroup.add(neckMesh);
 
-        // Hombros integrados y redondeados
-        const leftShoulderCap = new THREE.Mesh(new THREE.SphereGeometry(0.058, 14, 14), shirtMat);
-        leftShoulderCap.position.set(-0.175, 0.35, 0);
-        torsoGroup.add(leftShoulderCap);
+        // 3. BRAZOS CON MANGAS INTEGRADAS Y POSTURA REPOSADA NATURAL (-7° A -10° EN Z)
+        const sleeveCapsuleGeo = createCapsuleGeometry(0.052, 0.15, 10, 16);
+        const forearmCapsuleGeo = createCapsuleGeometry(0.040, 0.18, 10, 16);
 
-        const rightShoulderCap = new THREE.Mesh(new THREE.SphereGeometry(0.058, 14, 14), shirtMat);
-        rightShoulderCap.position.set(0.175, 0.35, 0);
-        torsoGroup.add(rightShoulderCap);
-
-        // 3. BRAZOS SUAVES (Cápsulas + Codos + Manos de Esfera)
-        const sleeveCapsuleGeo = createCapsuleGeometry(0.046, 0.14, 8, 14);
-        const forearmCapsuleGeo = createCapsuleGeometry(0.038, 0.18, 8, 14);
-
-        // Arm Izquierdo
+        // Arm Izquierdo (Inclinado suavemente hacia afuera +7.5°)
         const leftArmGroup = new THREE.Group();
         leftArmGroup.name = 'leftArm';
-        leftArmGroup.position.set(-0.19, 0.35, 0);
+        leftArmGroup.position.set(-0.18, 0.36, 0);
+        leftArmGroup.rotation.z = 0.13; // ~7.5 grados hacia fuera
 
         const leftSleeve = new THREE.Mesh(sleeveCapsuleGeo, shirtMat);
-        leftSleeve.position.set(0, -0.08, 0);
+        leftSleeve.position.set(0, -0.07, 0);
         leftArmGroup.add(leftSleeve);
 
-        const leftElbow = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 10), skinMat);
-        leftElbow.position.set(0, -0.16, 0);
-        leftArmGroup.add(leftElbow);
+        const leftSleeveCuff = new THREE.Mesh(new THREE.TorusGeometry(0.051, 0.008, 10, 20), shirtMat);
+        leftSleeveCuff.rotation.x = Math.PI / 2;
+        leftSleeveCuff.position.set(0, -0.145, 0);
+        leftArmGroup.add(leftSleeveCuff);
 
         const leftForearm = new THREE.Mesh(forearmCapsuleGeo, skinMat);
-        leftForearm.position.set(0, -0.24, 0);
+        leftForearm.position.set(0, -0.23, 0);
         leftArmGroup.add(leftForearm);
 
         const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.042, 14, 14), skinMat);
@@ -1026,21 +1021,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         torsoGroup.add(leftArmGroup);
 
-        // Arm Derecho
+        // Arm Derecho (Inclinado suavemente hacia afuera -7.5°)
         const rightArmGroup = new THREE.Group();
         rightArmGroup.name = 'rightArm';
-        rightArmGroup.position.set(0.19, 0.35, 0);
+        rightArmGroup.position.set(0.18, 0.36, 0);
+        rightArmGroup.rotation.z = -0.13; // ~-7.5 grados hacia fuera
 
         const rightSleeve = new THREE.Mesh(sleeveCapsuleGeo, shirtMat);
-        rightSleeve.position.set(0, -0.08, 0);
+        rightSleeve.position.set(0, -0.07, 0);
         rightArmGroup.add(rightSleeve);
 
-        const rightElbow = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 10), skinMat);
-        rightElbow.position.set(0, -0.16, 0);
-        rightArmGroup.add(rightElbow);
+        const rightSleeveCuff = new THREE.Mesh(new THREE.TorusGeometry(0.051, 0.008, 10, 20), shirtMat);
+        rightSleeveCuff.rotation.x = Math.PI / 2;
+        rightSleeveCuff.position.set(0, -0.145, 0);
+        rightArmGroup.add(rightSleeveCuff);
 
         const rightForearm = new THREE.Mesh(forearmCapsuleGeo, skinMat);
-        rightForearm.position.set(0, -0.24, 0);
+        rightForearm.position.set(0, -0.23, 0);
         rightArmGroup.add(rightForearm);
 
         const rightHand = new THREE.Mesh(new THREE.SphereGeometry(0.042, 14, 14), skinMat);
@@ -1170,24 +1167,36 @@ document.addEventListener('DOMContentLoaded', () => {
         facePlane.position.set(0, 0.005, 0.141);
         headGroup.add(facePlane);
 
-        // 5. PEINADOS Y CABELLO SUAVE
+        // Cobertura de la nuca y cráneo posterior (Exclusivamente en la mitad trasera Z <= 0)
+        const backNapeGeo = new THREE.SphereGeometry(0.144, 24, 20, Math.PI * 0.5, Math.PI, 0, Math.PI * 0.65);
+        backNapeGeo.scale(1.01, 1.15, 1.05);
+        const backNapeHair = new THREE.Mesh(backNapeGeo, hairMat);
+        backNapeHair.position.set(0, -0.01, -0.005);
+        headGroup.add(backNapeHair);
+
+        // 5. PEINADOS MULTICAPA SIN INTERFERIR CON LA CARA
         if (hairStyle === 'classic') {
-            const hairCapGeo = new THREE.SphereGeometry(0.146, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.55);
-            hairCapGeo.scale(1.02, 1.08, 1.04);
+            const hairCapGeo = new THREE.SphereGeometry(0.144, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.46);
+            hairCapGeo.scale(1.01, 1.05, 1.02);
             const hairCap = new THREE.Mesh(hairCapGeo, hairMat);
-            hairCap.position.set(0, 0.02, -0.01);
+            hairCap.position.set(0, 0.035, -0.025);
             headGroup.add(hairCap);
 
-            const bangL = new THREE.Mesh(createCapsuleGeometry(0.032, 0.06, 6, 10), hairMat);
-            bangL.rotation.z = -0.3;
-            bangL.position.set(-0.06, 0.10, 0.10);
+            const bangLeft = new THREE.Mesh(createCapsuleGeometry(0.028, 0.07, 8, 12), hairMat);
+            bangLeft.rotation.z = -0.4;
+            bangLeft.position.set(-0.065, 0.11, 0.11);
 
-            const bangR = new THREE.Mesh(createCapsuleGeometry(0.032, 0.06, 6, 10), hairMat);
-            bangR.rotation.z = 0.3;
-            bangR.position.set(0.06, 0.10, 0.10);
+            const bangRight = new THREE.Mesh(createCapsuleGeometry(0.028, 0.07, 8, 12), hairMat);
+            bangRight.rotation.z = 0.4;
+            bangRight.position.set(0.065, 0.11, 0.11);
 
-            headGroup.add(bangL);
-            headGroup.add(bangR);
+            const bangCenter = new THREE.Mesh(createCapsuleGeometry(0.025, 0.06, 8, 12), hairMat);
+            bangCenter.rotation.x = -0.15;
+            bangCenter.position.set(0, 0.13, 0.12);
+
+            headGroup.add(bangLeft);
+            headGroup.add(bangRight);
+            headGroup.add(bangCenter);
         } else if (hairStyle === 'spiky') {
             const baseHair = new THREE.Mesh(new THREE.SphereGeometry(0.145, 20, 20, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat);
             baseHair.position.set(0, 0.02, -0.01);
@@ -1753,8 +1762,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (leftLeg) leftLeg.rotation.x += (0 - leftLeg.rotation.x) * 0.15;
                 if (rightLeg) rightLeg.rotation.x += (0 - rightLeg.rotation.x) * 0.15;
 
-                if (leftArm) leftArm.rotation.x += (0 - leftArm.rotation.x) * 0.15;
-                if (rightArm) rightArm.rotation.x += (0 - rightArm.rotation.x) * 0.15;
+                if (leftArm) {
+                    leftArm.rotation.x += (0 - leftArm.rotation.x) * 0.15;
+                    leftArm.rotation.z += (0.13 - leftArm.rotation.z) * 0.15;
+                }
+                if (rightArm) {
+                    rightArm.rotation.x += (0 - rightArm.rotation.x) * 0.15;
+                    rightArm.rotation.z += (-0.13 - rightArm.rotation.z) * 0.15;
+                }
 
                 if (torsoGroup) {
                     torsoGroup.position.y += ((0.54 + Math.sin(wt * 1.5) * 0.005) - torsoGroup.position.y) * 0.15; // Respiración sutil
