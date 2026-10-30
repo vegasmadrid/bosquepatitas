@@ -335,10 +335,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let localPlayerAvatar = null;
 
     function rebuildLocalPlayerAvatarMesh() {
-        if (localPlayerAvatar) scene.remove(localPlayerAvatar);
+        if (localPlayerAvatar) {
+            disposeThreeObject(localPlayerAvatar);
+            scene.remove(localPlayerAvatar);
+            localPlayerAvatar = null;
+        }
         const avConfig = settings.avatar || {};
         if (!avConfig.incognito) {
-            localPlayerAvatar = createPlaymobilAvatarModel(avConfig);
+            localPlayerAvatar = createPlaymobilAvatarModel(avConfig, (meshGroup) => {
+                if (meshGroup) {
+                    meshGroup.name = 'localPlayerAvatar';
+                    meshGroup.position.set(playerPosition.x, 0, playerPosition.z);
+                    meshGroup.visible = (currentMode !== MODE_GROUND);
+                }
+            });
             localPlayerAvatar.name = 'localPlayerAvatar';
             localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
             localPlayerAvatar.visible = (currentMode !== MODE_GROUND);
@@ -869,6 +879,98 @@ document.addEventListener('DOMContentLoaded', () => {
     const glbModelCache = new Map();
     const activeAnimMixers = [];
 
+    // Helper para destruccion y limpieza profunda de geometrias, materiales y texturas
+    function disposeThreeObject(obj) {
+        if (!obj) return;
+        obj.traverse(child => {
+            if (child.isMesh || child.isSkinnedMesh) {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => {
+                            if (m.map) m.map.dispose();
+                            m.dispose();
+                        });
+                    } else {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                }
+            }
+        });
+        if (obj.userData && obj.userData.mixer) {
+            obj.userData.mixer.stopAllAction();
+            const idx = activeAnimMixers.indexOf(obj.userData.mixer);
+            if (idx !== -1) activeAnimMixers.splice(idx, 1);
+        }
+        if (obj.parent) {
+            obj.parent.remove(obj);
+        }
+    }
+
+    // Helper para clonado profundo de escenas GLTF / SkinnedMesh manteniendo huesos y esqueletos intactos
+    function cloneGltfScene(source) {
+        if (typeof THREE !== 'undefined' && typeof THREE.SkeletonUtils !== 'undefined' && typeof THREE.SkeletonUtils.clone === 'function') {
+            return THREE.SkeletonUtils.clone(source);
+        }
+
+        const cloneLookup = new Map();
+        const clonedScene = source.clone(false);
+
+        source.traverse(node => {
+            if (node === source) return;
+            let clonedNode;
+            if (node.isBone) {
+                clonedNode = node.clone(false);
+            } else if (node.isSkinnedMesh) {
+                clonedNode = node.clone(false);
+                if (node.material) {
+                    clonedNode.material = Array.isArray(node.material)
+                        ? node.material.map(m => m.clone())
+                        : node.material.clone();
+                }
+            } else if (node.isMesh) {
+                clonedNode = node.clone(false);
+                if (node.material) {
+                    clonedNode.material = Array.isArray(node.material)
+                        ? node.material.map(m => m.clone())
+                        : node.material.clone();
+                }
+            } else {
+                clonedNode = node.clone(false);
+            }
+            cloneLookup.set(node, clonedNode);
+        });
+
+        source.traverse(node => {
+            const clonedParent = node === source ? clonedScene : cloneLookup.get(node);
+            node.children.forEach(child => {
+                const clonedChild = cloneLookup.get(child);
+                if (clonedChild) {
+                    clonedParent.add(clonedChild);
+                }
+            });
+        });
+
+        source.traverse(node => {
+            if (node.isSkinnedMesh) {
+                const clonedMesh = cloneLookup.get(node);
+                const orderedClonedBones = [];
+                for (let i = 0; i < node.skeleton.bones.length; i++) {
+                    const origBone = node.skeleton.bones[i];
+                    const clonedBone = cloneLookup.get(origBone);
+                    orderedClonedBones.push(clonedBone || origBone);
+                }
+                clonedMesh.bind(
+                    new THREE.Skeleton(orderedClonedBones, node.skeleton.boneInverses.map(m => m.clone())),
+                    clonedMesh.matrixWorld
+                );
+            }
+        });
+
+        return clonedScene;
+    }
+
     function create3DAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
 
@@ -910,20 +1012,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const offsetY = parseFloat(config.offset_y || 0.0) || 0.0;
 
         function applyGLBScene(gltfData) {
-            const clonedScene = gltfData.scene.clone(true);
-
-            clonedScene.scale.setScalar(scaleFactor);
-            clonedScene.position.y = offsetY;
+            const clonedScene = cloneGltfScene(gltfData.scene);
 
             clonedScene.traverse(child => {
-                if (child.isMesh) {
+                if (child.isMesh || child.isSkinnedMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
+                    child.frustumCulled = false;
                     if (child.material) {
-                        child.material = child.material.clone();
+                        child.material = Array.isArray(child.material)
+                            ? child.material.map(m => m.clone())
+                            : child.material.clone();
                     }
                 }
             });
+
+            // Recalcular Bounding Box para asegurar escalado dinámico y base de pies exacta en Y = 0
+            const rawBox = new THREE.Box3().setFromObject(clonedScene);
+            const rawSize = new THREE.Vector3();
+            rawBox.getSize(rawSize);
+
+            // Escalar segun config o auto-escalar si escala predeterminada no fue especificada
+            let finalScale = scaleFactor;
+            if ((!config.scale || config.scale === 1.0) && rawSize.y > 0) {
+                // Escala norma sugerida ~ 1.6 metros de altura
+                finalScale = 1.6 / rawSize.y;
+            }
+            clonedScene.scale.setScalar(finalScale);
+
+            // Re-calcular bounding box escalado
+            const scaledBox = new THREE.Box3().setFromObject(clonedScene);
+            const minY = scaledBox.min.y;
+
+            // Ajustar Y para que la base de la malla quede exactamente en el suelo (0.0)
+            clonedScene.position.y = -minY + offsetY;
 
             if (gltfData.animations && gltfData.animations.length > 0) {
                 const mixer = new THREE.AnimationMixer(clonedScene);
@@ -3796,8 +3918,16 @@ document.addEventListener('DOMContentLoaded', () => {
         previewScene.add(pedMesh);
 
         function rebuildPreviewMesh(cfg) {
-            if (previewAvatarMesh) previewScene.remove(previewAvatarMesh);
-            previewAvatarMesh = create3DAvatarModel(cfg);
+            if (previewAvatarMesh) {
+                disposeThreeObject(previewAvatarMesh);
+                previewScene.remove(previewAvatarMesh);
+                previewAvatarMesh = null;
+            }
+            previewAvatarMesh = create3DAvatarModel(cfg, (loadedMesh) => {
+                if (loadedMesh) {
+                    loadedMesh.position.set(0, 0, 0);
+                }
+            });
             previewAvatarMesh.position.set(0, 0, 0);
             previewScene.add(previewAvatarMesh);
         }
