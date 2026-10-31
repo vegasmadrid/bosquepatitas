@@ -1048,8 +1048,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 3. Activar animación de caminata/idle si existe
             if (gltfData.animations && gltfData.animations.length > 0) {
+                console.log('Animaciones disponibles en GLB:', gltfData.animations.map(a => a.name));
                 const mixer = new THREE.AnimationMixer(model);
-                const action = mixer.clipAction(gltfData.animations[0]);
+
+                // Buscar la animación de andar o reposo por nombre
+                const walkClip = gltfData.animations.find(clip =>
+                    clip.name.toLowerCase().includes('walk') ||
+                    clip.name.toLowerCase().includes('idle')
+                ) || gltfData.animations[0]; // Fallback a la primera si no la encuentra por nombre
+
+                const action = mixer.clipAction(walkClip);
                 action.play();
                 containerGroup.userData.mixer = mixer;
                 containerGroup.userData.animations = gltfData.animations;
