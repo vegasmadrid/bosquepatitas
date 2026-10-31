@@ -335,10 +335,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let localPlayerAvatar = null;
 
     function rebuildLocalPlayerAvatarMesh() {
-        if (localPlayerAvatar) scene.remove(localPlayerAvatar);
+        if (localPlayerAvatar) {
+            disposeThreeObject(localPlayerAvatar);
+            scene.remove(localPlayerAvatar);
+            localPlayerAvatar = null;
+        }
         const avConfig = settings.avatar || {};
         if (!avConfig.incognito) {
-            localPlayerAvatar = createPlaymobilAvatarModel(avConfig);
+            localPlayerAvatar = create3DAvatarModel(avConfig, (meshGroup) => {
+                if (meshGroup) {
+                    meshGroup.name = 'localPlayerAvatar';
+                    meshGroup.position.set(playerPosition.x, 0, playerPosition.z);
+                    meshGroup.visible = (currentMode !== MODE_GROUND);
+                }
+            });
             localPlayerAvatar.name = 'localPlayerAvatar';
             localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
             localPlayerAvatar.visible = (currentMode !== MODE_GROUND);
@@ -758,7 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let userObj = remoteUsers.get(data.id);
                 if (!userObj) {
-                    const avatarMesh = createPlaymobilAvatarModel(data.avatar || {});
+                    const avatarMesh = create3DAvatarModel(data.avatar || {});
                     avatarMesh.position.set(data.x, 0, data.z);
 
                     const nameTag = createNameTagSprite(data.name || 'Visitante');
@@ -774,6 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: data.id,
                         name: data.name,
                         avatarMesh: avatarMesh,
+                        avatarData: JSON.stringify(data.avatar || {}),
                         targetPos: new THREE.Vector3(data.x, 0, data.z),
                         targetYaw: data.yaw || 0,
                         isMoving: false
@@ -783,6 +794,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     userObj.targetPos.set(data.x, 0, data.z);
                     userObj.targetYaw = data.yaw || 0;
                     userObj.isMoving = data.isMoving || false;
+
+                    const newAvatarStr = JSON.stringify(data.avatar || {});
+                    if (data.avatar && userObj.avatarData !== newAvatarStr) {
+                        userObj.avatarData = newAvatarStr;
+                        if (userObj.avatarMesh) scene.remove(userObj.avatarMesh);
+                        userObj.avatarMesh = create3DAvatarModel(data.avatar || {});
+                        userObj.avatarMesh.position.copy(userObj.targetPos);
+
+                        const nameTag = createNameTagSprite(data.name || 'Visitante');
+                        nameTag.position.set(0, 1.50, 0);
+                        userObj.avatarMesh.add(nameTag);
+
+                        userObj.avatarMesh.userData = { type: 'remoteAvatar', userId: data.id, userName: data.name };
+                        userObj.avatarMesh.traverse(child => { if (child.isMesh) child.userData = userObj.avatarMesh.userData; });
+
+                        scene.add(userObj.avatarMesh);
+                    }
                 }
             });
 
@@ -847,25 +875,267 @@ document.addEventListener('DOMContentLoaded', () => {
         return new THREE.LatheGeometry(points, radialSegments);
     }
 
-    function create3DAvatarModel(config = {}) {
-        const avatarType = config.avatar_type || 'human';
+    const gltfLoaderInstance = (typeof THREE !== 'undefined' && typeof THREE.GLTFLoader !== 'undefined') ? new THREE.GLTFLoader() : null;
+    const glbModelCache = new Map();
+    const activeAnimMixers = [];
 
-        if (avatarType === 'pet') {
-            const species = config.pet_species || 'dog';
-            if (species === 'cat') {
-                return createCatAvatarModel(config);
-            } else if (species === 'rabbit') {
-                return createRabbitAvatarModel(config);
-            } else {
-                return createDogAvatarModel(config);
+    // Helper para destruccion y limpieza profunda de geometrias, materiales y texturas
+    function disposeThreeObject(obj) {
+        if (!obj) return;
+        obj.traverse(child => {
+            if (child.isMesh || child.isSkinnedMesh) {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => {
+                            if (m.map) m.map.dispose();
+                            m.dispose();
+                        });
+                    } else {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                }
             }
-        } else {
-            return createHumanAvatarModel(config);
+        });
+        if (obj.userData && obj.userData.mixer) {
+            obj.userData.mixer.stopAllAction();
+            const idx = activeAnimMixers.indexOf(obj.userData.mixer);
+            if (idx !== -1) activeAnimMixers.splice(idx, 1);
+        }
+        if (obj.parent) {
+            obj.parent.remove(obj);
         }
     }
 
-    function createPlaymobilAvatarModel(config = {}) {
-        return create3DAvatarModel(config);
+    // Helper para clonado profundo de escenas GLTF / SkinnedMesh manteniendo huesos y esqueletos intactos
+    function cloneGltfScene(source) {
+        if (typeof THREE !== 'undefined' && typeof THREE.SkeletonUtils !== 'undefined' && typeof THREE.SkeletonUtils.clone === 'function') {
+            return THREE.SkeletonUtils.clone(source);
+        }
+
+        const cloneLookup = new Map();
+        const clonedScene = source.clone(false);
+
+        source.traverse(node => {
+            if (node === source) return;
+            let clonedNode;
+            if (node.isBone) {
+                clonedNode = node.clone(false);
+            } else if (node.isSkinnedMesh) {
+                clonedNode = node.clone(false);
+                if (node.material) {
+                    clonedNode.material = Array.isArray(node.material)
+                        ? node.material.map(m => m.clone())
+                        : node.material.clone();
+                }
+            } else if (node.isMesh) {
+                clonedNode = node.clone(false);
+                if (node.material) {
+                    clonedNode.material = Array.isArray(node.material)
+                        ? node.material.map(m => m.clone())
+                        : node.material.clone();
+                }
+            } else {
+                clonedNode = node.clone(false);
+            }
+            cloneLookup.set(node, clonedNode);
+        });
+
+        source.traverse(node => {
+            const clonedParent = node === source ? clonedScene : cloneLookup.get(node);
+            node.children.forEach(child => {
+                const clonedChild = cloneLookup.get(child);
+                if (clonedChild) {
+                    clonedParent.add(clonedChild);
+                }
+            });
+        });
+
+        source.traverse(node => {
+            if (node.isSkinnedMesh) {
+                const clonedMesh = cloneLookup.get(node);
+                const orderedClonedBones = [];
+                for (let i = 0; i < node.skeleton.bones.length; i++) {
+                    const origBone = node.skeleton.bones[i];
+                    const clonedBone = cloneLookup.get(origBone);
+                    orderedClonedBones.push(clonedBone || origBone);
+                }
+                clonedMesh.bind(
+                    new THREE.Skeleton(orderedClonedBones, node.skeleton.boneInverses.map(m => m.clone())),
+                    clonedMesh.matrixWorld
+                );
+            }
+        });
+
+        return clonedScene;
+    }
+
+    function create3DAvatarModel(config = {}, onLoadCallback = null) {
+        const avatarType = config.avatar_type || 'human';
+
+        if (avatarType === 'glb' || (config.glb_url && config.glb_url !== '')) {
+            return createGLBAvatarModel(config, onLoadCallback);
+        }
+
+        let mesh;
+        if (avatarType === 'pet') {
+            const species = config.pet_species || 'dog';
+            if (species === 'cat') {
+                mesh = createCatAvatarModel(config);
+            } else if (species === 'rabbit') {
+                mesh = createRabbitAvatarModel(config);
+            } else {
+                mesh = createDogAvatarModel(config);
+            }
+        } else {
+            mesh = createHumanAvatarModel(config);
+        }
+
+        if (typeof onLoadCallback === 'function') onLoadCallback(mesh);
+        return mesh;
+    }
+
+    function createGLBAvatarModel(config = {}, onLoadCallback = null) {
+        const containerGroup = new THREE.Group();
+        containerGroup.name = 'glbAvatarContainer';
+
+        const glbUrl = config.glb_url;
+        if (!glbUrl || !gltfLoaderInstance) {
+            const fallbackMesh = createHumanAvatarModel(config);
+            containerGroup.add(fallbackMesh);
+            if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
+            return containerGroup;
+        }
+
+        const scaleFactor = parseFloat(config.scale || 1.0) || 1.0;
+        const offsetY = parseFloat(config.offset_y || 0.0) || 0.0;
+
+        function applyGLBScene(gltfData) {
+            const model = cloneGltfScene(gltfData.scene);
+
+            model.traverse(child => {
+                if (child.isMesh || child.isSkinnedMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    child.frustumCulled = false;
+                    if (child.material) {
+                        child.material = Array.isArray(child.material)
+                            ? child.material.map(m => m.clone())
+                            : child.material.clone();
+                    }
+                }
+            });
+
+            // 2. Encajustar escala y centrar de forma automática
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+
+            // Normalizar escala (Ajustar a 2 unidades de alto aprox.)
+            const maxDim = Math.max(size.x, size.y, size.z);
+            let scale = maxDim > 0 ? (2 / maxDim) : 1;
+            if (config.scale && parseFloat(config.scale) !== 1.0) {
+                scale *= parseFloat(config.scale);
+            }
+            model.scale.setScalar(scale);
+
+            // Centrar en la base (sobre la peana)
+            box.setFromObject(model); // Recalcular con nueva escala
+            box.getCenter(center);
+            model.position.sub(center);
+            model.position.y += (box.getSize(new THREE.Vector3()).y / 2) + offsetY; // Apoyar pies en Y=0
+
+            // 3. Activar animaciones de reposo (Idle) y caminata (Walk)
+            if (gltfData.animations && gltfData.animations.length > 0) {
+                console.log('Animaciones disponibles en GLB:', gltfData.animations.map(a => a.name));
+                const mixer = new THREE.AnimationMixer(model);
+
+                let idleClip = null;
+                let walkClip = null;
+
+                if (config.anim_idle) {
+                    idleClip = gltfData.animations.find(c => c.name === config.anim_idle);
+                }
+                if (!idleClip) {
+                    idleClip = gltfData.animations.find(c => c.name.toLowerCase().includes('idle'));
+                }
+
+                if (config.anim_walk) {
+                    walkClip = gltfData.animations.find(c => c.name === config.anim_walk);
+                }
+                if (!walkClip) {
+                    walkClip = gltfData.animations.find(c => c.name.toLowerCase().includes('walk') || c.name.toLowerCase().includes('run'));
+                }
+
+                if (!idleClip && gltfData.animations[0]) idleClip = gltfData.animations[0];
+                if (!walkClip) walkClip = idleClip || gltfData.animations[0];
+
+                const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+                const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+
+                if (idleAction) {
+                    idleAction.play();
+                }
+
+                containerGroup.userData.mixer = mixer;
+                containerGroup.userData.idleAction = idleAction;
+                containerGroup.userData.walkAction = walkAction;
+                containerGroup.userData.activeAction = idleAction;
+                containerGroup.userData.isGLB = true;
+                containerGroup.userData.animations = gltfData.animations;
+
+                activeAnimMixers.push(mixer);
+            }
+
+            containerGroup.add(model);
+
+            if (typeof onLoadCallback === 'function') {
+                onLoadCallback(containerGroup);
+            }
+        }
+
+        if (glbModelCache.has(glbUrl)) {
+            applyGLBScene(glbModelCache.get(glbUrl));
+        } else {
+            const placeholderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
+            const placeholderMaterial = new THREE.MeshBasicMaterial({ color: 0x10b981, wireframe: true });
+            const placeholderMesh = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
+            placeholderMesh.position.y = 0.4;
+            containerGroup.add(placeholderMesh);
+
+            // Añadir parametro de version / timestamp para evitar cache antigua
+            let versionedUrl = glbUrl;
+            const cacheBuster = 't=' + (window.BP_Settings && window.BP_Settings.version ? window.BP_Settings.version : Date.now());
+            if (versionedUrl.indexOf('?') === -1) {
+                versionedUrl += '?' + cacheBuster;
+            } else {
+                versionedUrl += '&' + cacheBuster;
+            }
+
+            gltfLoaderInstance.load(
+                versionedUrl,
+                (gltf) => {
+                    glbModelCache.set(glbUrl, gltf);
+                    containerGroup.remove(placeholderMesh);
+                    applyGLBScene(gltf);
+                },
+                undefined,
+                (err) => {
+                    console.warn('Error al cargar avatar GLB:', glbUrl, err);
+                    containerGroup.remove(placeholderMesh);
+                    const fallbackMesh = createHumanAvatarModel(config);
+                    containerGroup.add(fallbackMesh);
+                    if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
+                }
+            );
+        }
+
+        return containerGroup;
+    }
+
+    function createPlaymobilAvatarModel(config = {}, onLoadCallback = null) {
+        return create3DAvatarModel(config, onLoadCallback);
     }
 
     // 1. TUTOR HUMANO (MODELO PROCEDURAL ORGANICO 100% SUAVIZADO Y ESTILIZADO)
@@ -1685,6 +1955,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateAvatarAnimation(avatarGroup, isWalking, delta) {
         if (!avatarGroup) return;
+
+        // Soporte dinámico para modelos 3D GLB con animaciones Idle / Walk
+        if (avatarGroup.userData && avatarGroup.userData.isGLB) {
+            const idleAction = avatarGroup.userData.idleAction;
+            const walkAction = avatarGroup.userData.walkAction;
+
+            if (walkAction && idleAction) {
+                const targetAction = isWalking ? walkAction : idleAction;
+                if (avatarGroup.userData.activeAction !== targetAction) {
+                    const prevAction = avatarGroup.userData.activeAction;
+                    avatarGroup.userData.activeAction = targetAction;
+                    if (prevAction) {
+                        prevAction.fadeOut(0.2);
+                    }
+                    targetAction.reset().fadeIn(0.2).play();
+                }
+            }
+            return;
+        }
 
         if (typeof avatarGroup.userData.walkTime !== 'number') avatarGroup.userData.walkTime = 0;
 
@@ -3689,8 +3978,16 @@ document.addEventListener('DOMContentLoaded', () => {
         previewScene.add(pedMesh);
 
         function rebuildPreviewMesh(cfg) {
-            if (previewAvatarMesh) previewScene.remove(previewAvatarMesh);
-            previewAvatarMesh = create3DAvatarModel(cfg);
+            if (previewAvatarMesh) {
+                disposeThreeObject(previewAvatarMesh);
+                previewScene.remove(previewAvatarMesh);
+                previewAvatarMesh = null;
+            }
+            previewAvatarMesh = create3DAvatarModel(cfg, (loadedMesh) => {
+                if (loadedMesh) {
+                    loadedMesh.position.set(0, 0, 0);
+                }
+            });
             previewAvatarMesh.position.set(0, 0, 0);
             previewScene.add(previewAvatarMesh);
         }
@@ -3735,6 +4032,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             updateAvatarAnimation(previewAvatarMesh, false, delta);
 
+            if (previewAvatarMesh && previewAvatarMesh.userData && previewAvatarMesh.userData.mixer) {
+                previewAvatarMesh.userData.mixer.update(delta);
+            }
+
             previewRenderer.render(previewScene, previewCamera);
         }
 
@@ -3744,6 +4045,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentConfig = Object.assign({
             avatar_type: 'human',
             pet_species: 'dog',
+            glb_id: '',
+            glb_url: '',
+            scale: 1.0,
+            offset_y: 0.0,
+            anim_idle: '',
+            anim_walk: '',
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
@@ -3773,25 +4080,88 @@ document.addEventListener('DOMContentLoaded', () => {
         const typePetBtn = document.getElementById('bp-type-btn-pet');
         const humanControls = document.getElementById('bp-controls-human');
         const petControls = document.getElementById('bp-controls-pet');
+        const humanCustomOptions = document.getElementById('bp-human-custom-options');
+        const petCustomOptions = document.getElementById('bp-pet-custom-options');
 
-        function toggleCategoryUI(type) {
-            currentConfig.avatar_type = type;
-            if (type === 'pet') {
+        function toggleMainCategory(category) {
+            if (category === 'pet') {
                 if (typeHumanBtn) { typeHumanBtn.classList.remove('bp-arcade-btn-yellow'); typeHumanBtn.classList.add('bp-arcade-btn-green'); }
                 if (typePetBtn) { typePetBtn.classList.remove('bp-arcade-btn-green'); typePetBtn.classList.add('bp-arcade-btn-yellow'); }
                 if (humanControls) humanControls.style.display = 'none';
                 if (petControls) petControls.style.display = 'block';
+
+                const activePetCard = petControls.querySelector('.bp-model-card.active');
+                if (!activePetCard) {
+                    const firstPetCard = petControls.querySelector('.bp-model-card');
+                    if (firstPetCard) firstPetCard.click();
+                }
             } else {
-                if (typeHumanBtn) { typeHumanBtn.classList.remove('bp-arcade-btn-green'); typeHumanBtn.classList.add('bp-arcade-btn-yellow'); }
                 if (typePetBtn) { typePetBtn.classList.remove('bp-arcade-btn-yellow'); typePetBtn.classList.add('bp-arcade-btn-green'); }
-                if (humanControls) humanControls.style.display = 'block';
+                if (typeHumanBtn) { typeHumanBtn.classList.remove('bp-arcade-btn-green'); typeHumanBtn.classList.add('bp-arcade-btn-yellow'); }
                 if (petControls) petControls.style.display = 'none';
+                if (humanControls) humanControls.style.display = 'block';
+
+                const activeHumanCard = humanControls.querySelector('.bp-model-card.active');
+                if (!activeHumanCard) {
+                    const firstHumanCard = humanControls.querySelector('.bp-model-card');
+                    if (firstHumanCard) firstHumanCard.click();
+                }
             }
-            rebuildPreviewMesh(currentConfig);
         }
 
-        if (typeHumanBtn) typeHumanBtn.addEventListener('click', () => toggleCategoryUI('human'));
-        if (typePetBtn) typePetBtn.addEventListener('click', () => toggleCategoryUI('pet'));
+        if (typeHumanBtn) typeHumanBtn.addEventListener('click', () => toggleMainCategory('human'));
+        if (typePetBtn) typePetBtn.addEventListener('click', () => toggleMainCategory('pet'));
+
+        // Model Cards Listener
+        const modelCards = document.querySelectorAll('.bp-model-card');
+        modelCards.forEach(card => {
+            card.addEventListener('click', () => {
+                const category = card.dataset.modelCategory;
+                const container = (category === 'pet') ? petControls : humanControls;
+                container.querySelectorAll('.bp-model-card').forEach(c => {
+                    c.classList.remove('active');
+                    const badge = c.querySelector('.bp-glb-badge');
+                    if (badge) badge.remove();
+                });
+                card.classList.add('active');
+                if (!card.querySelector('.bp-glb-badge')) {
+                    const badge = document.createElement('div');
+                    badge.className = 'bp-glb-badge';
+                    badge.textContent = '⚡ SELECCIONADO';
+                    card.appendChild(badge);
+                }
+
+                const modelType = card.dataset.modelType;
+                if (modelType === 'classic-human') {
+                    currentConfig.avatar_type = 'human';
+                    currentConfig.glb_id      = '';
+                    currentConfig.glb_url     = '';
+                    currentConfig.anim_idle   = '';
+                    currentConfig.anim_walk   = '';
+                    if (humanCustomOptions) humanCustomOptions.style.display = 'block';
+                } else if (modelType === 'classic-pet') {
+                    currentConfig.avatar_type = 'pet';
+                    currentConfig.glb_id      = '';
+                    currentConfig.glb_url     = '';
+                    currentConfig.anim_idle   = '';
+                    currentConfig.anim_walk   = '';
+                    if (petCustomOptions) petCustomOptions.style.display = 'block';
+                } else if (modelType === 'glb') {
+                    currentConfig.avatar_type = 'glb';
+                    currentConfig.glb_id      = card.dataset.id;
+                    currentConfig.glb_url     = card.dataset.url;
+                    currentConfig.scale       = parseFloat(card.dataset.scale || '1.0');
+                    currentConfig.offset_y    = parseFloat(card.dataset.offsetY || '0.0');
+                    currentConfig.anim_idle   = card.dataset.animIdle || '';
+                    currentConfig.anim_walk   = card.dataset.animWalk || '';
+
+                    if (category === 'human' && humanCustomOptions) humanCustomOptions.style.display = 'none';
+                    if (category === 'pet' && petCustomOptions) petCustomOptions.style.display = 'none';
+                }
+
+                rebuildPreviewMesh(currentConfig);
+            });
+        });
 
         // Species Selector
         const speciesSelect = document.getElementById('bp-select-pet-species');
@@ -3857,6 +4227,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('action', 'bp_ajax_save_avatar');
                 formData.append('avatar_type', currentConfig.avatar_type || 'human');
                 formData.append('pet_species', currentConfig.pet_species || 'dog');
+                formData.append('glb_id', currentConfig.glb_id || '');
+                formData.append('glb_url', currentConfig.glb_url || '');
+                formData.append('scale', currentConfig.scale || 1.0);
+                formData.append('offset_y', currentConfig.offset_y || 0.0);
+                formData.append('anim_idle', currentConfig.anim_idle || '');
+                formData.append('anim_walk', currentConfig.anim_walk || '');
                 formData.append('skin', currentConfig.skin);
                 formData.append('shirt', currentConfig.shirt);
                 formData.append('pants', currentConfig.pants);
@@ -3933,6 +4309,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const avatar = Object.assign({
             avatar_type: 'human',
             pet_species: 'dog',
+            glb_id: '',
+            glb_url: '',
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
@@ -3942,19 +4320,30 @@ document.addEventListener('DOMContentLoaded', () => {
             incognito: 0
         }, settings.avatar || {});
 
-        const isPet = (avatar.avatar_type === 'pet');
+        const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
+
+        // Determinar si el avatar actual configurado pertenece a Mascota o Tutor
+        const currentGlbItem = glbList.find(g => (avatar.glb_id && g.id === avatar.glb_id) || (avatar.glb_url && g.file_url === avatar.glb_url));
+        const isPetMode = (avatar.avatar_type === 'pet' || (avatar.avatar_type === 'glb' && currentGlbItem && currentGlbItem.category === 'pet'));
+
+        const humanGlbList = glbList.filter(g => g.category !== 'pet');
+        const petGlbList = glbList.filter(g => g.category === 'pet');
+
+        const isClassicHumanSelected = (avatar.avatar_type === 'human' || (!avatar.glb_id && !avatar.glb_url && !isPetMode));
+        const isClassicPetSelected = (avatar.avatar_type === 'pet' && !avatar.glb_id && !avatar.glb_url);
 
         arcadeContent.innerHTML = `
+            ${renderArcadeTabsHeader('avatar')}
 
-            <div class="bp-arcade-form-box" style="border-color:#34d399;">
-                <h4 style="color:#34d399;">🧸 PERSONALIZADOR DE AVATAR 3D DEL BOSQUE</h4>
+            <div class="bp-arcade-form-box" style="border-color:#34d399; background:rgba(18, 42, 31, 0.9);">
+                <h4 style="color:#ffd600; font-family:'Press Start 2P', monospace; font-size:12px;">🧸 CONFIGURADOR DE AVATAR 3D</h4>
 
                 <!-- CATEGORY SELECTION: TUTOR VS MASCOTA -->
-                <div style="display:flex; gap:12px; margin-bottom:20px; background:rgba(0,0,0,0.3); padding:10px; border-radius:8px;">
-                    <button id="bp-type-btn-human" class="bp-arcade-btn ${!isPet ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:11px; padding:12px;">
+                <div style="display:flex; gap:10px; margin-bottom:20px; background:rgba(0,0,0,0.4); padding:10px; border-radius:8px; flex-wrap:wrap;">
+                    <button id="bp-type-btn-human" class="bp-arcade-btn ${!isPetMode ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; min-width:130px; font-size:10px; padding:12px;">
                         👤 TUTOR (HUMANO)
                     </button>
-                    <button id="bp-type-btn-pet" class="bp-arcade-btn ${isPet ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:11px; padding:12px;">
+                    <button id="bp-type-btn-pet" class="bp-arcade-btn ${isPetMode ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; min-width:130px; font-size:10px; padding:12px;">
                         🐾 MASCOTA (ANIMAL)
                     </button>
                 </div>
@@ -3964,89 +4353,139 @@ document.addEventListener('DOMContentLoaded', () => {
                     <!-- CONTROLES RETRO DE TUNEO -->
                     <div>
                         <!-- HUMAN CUSTOMIZATION CONTROLS -->
-                        <div id="bp-controls-human" style="display:${!isPet ? 'block' : 'none'};">
-                            <!-- SKIN COLOR -->
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
-                                    ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
-                                    `).join('')}
+                        <div id="bp-controls-human" style="display:${!isPetMode ? 'block' : 'none'};">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">SELECCIONA EL MODELO DE TUTOR:</label>
+                            <div class="bp-glb-grid" style="margin-bottom:18px;">
+                                <!-- Classic Procedural Human Card -->
+                                <div class="bp-glb-card bp-model-card ${isClassicHumanSelected ? 'active' : ''}" data-model-category="human" data-model-type="classic-human">
+                                    <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍</div>
+                                    <div class="bp-glb-title">Tutor Clásico Personalizable</div>
+                                    ${isClassicHumanSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
                                 </div>
+                                <!-- GLB Human Models -->
+                                ${humanGlbList.map(item => {
+                                    const isSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id === item.id || avatar.glb_url === item.file_url));
+                                    const thumb = item.icon_url || '';
+                                    return `
+                                        <div class="bp-glb-card bp-model-card ${isSelected ? 'active' : ''}" data-model-category="human" data-model-type="glb" data-id="${item.id}" data-url="${item.file_url}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}" data-anim-idle="${item.anim_idle || ''}" data-anim-walk="${item.anim_walk || ''}">
+                                            ${thumb ? `<img src="${thumb}" class="bp-glb-thumb" />` : `<div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:24px;">📦</div>`}
+                                            <div class="bp-glb-title">${item.title}</div>
+                                            ${isSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
 
-                            <!-- SHIRT COLOR -->
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
-                                    ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
-                                    `).join('')}
+                            <!-- HUMAN PROCEDURAL CUSTOMIZATION (SOLO SI EL TUTOR CLÁSICO ESTÁ ACTIVO) -->
+                            <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
+                                <!-- SKIN COLOR -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
+                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
+                                        ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
+                                            <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
+                                        `).join('')}
+                                    </div>
                                 </div>
-                            </div>
 
-                            <!-- PANTS COLOR -->
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
-                                    ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#ffd600' : '#000000'};"></div>
-                                    `).join('')}
+                                <!-- SHIRT COLOR -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
+                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
+                                        ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
+                                            <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
+                                        `).join('')}
+                                    </div>
                                 </div>
-                            </div>
 
-                            <!-- HAIR STYLE -->
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
-                                <select id="bp-select-hair-style" class="bp-arcade-input">
-                                    <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico del Bosque</option>
-                                    <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky 90s</option>
-                                    <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra Rápida</option>
-                                    <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona Real</option>
-                                    <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero Elegante</option>
-                                </select>
-                            </div>
+                                <!-- PANTS COLOR -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN</label>
+                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
+                                        ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
+                                            <div class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#ffd600' : '#000000'};"></div>
+                                        `).join('')}
+                                    </div>
+                                </div>
 
-                            <!-- HAIR COLOR -->
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
-                                    ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
-                                    `).join('')}
+                                <!-- HAIR STYLE -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
+                                    <select id="bp-select-hair-style" class="bp-arcade-input">
+                                        <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico del Bosque</option>
+                                        <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky 90s</option>
+                                        <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra Rápida</option>
+                                        <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona Real</option>
+                                        <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero Elegante</option>
+                                    </select>
+                                </div>
+
+                                <!-- HAIR COLOR -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO</label>
+                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
+                                        ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
+                                            <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
+                                        `).join('')}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- PET CUSTOMIZATION CONTROLS -->
-                        <div id="bp-controls-pet" style="display:${isPet ? 'block' : 'none'};">
-                            <!-- ANIMAL SPECIES -->
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. ESPECIE DE ANIMAL</label>
-                                <select id="bp-select-pet-species" class="bp-arcade-input">
-                                    <option value="dog" ${avatar.pet_species === 'dog' ? 'selected' : ''}>🐶 Perro Fiel</option>
-                                    <option value="cat" ${avatar.pet_species === 'cat' ? 'selected' : ''}>🐱 Gato Místico</option>
-                                    <option value="rabbit" ${avatar.pet_species === 'rabbit' ? 'selected' : ''}>🐰 Conejo del Bosque</option>
-                                </select>
-                            </div>
-
-                            <!-- FUR COLOR -->
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE PELAJE</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-fur">
-                                    ${['#d97706', '#334155', '#f8fafc', '#b45309', '#1e293b', '#eab308', '#ec4899'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
-                                    `).join('')}
+                        <div id="bp-controls-pet" style="display:${isPetMode ? 'block' : 'none'};">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">SELECCIONA EL MODELO DE MASCOTA:</label>
+                            <div class="bp-glb-grid" style="margin-bottom:18px;">
+                                <!-- Classic Procedural Pet Card -->
+                                <div class="bp-glb-card bp-model-card ${isClassicPetSelected ? 'active' : ''}" data-model-category="pet" data-model-type="classic-pet">
+                                    <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🐾</div>
+                                    <div class="bp-glb-title">Mascota Clásica Personalizable</div>
+                                    ${isClassicPetSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
                                 </div>
+                                <!-- GLB Pet Models -->
+                                ${petGlbList.map(item => {
+                                    const isSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id === item.id || avatar.glb_url === item.file_url));
+                                    const thumb = item.icon_url || '';
+                                    return `
+                                        <div class="bp-glb-card bp-model-card ${isSelected ? 'active' : ''}" data-model-category="pet" data-model-type="glb" data-id="${item.id}" data-url="${item.file_url}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}" data-anim-idle="${item.anim_idle || ''}" data-anim-walk="${item.anim_walk || ''}">
+                                            ${thumb ? `<img src="${thumb}" class="bp-glb-thumb" />` : `<div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:24px;">📦</div>`}
+                                            <div class="bp-glb-title">${item.title}</div>
+                                            ${isSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
 
-                            <!-- COLLAR / ACCENT COLOR -->
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE COLLAR / DETALLE</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-collar">
-                                    ${['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
-                                    `).join('')}
+                            <!-- PET PROCEDURAL CUSTOMIZATION (SOLO SI LA MASCOTA CLÁSICA ESTÁ ACTIVA) -->
+                            <div id="bp-pet-custom-options" style="display:${isClassicPetSelected ? 'block' : 'none'};">
+                                <!-- ANIMAL SPECIES -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. ESPECIE DE ANIMAL</label>
+                                    <select id="bp-select-pet-species" class="bp-arcade-input">
+                                        <option value="dog" ${avatar.pet_species === 'dog' ? 'selected' : ''}>🐶 Perro Fiel</option>
+                                        <option value="cat" ${avatar.pet_species === 'cat' ? 'selected' : ''}>🐱 Gato Místico</option>
+                                        <option value="rabbit" ${avatar.pet_species === 'rabbit' ? 'selected' : ''}>🐰 Conejo del Bosque</option>
+                                    </select>
+                                </div>
+
+                                <!-- FUR COLOR -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE PELAJE</label>
+                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-fur">
+                                        ${['#d97706', '#334155', '#f8fafc', '#b45309', '#1e293b', '#eab308', '#ec4899'].map(c => `
+                                            <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+
+                                <!-- COLLAR / ACCENT COLOR -->
+                                <div style="margin-bottom:16px;">
+                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE COLLAR / DETALLE</label>
+                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-collar">
+                                        ${['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'].map(c => `
+                                            <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
+                                        `).join('')}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -5243,6 +5682,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const delta = clock.getDelta();
         const elapsedTime = clock.getElapsedTime();
+
+        // Update active AnimationMixers for GLB 3D models
+        for (let i = activeAnimMixers.length - 1; i >= 0; i--) {
+            const mixer = activeAnimMixers[i];
+            if (mixer && mixer.getRoot()) {
+                mixer.update(delta);
+            } else {
+                activeAnimMixers.splice(i, 1);
+            }
+        }
 
         // Animate flickering candle lights and flames
         animatedCandles.forEach(c => {

@@ -19,6 +19,7 @@ define('BP_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once BP_PLUGIN_DIR . 'includes/class-cpt.php';
 require_once BP_PLUGIN_DIR . 'includes/class-settings.php';
 require_once BP_PLUGIN_DIR . 'includes/class-admin-mascotas.php';
+require_once BP_PLUGIN_DIR . 'includes/class-admin-glb.php';
 require_once BP_PLUGIN_DIR . 'includes/class-auth.php';
 require_once BP_PLUGIN_DIR . 'includes/class-profile.php';
 
@@ -39,6 +40,9 @@ class BosquePatitas {
         // Cargar OrbitControls de Three.js
         wp_register_script('three-orbitcontrols', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', array('threejs'), '128', true);
 
+        // Cargar GLTFLoader de Three.js
+        wp_register_script('three-gltfloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js', array('threejs'), '128', true);
+
         // Cargar Pusher JS SDK desde CDN
         wp_register_script('pusher-js', 'https://js.pusher.com/8.2.0/pusher.min.js', array(), '8.2.0', true);
 
@@ -46,7 +50,7 @@ class BosquePatitas {
         wp_register_script(
             'bp-main-3d',
             BP_PLUGIN_URL . 'assets/js/main-3d.js',
-            array('threejs', 'three-orbitcontrols', 'pusher-js'),
+            array('threejs', 'three-orbitcontrols', 'three-gltfloader', 'pusher-js'),
             '1.0.0',
             true
         );
@@ -86,13 +90,17 @@ class BosquePatitas {
 
         $approved_pets = array();
         $avatar_config = array(
-            'skin'       => '#ffe0bd',
-            'shirt'      => '#10b981',
-            'pants'      => '#1e3a8a',
-            'hair_style' => 'classic',
-            'hair_color' => '#3b2314',
-            'accessory'  => 'none',
-            'incognito'  => 0
+            'avatar_type' => 'human',
+            'pet_species' => 'dog',
+            'glb_id'      => '',
+            'glb_url'     => '',
+            'skin'        => '#ffe0bd',
+            'shirt'       => '#10b981',
+            'pants'       => '#1e3a8a',
+            'hair_style'  => 'classic',
+            'hair_color'  => '#3b2314',
+            'accessory'   => 'none',
+            'incognito'   => 0
         );
 
         if ($is_logged_in) {
@@ -131,6 +139,17 @@ class BosquePatitas {
         $pusher_cluster      = get_option('bp_pusher_cluster', 'eu');
         $show_version_badge  = (get_option('bp_show_version_badge', '1') === '1');
 
+        // Retrieve Active GLB Avatars
+        $all_glb = get_option('bp_glb_avatars_list', array());
+        $active_glb = array();
+        if (is_array($all_glb)) {
+            foreach ($all_glb as $g) {
+                if (!empty($g['active']) && !empty($g['file_url'])) {
+                    $active_glb[] = $g;
+                }
+            }
+        }
+
         // Version & revision info
         $version    = '1.0.1';
         $revision   = 'Rev 2026.10.29-0850';
@@ -149,6 +168,7 @@ class BosquePatitas {
             'profileUrl'       => esc_url($profile_url),
             'approvedPets'     => $approved_pets,
             'avatar'           => $avatar_config,
+            'glbAvatars'       => $active_glb,
             'pusherKey'        => esc_attr($pusher_key),
             'pusherCluster'    => esc_attr($pusher_cluster),
             'showVersionBadge' => $show_version_badge,
