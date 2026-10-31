@@ -44,6 +44,8 @@ class BP_Admin_GLB {
     public function enqueue_admin_assets($hook) {
         if (strpos($hook, 'bp-glb-avatars') !== false) {
             wp_enqueue_media();
+            wp_enqueue_script('three-js', 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', array(), 'r128', true);
+            wp_enqueue_script('three-gltfloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js', array('three-js'), 'r128', true);
         }
     }
 
@@ -70,19 +72,23 @@ class BP_Admin_GLB {
         $icon_url   = isset($_POST['icon_url']) ? esc_url_raw($_POST['icon_url']) : '';
         $scale      = isset($_POST['scale']) ? floatval($_POST['scale']) : 1.0;
         $offset_y   = isset($_POST['offset_y']) ? floatval($_POST['offset_y']) : 0.0;
+        $anim_idle  = isset($_POST['anim_idle']) ? sanitize_text_field($_POST['anim_idle']) : '';
+        $anim_walk  = isset($_POST['anim_walk']) ? sanitize_text_field($_POST['anim_walk']) : '';
         $active     = isset($_POST['active']) ? 1 : 0;
 
         $avatars = $this->get_avatars();
 
         $avatars[$avatar_id] = array(
-            'id'       => $avatar_id,
-            'title'    => $title,
-            'category' => $category,
-            'file_url' => $file_url,
-            'icon_url' => $icon_url,
-            'scale'    => $scale > 0 ? $scale : 1.0,
-            'offset_y' => $offset_y,
-            'active'   => $active
+            'id'        => $avatar_id,
+            'title'     => $title,
+            'category'  => $category,
+            'file_url'  => $file_url,
+            'icon_url'  => $icon_url,
+            'scale'     => $scale > 0 ? $scale : 1.0,
+            'offset_y'  => $offset_y,
+            'anim_idle' => $anim_idle,
+            'anim_walk' => $anim_walk,
+            'active'    => $active
         );
 
         update_option('bp_glb_avatars_list', $avatars);
@@ -182,6 +188,34 @@ class BP_Admin_GLB {
                             </p>
                         </div>
 
+                        <!-- ANIMATION SELECTION (IDLE & WALK) -->
+                        <div style="background:#f0fdf4; border:1px solid #86efac; padding:12px; border-radius:6px; margin-bottom:15px;">
+                            <h3 style="margin-top:0; font-size:13px; color:#166534;">🎬 Configuración de Animaciones GLB</h3>
+                            <div id="glb-anim-status" style="margin-bottom:10px; font-size:12px; color:#15803d; font-weight:600; display:none;"></div>
+
+                            <p style="margin-bottom:10px;">
+                                <label for="anim_idle"><strong>Animación para Estar Quieto (Idle):</strong></label><br>
+                                <select id="anim_idle" name="anim_idle" class="widefat" data-current="<?php echo esc_attr($editing_avatar['anim_idle'] ?? ''); ?>">
+                                    <option value="">-- Cargar archivo GLB para leer animaciones --</option>
+                                    <?php if (!empty($editing_avatar['anim_idle'])): ?>
+                                        <option value="<?php echo esc_attr($editing_avatar['anim_idle']); ?>" selected><?php echo esc_html($editing_avatar['anim_idle']); ?></option>
+                                    <?php endif; ?>
+                                </select>
+                                <small class="description">Se ejecutará cuando el avatar esté detenido o reposando.</small>
+                            </p>
+
+                            <p style="margin-bottom:0;">
+                                <label for="anim_walk"><strong>Animación para Andar (Walk / Run):</strong></label><br>
+                                <select id="anim_walk" name="anim_walk" class="widefat" data-current="<?php echo esc_attr($editing_avatar['anim_walk'] ?? ''); ?>">
+                                    <option value="">-- Cargar archivo GLB para leer animaciones --</option>
+                                    <?php if (!empty($editing_avatar['anim_walk'])): ?>
+                                        <option value="<?php echo esc_attr($editing_avatar['anim_walk']); ?>" selected><?php echo esc_html($editing_avatar['anim_walk']); ?></option>
+                                    <?php endif; ?>
+                                </select>
+                                <small class="description">Se ejecutará cuando el avatar se desplace por el bosque.</small>
+                            </p>
+                        </div>
+
                         <p>
                             <label>
                                 <input type="checkbox" name="active" value="1" <?php checked($editing_avatar['active'] ?? 1, 1); ?>>
@@ -260,7 +294,68 @@ class BP_Admin_GLB {
 
         <script>
         document.addEventListener('DOMContentLoaded', function() {
-            function setupMediaUploader(btnId, inputId, mimeType) {
+            var fileInput = document.getElementById('file_url');
+            var statusEl = document.getElementById('glb-anim-status');
+            var idleSelect = document.getElementById('anim_idle');
+            var walkSelect = document.getElementById('anim_walk');
+
+            function inspectGlbAnimations(url) {
+                if (!url) return;
+                if (typeof THREE === 'undefined' || typeof THREE.GLTFLoader === 'undefined') {
+                    if (statusEl) {
+                        statusEl.style.display = 'block';
+                        statusEl.textContent = '⏳ Cargando Three.js GLTFLoader...';
+                    }
+                    setTimeout(function() { inspectGlbAnimations(url); }, 500);
+                    return;
+                }
+
+                if (statusEl) {
+                    statusEl.style.display = 'block';
+                    statusEl.textContent = '⏳ Leyendo animaciones del archivo GLB...';
+                }
+
+                var loader = new THREE.GLTFLoader();
+                loader.load(url, function(gltf) {
+                    var anims = gltf.animations || [];
+                    if (statusEl) {
+                        statusEl.textContent = '✅ ' + anims.length + ' animación(es) detectada(s): ' + (anims.map(function(a){ return a.name; }).join(', ') || 'Ninguna');
+                    }
+
+                    if (idleSelect && walkSelect) {
+                        var currentIdle = idleSelect.getAttribute('data-current') || idleSelect.value;
+                        var currentWalk = walkSelect.getAttribute('data-current') || walkSelect.value;
+
+                        idleSelect.innerHTML = '<option value="">-- Ninguna / Estático --</option>';
+                        walkSelect.innerHTML = '<option value="">-- Ninguna / Estático --</option>';
+
+                        anims.forEach(function(anim) {
+                            var optIdle = document.createElement('option');
+                            optIdle.value = anim.name;
+                            optIdle.textContent = anim.name;
+                            if (anim.name === currentIdle || (!currentIdle && anim.name.toLowerCase().includes('idle'))) {
+                                optIdle.selected = true;
+                            }
+                            idleSelect.appendChild(optIdle);
+
+                            var optWalk = document.createElement('option');
+                            optWalk.value = anim.name;
+                            optWalk.textContent = anim.name;
+                            if (anim.name === currentWalk || (!currentWalk && anim.name.toLowerCase().includes('walk'))) {
+                                optWalk.selected = true;
+                            }
+                            walkSelect.appendChild(optWalk);
+                        });
+                    }
+                }, undefined, function(err) {
+                    if (statusEl) {
+                        statusEl.style.display = 'block';
+                        statusEl.textContent = '⚠️ No se pudieron leer las animaciones automáticamente.';
+                    }
+                });
+            }
+
+            function setupMediaUploader(btnId, inputId) {
                 var btn = document.getElementById(btnId);
                 var input = document.getElementById(inputId);
                 if (!btn || !input) return;
@@ -276,6 +371,9 @@ class BP_Admin_GLB {
                     frame.on('select', function() {
                         var attachment = frame.state().get('selection').first().toJSON();
                         input.value = attachment.url;
+                        if (inputId === 'file_url') {
+                            inspectGlbAnimations(attachment.url);
+                        }
                     });
 
                     frame.open();
@@ -284,6 +382,15 @@ class BP_Admin_GLB {
 
             setupMediaUploader('btn_upload_glb', 'file_url');
             setupMediaUploader('btn_upload_icon', 'icon_url');
+
+            if (fileInput) {
+                fileInput.addEventListener('change', function() {
+                    inspectGlbAnimations(fileInput.value.trim());
+                });
+                if (fileInput.value.trim()) {
+                    inspectGlbAnimations(fileInput.value.trim());
+                }
+            }
         });
         </script>
         <?php

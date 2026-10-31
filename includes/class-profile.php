@@ -119,6 +119,10 @@ class BP_Profile {
         $pet_species = isset($_POST['pet_species']) ? sanitize_text_field($_POST['pet_species']) : 'dog';
         $glb_id      = isset($_POST['glb_id']) ? sanitize_text_field($_POST['glb_id']) : '';
         $glb_url     = isset($_POST['glb_url']) ? esc_url_raw($_POST['glb_url']) : '';
+        $scale       = isset($_POST['scale']) ? floatval($_POST['scale']) : 1.0;
+        $offset_y    = isset($_POST['offset_y']) ? floatval($_POST['offset_y']) : 0.0;
+        $anim_idle   = isset($_POST['anim_idle']) ? sanitize_text_field($_POST['anim_idle']) : '';
+        $anim_walk   = isset($_POST['anim_walk']) ? sanitize_text_field($_POST['anim_walk']) : '';
         $skin        = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
         $shirt       = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
         $pants       = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
@@ -132,6 +136,10 @@ class BP_Profile {
             'pet_species' => $pet_species,
             'glb_id'      => $glb_id,
             'glb_url'     => $glb_url,
+            'scale'       => $scale,
+            'offset_y'    => $offset_y,
+            'anim_idle'   => $anim_idle,
+            'anim_walk'   => $anim_walk,
             'skin'        => $skin,
             'shirt'       => $shirt,
             'pants'       => $pants,
@@ -155,6 +163,10 @@ class BP_Profile {
             'pet_species' => 'dog',
             'glb_id'      => '',
             'glb_url'     => '',
+            'scale'       => 1.0,
+            'offset_y'    => 0.0,
+            'anim_idle'   => '',
+            'anim_walk'   => '',
             'skin'        => '#ffe0bd',
             'shirt'       => '#10b981',
             'pants'       => '#1e3a8a',
