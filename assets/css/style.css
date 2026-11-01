@@ -517,15 +517,78 @@ kbd {
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    background: radial-gradient(circle at center, #0e1e17 0%, #050b08 100%) !important;
+    background: radial-gradient(circle at top center, #184332 0%, #0e271d 60%, #081711 100%) !important;
     z-index: 200000 !important;
     display: flex !important;
     flex-direction: column !important;
     padding: 20px !important;
     box-sizing: border-box !important;
-    color: #a7f3d0 !important;
+    color: #d1fae5 !important;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
     overflow-y: auto !important;
+}
+
+/* GLB Avatar Card Grid Styles */
+.bp-glb-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    gap: 12px !important;
+    margin-top: 10px !important;
+    margin-bottom: 20px !important;
+}
+
+.bp-glb-card {
+    background: rgba(15, 35, 26, 0.85) !important;
+    border: 2px solid #10b981 !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
+    text-align: center !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.bp-glb-card:hover {
+    border-color: #ffd600 !important;
+    background: rgba(25, 55, 40, 0.95) !important;
+    transform: translateY(-3px) !important;
+    box-shadow: 0 6px 16px rgba(255, 214, 0, 0.25) !important;
+}
+
+.bp-glb-card.active {
+    border-color: #ffd600 !important;
+    border-width: 3px !important;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(255, 214, 0, 0.2) 100%) !important;
+    box-shadow: 0 0 15px rgba(255, 214, 0, 0.4) !important;
+}
+
+.bp-glb-thumb {
+    width: 56px !important;
+    height: 56px !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+    border: 1px solid #34d399 !important;
+    margin-bottom: 8px !important;
+    background: #0f172a !important;
+}
+
+.bp-glb-title {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    margin-bottom: 4px !important;
+    line-height: 1.2 !important;
+}
+
+.bp-glb-badge {
+    font-size: 9px !important;
+    color: #ffd600 !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
 }
 
 /* CRT Scanline Scan effect */
