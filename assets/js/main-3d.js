@@ -1014,6 +1014,31 @@ document.addEventListener('DOMContentLoaded', () => {
         function applyGLBScene(gltfData) {
             const model = cloneGltfScene(gltfData.scene);
 
+            // Obtener metadata del avatar GLB si está registrado en BP_Settings
+            const glbList = (window.BP_Settings && Array.isArray(window.BP_Settings.glbAvatars)) ? window.BP_Settings.glbAvatars : [];
+            const glbMeta = glbList.find(g => (config.glb_id && g.id === config.glb_id) || (config.glb_url && g.file_url === config.glb_url)) || {};
+            const allowColors = glbMeta.allow_colors !== undefined ? (glbMeta.allow_colors == 1 || glbMeta.allow_colors === true) : true;
+
+            const isPetModel = (glbMeta.category === 'pet') || (config.avatar_type === 'pet');
+            const targetSkin = (isPetModel ? (config.fur || config.skin) : config.skin) || config.skin || config.fur || '';
+            const targetShirt = (isPetModel ? (config.collar || config.shirt) : config.shirt) || config.shirt || config.collar || '';
+            const targetPants = config.pants || '';
+            const targetHair = config.hair_color || '';
+
+            // Helper para aplicar color a un material de forma segura
+            function tintMaterial(mat, hexColor) {
+                if (!mat || !hexColor) return;
+                try {
+                    const c = new THREE.Color(hexColor);
+                    if (mat.color) {
+                        mat.color.copy(c);
+                    }
+                    mat.needsUpdate = true;
+                } catch (e) {
+                    console.warn('Error al tintar material:', e);
+                }
+            }
+
             model.traverse(child => {
                 if (child.isMesh || child.isSkinnedMesh) {
                     child.castShadow = true;
@@ -1023,6 +1048,49 @@ document.addEventListener('DOMContentLoaded', () => {
                         child.material = Array.isArray(child.material)
                             ? child.material.map(m => m.clone())
                             : child.material.clone();
+                    }
+
+                    if (allowColors) {
+                        const meshName = (child.name || '').toLowerCase();
+                        const materials = Array.isArray(child.material) ? child.material : [child.material];
+
+                        materials.forEach(mat => {
+                            if (!mat) return;
+                            const matName = (mat.name || '').toLowerCase();
+
+                            // 1. Verificación por configuración explícita guardada en admin
+                            let handled = false;
+                            if (glbMeta.mat_skin && (matName === glbMeta.mat_skin.toLowerCase() || meshName === glbMeta.mat_skin.toLowerCase() || 'mesh:' + meshName === glbMeta.mat_skin.toLowerCase())) {
+                                if (targetSkin) tintMaterial(mat, targetSkin);
+                                handled = true;
+                            }
+                            if (glbMeta.mat_shirt && (matName === glbMeta.mat_shirt.toLowerCase() || meshName === glbMeta.mat_shirt.toLowerCase() || 'mesh:' + meshName === glbMeta.mat_shirt.toLowerCase())) {
+                                if (targetShirt) tintMaterial(mat, targetShirt);
+                                handled = true;
+                            }
+                            if (glbMeta.mat_pants && (matName === glbMeta.mat_pants.toLowerCase() || meshName === glbMeta.mat_pants.toLowerCase() || 'mesh:' + meshName === glbMeta.mat_pants.toLowerCase())) {
+                                if (targetPants) tintMaterial(mat, targetPants);
+                                handled = true;
+                            }
+                            if (glbMeta.mat_hair && (matName === glbMeta.mat_hair.toLowerCase() || meshName === glbMeta.mat_hair.toLowerCase() || 'mesh:' + meshName === glbMeta.mat_hair.toLowerCase())) {
+                                if (targetHair) tintMaterial(mat, targetHair);
+                                handled = true;
+                            }
+
+                            // 2. Heurística inteligente si no se especificó un mapeo explícito
+                            if (!handled) {
+                                const checkStr = matName + ' ' + meshName;
+                                if (/skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(checkStr)) {
+                                    if (targetSkin) tintMaterial(mat, targetSkin);
+                                } else if (/shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa/i.test(checkStr)) {
+                                    if (targetShirt) tintMaterial(mat, targetShirt);
+                                } else if (/pant|trousers|leg|pierna|bottom|jean|short/i.test(checkStr)) {
+                                    if (targetPants) tintMaterial(mat, targetPants);
+                                } else if (/hair|pelo|cabello/i.test(checkStr)) {
+                                    if (targetHair) tintMaterial(mat, targetHair);
+                                }
+                            }
+                        });
                     }
                 }
             });
@@ -4083,6 +4151,98 @@ document.addEventListener('DOMContentLoaded', () => {
         const humanCustomOptions = document.getElementById('bp-human-custom-options');
         const petCustomOptions = document.getElementById('bp-pet-custom-options');
 
+        // Función para actualizar la visibilidad de controles de personalización de color para el modelo seleccionado
+        function updateCustomizationControlsVisibility(modelType, glbId, glbUrl, category) {
+            const glbList = (window.BP_Settings && Array.isArray(window.BP_Settings.glbAvatars)) ? window.BP_Settings.glbAvatars : [];
+            const glbMeta = glbList.find(g => (glbId && g.id === glbId) || (glbUrl && g.file_url === glbUrl)) || {};
+
+            if (modelType === 'classic-human') {
+                if (humanCustomOptions) {
+                    humanCustomOptions.style.display = 'block';
+                    // Mostrar todos los bloques clásicos
+                    const skinBlock = document.getElementById('bp-block-skin');
+                    const shirtBlock = document.getElementById('bp-block-shirt');
+                    const pantsBlock = document.getElementById('bp-block-pants');
+                    const hairStyleBlock = document.getElementById('bp-block-hair-style');
+                    const hairColorBlock = document.getElementById('bp-block-hair-color');
+                    if (skinBlock) skinBlock.style.display = 'block';
+                    if (shirtBlock) shirtBlock.style.display = 'block';
+                    if (pantsBlock) pantsBlock.style.display = 'block';
+                    if (hairStyleBlock) hairStyleBlock.style.display = 'block';
+                    if (hairColorBlock) hairColorBlock.style.display = 'block';
+                }
+                if (petCustomOptions) petCustomOptions.style.display = 'none';
+            } else if (modelType === 'classic-pet') {
+                if (petCustomOptions) {
+                    petCustomOptions.style.display = 'block';
+                    const speciesBlock = document.getElementById('bp-block-pet-species');
+                    const furBlock = document.getElementById('bp-block-pet-fur');
+                    const collarBlock = document.getElementById('bp-block-pet-collar');
+                    if (speciesBlock) speciesBlock.style.display = 'block';
+                    if (furBlock) furBlock.style.display = 'block';
+                    if (collarBlock) collarBlock.style.display = 'block';
+                }
+                if (humanCustomOptions) humanCustomOptions.style.display = 'none';
+            } else if (modelType === 'glb') {
+                const allowColors = glbMeta.allow_colors !== undefined ? (glbMeta.allow_colors == 1 || glbMeta.allow_colors === true) : true;
+
+                if (!allowColors) {
+                    if (humanCustomOptions) humanCustomOptions.style.display = 'none';
+                    if (petCustomOptions) petCustomOptions.style.display = 'none';
+                    return;
+                }
+
+                // Determinar qué materiales/mallas tiene disponibles
+                let detected = [];
+                try {
+                    if (glbMeta.detected_materials) {
+                        detected = typeof glbMeta.detected_materials === 'string' ? JSON.parse(glbMeta.detected_materials) : glbMeta.detected_materials;
+                    }
+                } catch (e) {
+                    detected = [];
+                }
+                const detectedStr = Array.isArray(detected) ? detected.join(' ').toLowerCase() : '';
+
+                // Canales detectables
+                const hasSkin = !!glbMeta.mat_skin || (!detectedStr || /skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(detectedStr));
+                const hasShirt = !!glbMeta.mat_shirt || (!detectedStr || /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i.test(detectedStr));
+                const hasPants = !!glbMeta.mat_pants || (!detectedStr || /pant|trousers|leg|pierna|bottom|jean|short/i.test(detectedStr));
+                const hasHair = !!glbMeta.mat_hair || (!detectedStr || /hair|pelo|cabello/i.test(detectedStr));
+
+                if (category === 'pet') {
+                    if (humanCustomOptions) humanCustomOptions.style.display = 'none';
+                    if (petCustomOptions) {
+                        const speciesBlock = document.getElementById('bp-block-pet-species');
+                        const furBlock = document.getElementById('bp-block-pet-fur');
+                        const collarBlock = document.getElementById('bp-block-pet-collar');
+
+                        if (speciesBlock) speciesBlock.style.display = 'none'; // Los GLB ya tienen su propia anatomía 3D
+                        if (furBlock) furBlock.style.display = hasSkin ? 'block' : 'none';
+                        if (collarBlock) collarBlock.style.display = hasShirt ? 'block' : 'none';
+
+                        petCustomOptions.style.display = (hasSkin || hasShirt) ? 'block' : 'none';
+                    }
+                } else {
+                    if (petCustomOptions) petCustomOptions.style.display = 'none';
+                    if (humanCustomOptions) {
+                        const skinBlock = document.getElementById('bp-block-skin');
+                        const shirtBlock = document.getElementById('bp-block-shirt');
+                        const pantsBlock = document.getElementById('bp-block-pants');
+                        const hairStyleBlock = document.getElementById('bp-block-hair-style');
+                        const hairColorBlock = document.getElementById('bp-block-hair-color');
+
+                        if (hairStyleBlock) hairStyleBlock.style.display = 'none'; // Peinados procedurales no aplican a mallas GLB
+                        if (skinBlock) skinBlock.style.display = hasSkin ? 'block' : 'none';
+                        if (shirtBlock) shirtBlock.style.display = hasShirt ? 'block' : 'none';
+                        if (pantsBlock) pantsBlock.style.display = hasPants ? 'block' : 'none';
+                        if (hairColorBlock) hairColorBlock.style.display = hasHair ? 'block' : 'none';
+
+                        humanCustomOptions.style.display = (hasSkin || hasShirt || hasPants || hasHair) ? 'block' : 'none';
+                    }
+                }
+            }
+        }
+
         function toggleMainCategory(category) {
             if (category === 'pet') {
                 if (typeHumanBtn) { typeHumanBtn.classList.remove('bp-arcade-btn-yellow'); typeHumanBtn.classList.add('bp-arcade-btn-green'); }
@@ -4138,14 +4298,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentConfig.glb_url     = '';
                     currentConfig.anim_idle   = '';
                     currentConfig.anim_walk   = '';
-                    if (humanCustomOptions) humanCustomOptions.style.display = 'block';
                 } else if (modelType === 'classic-pet') {
                     currentConfig.avatar_type = 'pet';
                     currentConfig.glb_id      = '';
                     currentConfig.glb_url     = '';
                     currentConfig.anim_idle   = '';
                     currentConfig.anim_walk   = '';
-                    if (petCustomOptions) petCustomOptions.style.display = 'block';
                 } else if (modelType === 'glb') {
                     currentConfig.avatar_type = 'glb';
                     currentConfig.glb_id      = card.dataset.id;
@@ -4154,14 +4312,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentConfig.offset_y    = parseFloat(card.dataset.offsetY || '0.0');
                     currentConfig.anim_idle   = card.dataset.animIdle || '';
                     currentConfig.anim_walk   = card.dataset.animWalk || '';
-
-                    if (category === 'human' && humanCustomOptions) humanCustomOptions.style.display = 'none';
-                    if (category === 'pet' && petCustomOptions) petCustomOptions.style.display = 'none';
                 }
 
+                updateCustomizationControlsVisibility(modelType, currentConfig.glb_id, currentConfig.glb_url, category);
                 rebuildPreviewMesh(currentConfig);
             });
         });
+
+        // Aplicar estado inicial de visibilidad de controles según el avatar cargado actualmente
+        const initialSelectedCard = (isPetMode ? petControls : humanControls).querySelector('.bp-model-card.active');
+        if (initialSelectedCard) {
+            updateCustomizationControlsVisibility(
+                initialSelectedCard.dataset.modelType,
+                initialSelectedCard.dataset.id,
+                initialSelectedCard.dataset.url,
+                isPetMode ? 'pet' : 'human'
+            );
+        }
 
         // Species Selector
         const speciesSelect = document.getElementById('bp-select-pet-species');
@@ -4376,10 +4543,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }).join('')}
                             </div>
 
-                            <!-- HUMAN PROCEDURAL CUSTOMIZATION (SOLO SI EL TUTOR CLÁSICO ESTÁ ACTIVO) -->
+                            <!-- HUMAN CUSTOMIZATION OPTIONS (PERSONALIZACIÓN DE PIEL Y ROPA) -->
                             <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
                                 <!-- SKIN COLOR -->
-                                <div style="margin-bottom:16px;">
+                                <div id="bp-block-skin" style="margin-bottom:16px;">
                                     <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
                                     <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
                                         ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
@@ -4389,7 +4556,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
 
                                 <!-- SHIRT COLOR -->
-                                <div style="margin-bottom:16px;">
+                                <div id="bp-block-shirt" style="margin-bottom:16px;">
                                     <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
                                     <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
                                         ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
@@ -4399,7 +4566,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
 
                                 <!-- PANTS COLOR -->
-                                <div style="margin-bottom:16px;">
+                                <div id="bp-block-pants" style="margin-bottom:16px;">
                                     <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN</label>
                                     <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
                                         ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
@@ -4409,7 +4576,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
 
                                 <!-- HAIR STYLE -->
-                                <div style="margin-bottom:16px;">
+                                <div id="bp-block-hair-style" style="margin-bottom:16px;">
                                     <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
                                     <select id="bp-select-hair-style" class="bp-arcade-input">
                                         <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico del Bosque</option>
@@ -4421,7 +4588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
 
                                 <!-- HAIR COLOR -->
-                                <div style="margin-bottom:16px;">
+                                <div id="bp-block-hair-color" style="margin-bottom:16px;">
                                     <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO</label>
                                     <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
                                         ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
@@ -4456,10 +4623,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }).join('')}
                             </div>
 
-                            <!-- PET PROCEDURAL CUSTOMIZATION (SOLO SI LA MASCOTA CLÁSICA ESTÁ ACTIVA) -->
+                            <!-- PET PROCEDURAL CUSTOMIZATION (PERSONALIZACIÓN DE ANIMAL) -->
                             <div id="bp-pet-custom-options" style="display:${isClassicPetSelected ? 'block' : 'none'};">
                                 <!-- ANIMAL SPECIES -->
-                                <div style="margin-bottom:16px;">
+                                <div id="bp-block-pet-species" style="margin-bottom:16px;">
                                     <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. ESPECIE DE ANIMAL</label>
                                     <select id="bp-select-pet-species" class="bp-arcade-input">
                                         <option value="dog" ${avatar.pet_species === 'dog' ? 'selected' : ''}>🐶 Perro Fiel</option>
@@ -4469,7 +4636,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
 
                                 <!-- FUR COLOR -->
-                                <div style="margin-bottom:16px;">
+                                <div id="bp-block-pet-fur" style="margin-bottom:16px;">
                                     <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE PELAJE</label>
                                     <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-fur">
                                         ${['#d97706', '#334155', '#f8fafc', '#b45309', '#1e293b', '#eab308', '#ec4899'].map(c => `
@@ -4479,7 +4646,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
 
                                 <!-- COLLAR / ACCENT COLOR -->
-                                <div style="margin-bottom:16px;">
+                                <div id="bp-block-pet-collar" style="margin-bottom:16px;">
                                     <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE COLLAR / DETALLE</label>
                                     <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-collar">
                                         ${['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'].map(c => `

@@ -76,19 +76,33 @@ class BP_Admin_GLB {
         $anim_walk  = isset($_POST['anim_walk']) ? sanitize_text_field($_POST['anim_walk']) : '';
         $active     = isset($_POST['active']) ? 1 : 0;
 
+        // Customization channels mapping (hybrid mode: auto vs explicit material/mesh names)
+        $allow_colors   = isset($_POST['allow_colors']) ? 1 : 0;
+        $mat_skin       = isset($_POST['mat_skin']) ? sanitize_text_field($_POST['mat_skin']) : '';
+        $mat_shirt      = isset($_POST['mat_shirt']) ? sanitize_text_field($_POST['mat_shirt']) : '';
+        $mat_pants      = isset($_POST['mat_pants']) ? sanitize_text_field($_POST['mat_pants']) : '';
+        $mat_hair       = isset($_POST['mat_hair']) ? sanitize_text_field($_POST['mat_hair']) : '';
+        $detected_mats  = isset($_POST['detected_materials']) ? sanitize_text_field(wp_unslash($_POST['detected_materials'])) : '';
+
         $avatars = $this->get_avatars();
 
         $avatars[$avatar_id] = array(
-            'id'        => $avatar_id,
-            'title'     => $title,
-            'category'  => $category,
-            'file_url'  => $file_url,
-            'icon_url'  => $icon_url,
-            'scale'     => $scale > 0 ? $scale : 1.0,
-            'offset_y'  => $offset_y,
-            'anim_idle' => $anim_idle,
-            'anim_walk' => $anim_walk,
-            'active'    => $active
+            'id'                 => $avatar_id,
+            'title'              => $title,
+            'category'           => $category,
+            'file_url'           => $file_url,
+            'icon_url'           => $icon_url,
+            'scale'              => $scale > 0 ? $scale : 1.0,
+            'offset_y'           => $offset_y,
+            'anim_idle'          => $anim_idle,
+            'anim_walk'          => $anim_walk,
+            'allow_colors'       => $allow_colors,
+            'mat_skin'           => $mat_skin,
+            'mat_shirt'          => $mat_shirt,
+            'mat_pants'          => $mat_pants,
+            'mat_hair'           => $mat_hair,
+            'detected_materials' => $detected_mats,
+            'active'             => $active
         );
 
         update_option('bp_glb_avatars_list', $avatars);
@@ -216,6 +230,67 @@ class BP_Admin_GLB {
                             </p>
                         </div>
 
+                        <!-- COLOR CUSTOMIZATION CONFIGURATION -->
+                        <div style="background:#f0f9ff; border:1px solid #7dd3fc; padding:12px; border-radius:6px; margin-bottom:15px;">
+                            <h3 style="margin-top:0; font-size:13px; color:#0369a1;">🎨 Personalización de Colores (Piel, Ropa, Pelaje)</h3>
+                            <p style="margin-top:0; font-size:12px; color:#475569;">
+                                Permite a los usuarios cambiar los colores de este modelo en el configurador de avatar.
+                            </p>
+
+                            <input type="hidden" id="detected_materials" name="detected_materials" value="<?php echo esc_attr($editing_avatar['detected_materials'] ?? ''); ?>">
+
+                            <p>
+                                <label>
+                                    <input type="checkbox" id="allow_colors" name="allow_colors" value="1" <?php checked($editing_avatar['allow_colors'] ?? 1, 1); ?>>
+                                    <strong>Permitir personalización de colores para este avatar</strong>
+                                </label>
+                            </p>
+
+                            <div id="color_mapping_box" style="margin-top:10px;">
+                                <div id="glb-mat-status" style="margin-bottom:10px; font-size:12px; color:#0284c7; font-weight:600; display:none;"></div>
+
+                                <p style="margin-bottom:8px;">
+                                    <label for="mat_skin"><strong>Piel / Cuerpo / Pelaje:</strong></label><br>
+                                    <select id="mat_skin" name="mat_skin" class="widefat glb-mat-select" data-current="<?php echo esc_attr($editing_avatar['mat_skin'] ?? ''); ?>">
+                                        <option value="">-- Detección Automática (skin/body/piel/fur) --</option>
+                                        <?php if (!empty($editing_avatar['mat_skin'])): ?>
+                                            <option value="<?php echo esc_attr($editing_avatar['mat_skin']); ?>" selected><?php echo esc_html($editing_avatar['mat_skin']); ?></option>
+                                        <?php endif; ?>
+                                    </select>
+                                </p>
+
+                                <p style="margin-bottom:8px;">
+                                    <label for="mat_shirt"><strong>Camiseta / Torso / Ropa Superior:</strong></label><br>
+                                    <select id="mat_shirt" name="mat_shirt" class="widefat glb-mat-select" data-current="<?php echo esc_attr($editing_avatar['mat_shirt'] ?? ''); ?>">
+                                        <option value="">-- Detección Automática (shirt/top/torso/cloth) --</option>
+                                        <?php if (!empty($editing_avatar['mat_shirt'])): ?>
+                                            <option value="<?php echo esc_attr($editing_avatar['mat_shirt']); ?>" selected><?php echo esc_html($editing_avatar['mat_shirt']); ?></option>
+                                        <?php endif; ?>
+                                    </select>
+                                </p>
+
+                                <p style="margin-bottom:8px;">
+                                    <label for="mat_pants"><strong>Pantalón / Piernas / Ropa Inferior:</strong></label><br>
+                                    <select id="mat_pants" name="mat_pants" class="widefat glb-mat-select" data-current="<?php echo esc_attr($editing_avatar['mat_pants'] ?? ''); ?>">
+                                        <option value="">-- Detección Automática (pants/legs/bottom/trouser) --</option>
+                                        <?php if (!empty($editing_avatar['mat_pants'])): ?>
+                                            <option value="<?php echo esc_attr($editing_avatar['mat_pants']); ?>" selected><?php echo esc_html($editing_avatar['mat_pants']); ?></option>
+                                        <?php endif; ?>
+                                    </select>
+                                </p>
+
+                                <p style="margin-bottom:0;">
+                                    <label for="mat_hair"><strong>Pelo / Cabeza / Sombrero (Opcional):</strong></label><br>
+                                    <select id="mat_hair" name="mat_hair" class="widefat glb-mat-select" data-current="<?php echo esc_attr($editing_avatar['mat_hair'] ?? ''); ?>">
+                                        <option value="">-- Detección Automática (hair/pelo/cabello/hat) --</option>
+                                        <?php if (!empty($editing_avatar['mat_hair'])): ?>
+                                            <option value="<?php echo esc_attr($editing_avatar['mat_hair']); ?>" selected><?php echo esc_html($editing_avatar['mat_hair']); ?></option>
+                                        <?php endif; ?>
+                                    </select>
+                                </p>
+                            </div>
+                        </div>
+
                         <p>
                             <label>
                                 <input type="checkbox" name="active" value="1" <?php checked($editing_avatar['active'] ?? 1, 1); ?>>
@@ -247,6 +322,7 @@ class BP_Admin_GLB {
                                     <th>Nombre</th>
                                     <th>Categoría</th>
                                     <th>Escala / Offset</th>
+                                    <th>Colores</th>
                                     <th>Estado</th>
                                     <th>Acciones</th>
                                 </tr>
@@ -276,6 +352,13 @@ class BP_Admin_GLB {
                                             Offset Y: <code><?php echo esc_html($av['offset_y']); ?></code>
                                         </td>
                                         <td>
+                                            <?php if (isset($av['allow_colors']) && empty($av['allow_colors'])): ?>
+                                                <span style="color:#64748b;">🚫 Fijo</span>
+                                            <?php else: ?>
+                                                <span style="color:#0284c7; font-weight:bold;">🎨 Personalizable</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
                                             <?php echo !empty($av['active']) ? '<span style="color:#15803d; font-weight:bold;">🟢 Activo</span>' : '<span style="color:#b91c1c; font-weight:bold;">🔴 Inactivo</span>'; ?>
                                         </td>
                                         <td>
@@ -298,25 +381,33 @@ class BP_Admin_GLB {
             var statusEl = document.getElementById('glb-anim-status');
             var idleSelect = document.getElementById('anim_idle');
             var walkSelect = document.getElementById('anim_walk');
+            var matStatusEl = document.getElementById('glb-mat-status');
+            var detectedMatsInput = document.getElementById('detected_materials');
+            var matSelects = document.querySelectorAll('.glb-mat-select');
 
-            function inspectGlbAnimations(url) {
+            function inspectGlb(url) {
                 if (!url) return;
                 if (typeof THREE === 'undefined' || typeof THREE.GLTFLoader === 'undefined') {
                     if (statusEl) {
                         statusEl.style.display = 'block';
                         statusEl.textContent = '⏳ Cargando Three.js GLTFLoader...';
                     }
-                    setTimeout(function() { inspectGlbAnimations(url); }, 500);
+                    setTimeout(function() { inspectGlb(url); }, 500);
                     return;
                 }
 
                 if (statusEl) {
                     statusEl.style.display = 'block';
-                    statusEl.textContent = '⏳ Leyendo animaciones del archivo GLB...';
+                    statusEl.textContent = '⏳ Leyendo animaciones y materiales del archivo GLB...';
+                }
+                if (matStatusEl) {
+                    matStatusEl.style.display = 'block';
+                    matStatusEl.textContent = '⏳ Inspeccionando materiales del modelo 3D...';
                 }
 
                 var loader = new THREE.GLTFLoader();
                 loader.load(url, function(gltf) {
+                    // 1. ANIMACIONES
                     var anims = gltf.animations || [];
                     if (statusEl) {
                         statusEl.textContent = '✅ ' + anims.length + ' animación(es) detectada(s): ' + (anims.map(function(a){ return a.name; }).join(', ') || 'Ninguna');
@@ -347,10 +438,64 @@ class BP_Admin_GLB {
                             walkSelect.appendChild(optWalk);
                         });
                     }
+
+                    // 2. MATERIALES & SUB-MALLAS
+                    var materialsSet = new Set();
+                    gltf.scene.traverse(function(node) {
+                        if (node.isMesh || node.isSkinnedMesh) {
+                            if (node.material) {
+                                if (Array.isArray(node.material)) {
+                                    node.material.forEach(function(m) {
+                                        if (m && m.name) materialsSet.add(m.name);
+                                    });
+                                } else if (node.material.name) {
+                                    materialsSet.add(node.material.name);
+                                }
+                            }
+                            if (node.name) {
+                                materialsSet.add('mesh:' + node.name);
+                            }
+                        }
+                    });
+
+                    var materialsList = Array.from(materialsSet);
+                    if (detectedMatsInput) {
+                        detectedMatsInput.value = JSON.stringify(materialsList);
+                    }
+
+                    if (matStatusEl) {
+                        if (materialsList.length > 0) {
+                            matStatusEl.textContent = '✅ ' + materialsList.length + ' material(es)/malla(s) encontrada(s): ' + materialsList.slice(0, 5).join(', ') + (materialsList.length > 5 ? '...' : '');
+                        } else {
+                            matStatusEl.textContent = 'ℹ️ Sin nombres de material individuales detectados (se usará heurística estándar).';
+                        }
+                    }
+
+                    matSelects.forEach(function(sel) {
+                        var currentVal = sel.getAttribute('data-current') || sel.value;
+                        var placeholder = sel.querySelector('option[value=""]');
+                        var defaultText = placeholder ? placeholder.textContent : '-- Detección Automática --';
+                        sel.innerHTML = '<option value="">' + defaultText + '</option>';
+
+                        materialsList.forEach(function(matName) {
+                            var opt = document.createElement('option');
+                            opt.value = matName;
+                            opt.textContent = matName;
+                            if (matName === currentVal) {
+                                opt.selected = true;
+                            }
+                            sel.appendChild(opt);
+                        });
+                    });
+
                 }, undefined, function(err) {
                     if (statusEl) {
                         statusEl.style.display = 'block';
                         statusEl.textContent = '⚠️ No se pudieron leer las animaciones automáticamente.';
+                    }
+                    if (matStatusEl) {
+                        matStatusEl.style.display = 'block';
+                        matStatusEl.textContent = '⚠️ No se pudieron leer los materiales del archivo GLB.';
                     }
                 });
             }
@@ -372,7 +517,7 @@ class BP_Admin_GLB {
                         var attachment = frame.state().get('selection').first().toJSON();
                         input.value = attachment.url;
                         if (inputId === 'file_url') {
-                            inspectGlbAnimations(attachment.url);
+                            inspectGlb(attachment.url);
                         }
                     });
 
@@ -385,10 +530,10 @@ class BP_Admin_GLB {
 
             if (fileInput) {
                 fileInput.addEventListener('change', function() {
-                    inspectGlbAnimations(fileInput.value.trim());
+                    inspectGlb(fileInput.value.trim());
                 });
                 if (fileInput.value.trim()) {
-                    inspectGlbAnimations(fileInput.value.trim());
+                    inspectGlb(fileInput.value.trim());
                 }
             }
         });
