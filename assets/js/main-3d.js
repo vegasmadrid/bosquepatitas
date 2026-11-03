@@ -3831,6 +3831,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const arcadeContent = document.getElementById('bp-arcade-content');
         if (!arcadeContent) return;
 
+        arcadeAvatarModal.classList.add('hidden');
         arcadePetsModal.classList.remove('hidden');
 
         if (!settings.isLoggedIn) {
@@ -3887,19 +3888,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderArcadeTabsHeader(activeTab = 'pets') {
-        return `
-            <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
-                <button id="bp-arcade-tab-pets" class="bp-arcade-btn ${activeTab === 'pets' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="font-size:11px; padding:12px 18px;">
-                    🐾 MIS MASCOTAS
-                </button>
-                <button id="bp-arcade-tab-avatar" class="bp-arcade-btn ${activeTab === 'avatar' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="font-size:11px; padding:12px 18px;">
-                    🧸 MI AVATAR 3D (PLAYMOBIL CLICK)
-                </button>
-            </div>
-        `;
-    }
-
     let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame;
 
     function initAvatarPreviewCanvas(avatarConfig) {
@@ -3914,12 +3902,12 @@ document.addEventListener('DOMContentLoaded', () => {
         previewScene.background = new THREE.Color(0x0b1711);
 
         let width = previewContainer.clientWidth || 320;
-        let height = previewContainer.clientHeight || 320;
+        let height = previewContainer.clientHeight || 360;
         let aspect = width / height;
 
-        previewCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 10);
-        previewCamera.position.set(0, 0.65, 2.2);
-        previewCamera.lookAt(0, 0.45, 0);
+        previewCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 50);
+        previewCamera.position.set(0, 1.2, 3.2);
+        previewCamera.lookAt(0, 0.8, 0);
 
         previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         previewRenderer.setSize(width, height);
@@ -3930,52 +3918,94 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         previewContainer.appendChild(previewRenderer.domElement);
 
-        // ResizeObserver to update canvas on layout resize
-        if (typeof ResizeObserver !== 'undefined') {
-            const resizeObs = new ResizeObserver(entries => {
-                for (let entry of entries) {
-                    const w = entry.contentRect.width || 320;
-                    const h = entry.contentRect.height || 320;
-                    if (w > 0 && h > 0) {
-                        previewCamera.aspect = w / h;
-                        previewCamera.updateProjectionMatrix();
-                        previewRenderer.setSize(w, h);
-                    }
-                }
-            });
-            resizeObs.observe(previewContainer);
-        }
-
         // Sistema de Iluminación Suave de 3 Puntos
-        const ambientL = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientL = new THREE.AmbientLight(0xffffff, 0.65);
         previewScene.add(ambientL);
 
-        const hemiL = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.5);
+        const hemiL = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.55);
         hemiL.position.set(0, 5, 0);
         previewScene.add(hemiL);
 
-        const dirL = new THREE.DirectionalLight(0xffffff, 0.95);
-        dirL.position.set(2.5, 4.5, 3.2);
+        const dirL = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirL.position.set(2.5, 5.0, 3.5);
         dirL.castShadow = true;
         dirL.shadow.mapSize.width = 1024;
         dirL.shadow.mapSize.height = 1024;
         dirL.shadow.bias = -0.001;
         dirL.shadow.camera.near = 0.5;
-        dirL.shadow.camera.far = 10;
-        dirL.shadow.camera.left = -1.2;
-        dirL.shadow.camera.right = 1.2;
-        dirL.shadow.camera.top = 1.8;
-        dirL.shadow.camera.bottom = -0.5;
+        dirL.shadow.camera.far = 15;
+        dirL.shadow.camera.left = -2.0;
+        dirL.shadow.camera.right = 2.0;
+        dirL.shadow.camera.top = 3.5;
+        dirL.shadow.camera.bottom = -1.0;
         previewScene.add(dirL);
 
         // Peana circular que recibe sombras proyectadas
         const pedMesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.5, 0.55, 0.08, 32),
+            new THREE.CylinderGeometry(0.55, 0.60, 0.08, 32),
             new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4, metalness: 0.1 })
         );
         pedMesh.position.y = -0.04;
         pedMesh.receiveShadow = true;
         previewScene.add(pedMesh);
+
+        let previewTargetY = 0.8;
+
+        // Auto-encuadre inteligente para mostrar el avatar COMPLETO (pies a cabeza) sin cortes
+        function framePreviewAvatar(mesh) {
+            if (!mesh || !previewCamera || !previewRenderer) return;
+
+            mesh.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(mesh);
+            if (box.isEmpty() || !isFinite(box.min.x)) return;
+
+            // Incluir la peana en el volumen de encuadre
+            const framingBox = box.clone();
+            framingBox.min.y = Math.min(framingBox.min.y, -0.08);
+            framingBox.min.x = Math.min(framingBox.min.x, -0.60);
+            framingBox.max.x = Math.max(framingBox.max.x, 0.60);
+            framingBox.min.z = Math.min(framingBox.min.z, -0.60);
+            framingBox.max.z = Math.max(framingBox.max.z, 0.60);
+
+            const size = framingBox.getSize(new THREE.Vector3());
+            const center = framingBox.getCenter(new THREE.Vector3());
+
+            const containerW = previewContainer.clientWidth || 320;
+            const containerH = previewContainer.clientHeight || 360;
+            const currentAspect = containerW / containerH;
+
+            previewCamera.aspect = currentAspect;
+            previewCamera.updateProjectionMatrix();
+
+            const fovY = (previewCamera.fov * Math.PI) / 180;
+            const halfFovY = fovY / 2;
+            const halfFovX = Math.atan(Math.tan(halfFovY) * currentAspect);
+
+            // Margen generoso (34%) para garantizar que cabeza, gorros, pelo y peana se vean holgados y completos
+            const margin = 1.34;
+            const distY = (size.y / 2 * margin) / Math.tan(halfFovY);
+            const distX = (size.x / 2 * margin) / Math.tan(halfFovX);
+            const distZ = (size.z / 2 * margin) / Math.tan(halfFovX);
+
+            const distance = Math.max(distY, distX, distZ, 2.5);
+
+            previewTargetY = Math.max(0.35, center.y);
+            const camY = previewTargetY + distance * 0.12; // suave ángulo picado cenital estético
+            const camZ = distance;
+
+            previewCamera.position.set(0, camY, camZ);
+            previewCamera.lookAt(0, previewTargetY, 0);
+            previewCamera.updateProjectionMatrix();
+
+            if (dirL && dirL.shadow) {
+                dirL.position.set(2.5, Math.max(5.0, size.y * 2.2), 3.5);
+                dirL.shadow.camera.top = Math.max(size.y * 1.6, 3.5);
+                dirL.shadow.camera.bottom = -1.0;
+                dirL.shadow.camera.left = -Math.max(size.x, 2.0);
+                dirL.shadow.camera.right = Math.max(size.x, 2.0);
+                dirL.shadow.camera.updateProjectionMatrix();
+            }
+        }
 
         function rebuildPreviewMesh(cfg) {
             if (previewAvatarMesh) {
@@ -3986,13 +4016,39 @@ document.addEventListener('DOMContentLoaded', () => {
             previewAvatarMesh = create3DAvatarModel(cfg, (loadedMesh) => {
                 if (loadedMesh) {
                     loadedMesh.position.set(0, 0, 0);
+                    requestAnimationFrame(() => {
+                        framePreviewAvatar(previewAvatarMesh);
+                    });
                 }
             });
             previewAvatarMesh.position.set(0, 0, 0);
             previewScene.add(previewAvatarMesh);
+
+            requestAnimationFrame(() => {
+                framePreviewAvatar(previewAvatarMesh);
+            });
         }
 
         rebuildPreviewMesh(avatarConfig);
+
+        // ResizeObserver to update canvas on layout resize
+        if (typeof ResizeObserver !== 'undefined') {
+            const resizeObs = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    const w = entry.contentRect.width || 320;
+                    const h = entry.contentRect.height || 360;
+                    if (w > 0 && h > 0) {
+                        previewCamera.aspect = w / h;
+                        previewCamera.updateProjectionMatrix();
+                        previewRenderer.setSize(w, h);
+                        if (previewAvatarMesh) {
+                            framePreviewAvatar(previewAvatarMesh);
+                        }
+                    }
+                }
+            });
+            resizeObs.observe(previewContainer);
+        }
 
         // Preview Mouse Drag Rotation
         let isDragging = false;
@@ -4020,6 +4076,17 @@ document.addEventListener('DOMContentLoaded', () => {
         previewRenderer.domElement.addEventListener('touchstart', onPreviewDown, { passive: true });
         window.addEventListener('touchmove', onPreviewMove, { passive: true });
         window.addEventListener('touchend', onPreviewUp, { passive: true });
+
+        // Zoom interactivo con la rueda del ratón
+        previewRenderer.domElement.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomDelta = e.deltaY * 0.0025;
+            const curDist = previewCamera.position.distanceTo(new THREE.Vector3(0, previewTargetY, 0));
+            const newDist = THREE.MathUtils.clamp(curDist + zoomDelta, 1.2, 7.0);
+            const dir = previewCamera.position.clone().sub(new THREE.Vector3(0, previewTargetY, 0)).normalize();
+            previewCamera.position.copy(new THREE.Vector3(0, previewTargetY, 0).addScaledVector(dir, newDist));
+            previewCamera.lookAt(0, previewTargetY, 0);
+        }, { passive: false });
 
         // Animation Loop
         let previewClock = new THREE.Clock();
@@ -4075,50 +4142,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Toggle Category Switcher
-        const typeHumanBtn = document.getElementById('bp-type-btn-human');
-        const typePetBtn = document.getElementById('bp-type-btn-pet');
-        const humanControls = document.getElementById('bp-controls-human');
-        const petControls = document.getElementById('bp-controls-pet');
+        // Setup UI Elements
         const humanCustomOptions = document.getElementById('bp-human-custom-options');
         const petCustomOptions = document.getElementById('bp-pet-custom-options');
 
-        function toggleMainCategory(category) {
-            if (category === 'pet') {
-                if (typeHumanBtn) { typeHumanBtn.classList.remove('bp-arcade-btn-yellow'); typeHumanBtn.classList.add('bp-arcade-btn-green'); }
-                if (typePetBtn) { typePetBtn.classList.remove('bp-arcade-btn-green'); typePetBtn.classList.add('bp-arcade-btn-yellow'); }
-                if (humanControls) humanControls.style.display = 'none';
-                if (petControls) petControls.style.display = 'block';
-
-                const activePetCard = petControls.querySelector('.bp-model-card.active');
-                if (!activePetCard) {
-                    const firstPetCard = petControls.querySelector('.bp-model-card');
-                    if (firstPetCard) firstPetCard.click();
-                }
-            } else {
-                if (typePetBtn) { typePetBtn.classList.remove('bp-arcade-btn-yellow'); typePetBtn.classList.add('bp-arcade-btn-green'); }
-                if (typeHumanBtn) { typeHumanBtn.classList.remove('bp-arcade-btn-green'); typeHumanBtn.classList.add('bp-arcade-btn-yellow'); }
-                if (petControls) petControls.style.display = 'none';
-                if (humanControls) humanControls.style.display = 'block';
-
-                const activeHumanCard = humanControls.querySelector('.bp-model-card.active');
-                if (!activeHumanCard) {
-                    const firstHumanCard = humanControls.querySelector('.bp-model-card');
-                    if (firstHumanCard) firstHumanCard.click();
-                }
-            }
-        }
-
-        if (typeHumanBtn) typeHumanBtn.addEventListener('click', () => toggleMainCategory('human'));
-        if (typePetBtn) typePetBtn.addEventListener('click', () => toggleMainCategory('pet'));
+        const humanSkins = ['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'];
+        const petFurs = ['#d97706', '#334155', '#f8fafc', '#b45309', '#1e293b', '#eab308', '#ec4899'];
+        const humanShirts = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'];
+        const petCollars = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'];
 
         // Model Cards Listener
         const modelCards = document.querySelectorAll('.bp-model-card');
         modelCards.forEach(card => {
             card.addEventListener('click', () => {
-                const category = card.dataset.modelCategory;
-                const container = (category === 'pet') ? petControls : humanControls;
-                container.querySelectorAll('.bp-model-card').forEach(c => {
+                modelCards.forEach(c => {
                     c.classList.remove('active');
                     const badge = c.querySelector('.bp-glb-badge');
                     if (badge) badge.remove();
@@ -4138,13 +4175,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentConfig.glb_url     = '';
                     currentConfig.anim_idle   = '';
                     currentConfig.anim_walk   = '';
+                    if (!humanSkins.includes(currentConfig.skin)) {
+                        currentConfig.skin = '#ffe0bd';
+                        updateSwatchActive('bp-swatches-skin', currentConfig.skin);
+                    }
+                    if (!humanShirts.includes(currentConfig.shirt)) {
+                        currentConfig.shirt = '#10b981';
+                        updateSwatchActive('bp-swatches-shirt', currentConfig.shirt);
+                    }
                     if (humanCustomOptions) humanCustomOptions.style.display = 'block';
+                    if (petCustomOptions) petCustomOptions.style.display = 'none';
                 } else if (modelType === 'classic-pet') {
                     currentConfig.avatar_type = 'pet';
+                    currentConfig.pet_species = card.dataset.species || 'dog';
                     currentConfig.glb_id      = '';
                     currentConfig.glb_url     = '';
                     currentConfig.anim_idle   = '';
                     currentConfig.anim_walk   = '';
+                    if (!petFurs.includes(currentConfig.skin)) {
+                        if (currentConfig.pet_species === 'cat') currentConfig.skin = '#334155';
+                        else if (currentConfig.pet_species === 'rabbit') currentConfig.skin = '#f8fafc';
+                        else currentConfig.skin = '#d97706';
+                    }
+                    updateSwatchActive('bp-swatches-fur', currentConfig.skin);
+
+                    if (!petCollars.includes(currentConfig.shirt)) {
+                        currentConfig.shirt = '#ef4444';
+                    }
+                    updateSwatchActive('bp-swatches-collar', currentConfig.shirt);
+
+                    if (humanCustomOptions) humanCustomOptions.style.display = 'none';
                     if (petCustomOptions) petCustomOptions.style.display = 'block';
                 } else if (modelType === 'glb') {
                     currentConfig.avatar_type = 'glb';
@@ -4155,22 +4215,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentConfig.anim_idle   = card.dataset.animIdle || '';
                     currentConfig.anim_walk   = card.dataset.animWalk || '';
 
-                    if (category === 'human' && humanCustomOptions) humanCustomOptions.style.display = 'none';
-                    if (category === 'pet' && petCustomOptions) petCustomOptions.style.display = 'none';
+                    if (humanCustomOptions) humanCustomOptions.style.display = 'none';
+                    if (petCustomOptions) petCustomOptions.style.display = 'none';
                 }
 
                 rebuildPreviewMesh(currentConfig);
             });
         });
-
-        // Species Selector
-        const speciesSelect = document.getElementById('bp-select-pet-species');
-        if (speciesSelect) {
-            speciesSelect.addEventListener('change', () => {
-                currentConfig.pet_species = speciesSelect.value;
-                rebuildPreviewMesh(currentConfig);
-            });
-        }
 
         // Swatches
         ['skin', 'shirt', 'pants', 'hair', 'fur', 'collar'].forEach(type => {
@@ -4322,170 +4373,136 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
 
-        // Determinar si el avatar actual configurado pertenece a Mascota o Tutor
-        const currentGlbItem = glbList.find(g => (avatar.glb_id && g.id === avatar.glb_id) || (avatar.glb_url && g.file_url === avatar.glb_url));
-        const isPetMode = (avatar.avatar_type === 'pet' || (avatar.avatar_type === 'glb' && currentGlbItem && currentGlbItem.category === 'pet'));
-
-        const humanGlbList = glbList.filter(g => g.category !== 'pet');
-        const petGlbList = glbList.filter(g => g.category === 'pet');
-
-        const isClassicHumanSelected = (avatar.avatar_type === 'human' || (!avatar.glb_id && !avatar.glb_url && !isPetMode));
-        const isClassicPetSelected = (avatar.avatar_type === 'pet' && !avatar.glb_id && !avatar.glb_url);
+        const isGlbSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id || avatar.glb_url));
+        const isPet = (avatar.avatar_type === 'pet' && !isGlbSelected);
+        const isDogSelected = isPet && (avatar.pet_species === 'dog' || (!avatar.pet_species || (avatar.pet_species !== 'cat' && avatar.pet_species !== 'rabbit')));
+        const isCatSelected = isPet && avatar.pet_species === 'cat';
+        const isRabbitSelected = isPet && avatar.pet_species === 'rabbit';
+        const isClassicHumanSelected = !isPet && !isGlbSelected;
+        const isClassicPetSelected = isPet;
 
         arcadeContent.innerHTML = `
-            ${renderArcadeTabsHeader('avatar')}
-
             <div class="bp-arcade-form-box" style="border-color:#34d399; background:rgba(18, 42, 31, 0.9);">
-                <h4 style="color:#ffd600; font-family:'Press Start 2P', monospace; font-size:12px;">🧸 CONFIGURADOR DE AVATAR 3D</h4>
-
-                <!-- CATEGORY SELECTION: TUTOR VS MASCOTA -->
-                <div style="display:flex; gap:10px; margin-bottom:20px; background:rgba(0,0,0,0.4); padding:10px; border-radius:8px; flex-wrap:wrap;">
-                    <button id="bp-type-btn-human" class="bp-arcade-btn ${!isPetMode ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; min-width:130px; font-size:10px; padding:12px;">
-                        👤 TUTOR (HUMANO)
-                    </button>
-                    <button id="bp-type-btn-pet" class="bp-arcade-btn ${isPetMode ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; min-width:130px; font-size:10px; padding:12px;">
-                        🐾 MASCOTA (ANIMAL)
-                    </button>
-                </div>
+                <h4 style="color:#ffd600; font-family:'Press Start 2P', monospace; font-size:12px; margin-bottom:20px;">🧸 CONFIGURADOR DE AVATAR 3D</h4>
 
                 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:start;">
 
                     <!-- CONTROLES RETRO DE TUNEO -->
                     <div>
-                        <!-- HUMAN CUSTOMIZATION CONTROLS -->
-                        <div id="bp-controls-human" style="display:${!isPetMode ? 'block' : 'none'};">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">SELECCIONA EL MODELO DE TUTOR:</label>
-                            <div class="bp-glb-grid" style="margin-bottom:18px;">
-                                <!-- Classic Procedural Human Card -->
-                                <div class="bp-glb-card bp-model-card ${isClassicHumanSelected ? 'active' : ''}" data-model-category="human" data-model-type="classic-human">
-                                    <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍</div>
-                                    <div class="bp-glb-title">Tutor Clásico Personalizable</div>
-                                    ${isClassicHumanSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                        <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">SELECCIONA TU AVATAR 3D:</label>
+                        <div class="bp-glb-grid" style="margin-bottom:20px; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));">
+                            <!-- Classic Procedural Human Card -->
+                            <div class="bp-glb-card bp-model-card ${isClassicHumanSelected ? 'active' : ''}" data-model-type="classic-human">
+                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍</div>
+                                <div class="bp-glb-title">Tutor Humano</div>
+                                ${isClassicHumanSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                            </div>
+                            <!-- Classic Dog Card -->
+                            <div class="bp-glb-card bp-model-card ${isDogSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="dog">
+                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🐶</div>
+                                <div class="bp-glb-title">Perro</div>
+                                ${isDogSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                            </div>
+                            <!-- Classic Cat Card -->
+                            <div class="bp-glb-card bp-model-card ${isCatSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="cat">
+                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🐱</div>
+                                <div class="bp-glb-title">Gato</div>
+                                ${isCatSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                            </div>
+                            <!-- Classic Rabbit Card -->
+                            <div class="bp-glb-card bp-model-card ${isRabbitSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="rabbit">
+                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🐰</div>
+                                <div class="bp-glb-title">Conejo</div>
+                                ${isRabbitSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                            </div>
+                            <!-- GLB Models -->
+                            ${glbList.map(item => {
+                                const isSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id === item.id || avatar.glb_url === item.file_url));
+                                const thumb = item.icon_url || '';
+                                return `
+                                    <div class="bp-glb-card bp-model-card ${isSelected ? 'active' : ''}" data-model-type="glb" data-id="${item.id}" data-url="${item.file_url}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}" data-anim-idle="${item.anim_idle || ''}" data-anim-walk="${item.anim_walk || ''}">
+                                        ${thumb ? `<img src="${thumb}" class="bp-glb-thumb" />` : `<div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:24px;">📦</div>`}
+                                        <div class="bp-glb-title">${item.title}</div>
+                                        ${isSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+
+                        <!-- HUMAN PROCEDURAL CUSTOMIZATION (SOLO SI EL TUTOR CLÁSICO ESTÁ ACTIVO) -->
+                        <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
+                            <!-- SKIN COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
+                                    ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
                                 </div>
-                                <!-- GLB Human Models -->
-                                ${humanGlbList.map(item => {
-                                    const isSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id === item.id || avatar.glb_url === item.file_url));
-                                    const thumb = item.icon_url || '';
-                                    return `
-                                        <div class="bp-glb-card bp-model-card ${isSelected ? 'active' : ''}" data-model-category="human" data-model-type="glb" data-id="${item.id}" data-url="${item.file_url}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}" data-anim-idle="${item.anim_idle || ''}" data-anim-walk="${item.anim_walk || ''}">
-                                            ${thumb ? `<img src="${thumb}" class="bp-glb-thumb" />` : `<div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:24px;">📦</div>`}
-                                            <div class="bp-glb-title">${item.title}</div>
-                                            ${isSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
-                                        </div>
-                                    `;
-                                }).join('')}
                             </div>
 
-                            <!-- HUMAN PROCEDURAL CUSTOMIZATION (SOLO SI EL TUTOR CLÁSICO ESTÁ ACTIVO) -->
-                            <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
-                                <!-- SKIN COLOR -->
-                                <div style="margin-bottom:16px;">
-                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL</label>
-                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
-                                        ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
-                                            <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
-                                        `).join('')}
-                                    </div>
+                            <!-- SHIRT COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
+                                    ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
                                 </div>
+                            </div>
 
-                                <!-- SHIRT COLOR -->
-                                <div style="margin-bottom:16px;">
-                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
-                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
-                                        ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
-                                            <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
-                                        `).join('')}
-                                    </div>
+                            <!-- PANTS COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
+                                    ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
                                 </div>
+                            </div>
 
-                                <!-- PANTS COLOR -->
-                                <div style="margin-bottom:16px;">
-                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN</label>
-                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
-                                        ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
-                                            <div class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#ffd600' : '#000000'};"></div>
-                                        `).join('')}
-                                    </div>
-                                </div>
+                            <!-- HAIR STYLE -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
+                                <select id="bp-select-hair-style" class="bp-arcade-input">
+                                    <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico del Bosque</option>
+                                    <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky 90s</option>
+                                    <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra Rápida</option>
+                                    <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona Real</option>
+                                    <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero Elegante</option>
+                                </select>
+                            </div>
 
-                                <!-- HAIR STYLE -->
-                                <div style="margin-bottom:16px;">
-                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
-                                    <select id="bp-select-hair-style" class="bp-arcade-input">
-                                        <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico del Bosque</option>
-                                        <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky 90s</option>
-                                        <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra Rápida</option>
-                                        <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona Real</option>
-                                        <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero Elegante</option>
-                                    </select>
-                                </div>
-
-                                <!-- HAIR COLOR -->
-                                <div style="margin-bottom:16px;">
-                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO</label>
-                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
-                                        ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
-                                            <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
-                                        `).join('')}
-                                    </div>
+                            <!-- HAIR COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
+                                    ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
                                 </div>
                             </div>
                         </div>
 
-                        <!-- PET CUSTOMIZATION CONTROLS -->
-                        <div id="bp-controls-pet" style="display:${isPetMode ? 'block' : 'none'};">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">SELECCIONA EL MODELO DE MASCOTA:</label>
-                            <div class="bp-glb-grid" style="margin-bottom:18px;">
-                                <!-- Classic Procedural Pet Card -->
-                                <div class="bp-glb-card bp-model-card ${isClassicPetSelected ? 'active' : ''}" data-model-category="pet" data-model-type="classic-pet">
-                                    <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🐾</div>
-                                    <div class="bp-glb-title">Mascota Clásica Personalizable</div>
-                                    ${isClassicPetSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                        <!-- PET PROCEDURAL CUSTOMIZATION (SOLO SI UNA MASCOTA CLÁSICA ESTÁ ACTIVA) -->
+                        <div id="bp-pet-custom-options" style="display:${isClassicPetSelected ? 'block' : 'none'};">
+                            <!-- FUR COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. COLOR DE PELAJE</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-fur">
+                                    ${['#d97706', '#334155', '#f8fafc', '#b45309', '#1e293b', '#eab308', '#ec4899'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
                                 </div>
-                                <!-- GLB Pet Models -->
-                                ${petGlbList.map(item => {
-                                    const isSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id === item.id || avatar.glb_url === item.file_url));
-                                    const thumb = item.icon_url || '';
-                                    return `
-                                        <div class="bp-glb-card bp-model-card ${isSelected ? 'active' : ''}" data-model-category="pet" data-model-type="glb" data-id="${item.id}" data-url="${item.file_url}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}" data-anim-idle="${item.anim_idle || ''}" data-anim-walk="${item.anim_walk || ''}">
-                                            ${thumb ? `<img src="${thumb}" class="bp-glb-thumb" />` : `<div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:24px;">📦</div>`}
-                                            <div class="bp-glb-title">${item.title}</div>
-                                            ${isSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
-                                        </div>
-                                    `;
-                                }).join('')}
                             </div>
 
-                            <!-- PET PROCEDURAL CUSTOMIZATION (SOLO SI LA MASCOTA CLÁSICA ESTÁ ACTIVA) -->
-                            <div id="bp-pet-custom-options" style="display:${isClassicPetSelected ? 'block' : 'none'};">
-                                <!-- ANIMAL SPECIES -->
-                                <div style="margin-bottom:16px;">
-                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. ESPECIE DE ANIMAL</label>
-                                    <select id="bp-select-pet-species" class="bp-arcade-input">
-                                        <option value="dog" ${avatar.pet_species === 'dog' ? 'selected' : ''}>🐶 Perro Fiel</option>
-                                        <option value="cat" ${avatar.pet_species === 'cat' ? 'selected' : ''}>🐱 Gato Místico</option>
-                                        <option value="rabbit" ${avatar.pet_species === 'rabbit' ? 'selected' : ''}>🐰 Conejo del Bosque</option>
-                                    </select>
-                                </div>
-
-                                <!-- FUR COLOR -->
-                                <div style="margin-bottom:16px;">
-                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE PELAJE</label>
-                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-fur">
-                                        ${['#d97706', '#334155', '#f8fafc', '#b45309', '#1e293b', '#eab308', '#ec4899'].map(c => `
-                                            <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-
-                                <!-- COLLAR / ACCENT COLOR -->
-                                <div style="margin-bottom:16px;">
-                                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE COLLAR / DETALLE</label>
-                                    <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-collar">
-                                        ${['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'].map(c => `
-                                            <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
-                                        `).join('')}
-                                    </div>
+                            <!-- COLLAR / ACCENT COLOR -->
+                            <div style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE COLLAR / DETALLE</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-collar">
+                                    ${['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'].map(c => `
+                                        <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
                                 </div>
                             </div>
                         </div>
@@ -4521,19 +4538,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-family:'Press Start 2P', monospace; font-size:11px; color:#ffd600; margin-bottom:10px;">
                             🕹️ VISTA PREVIA EN VIVO 3D
                         </div>
-                        <div id="bp-avatar-preview-container" style="width:100%; height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;"></div>
-                        <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa</div>
+                        <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;"></div>
+                        <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa • Rueda para zoom</div>
                     </div>
 
                 </div>
             </div>
         `;
-
-        // Wire Tab buttons
-        const tabPetsBtn = document.getElementById('bp-arcade-tab-pets');
-        if (tabPetsBtn) {
-            tabPetsBtn.addEventListener('click', () => openArcadePetsModal());
-        }
 
         // Setup Live Preview Scene
         initAvatarPreviewCanvas(avatar);
@@ -4607,8 +4618,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const inGrave = editData ? (editData.tumba_id || 0) : 0;
 
         arcadeContent.innerHTML = `
-            ${renderArcadeTabsHeader('pets')}
-
             <div style="margin-bottom:20px; font-family:'Press Start 2P', monospace; font-size:11px; color:#34d399;">
                 GRID DE SELECCIÓN DE PERSONAJES (${Array.isArray(pets) ? pets.length : 0} REGISTRADAS)
             </div>
@@ -4745,13 +4754,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 `}
             </div>
         `;
-
-        // Wire Tab Switchers
-        const tabAvatarBtn = document.getElementById('bp-arcade-tab-avatar');
-        if (tabAvatarBtn) {
-            tabAvatarBtn.addEventListener('click', () => openArcadeAvatarModal());
-        }
-
 
         // Wire Add New Button
         const addNewCard = document.getElementById('bp-arcade-add-new-card');
