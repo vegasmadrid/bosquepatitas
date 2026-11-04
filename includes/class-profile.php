@@ -124,6 +124,8 @@ class BP_Profile {
         $offset_y    = isset($_POST['offset_y']) ? floatval($_POST['offset_y']) : 0.0;
         $anim_idle   = isset($_POST['anim_idle']) ? sanitize_text_field($_POST['anim_idle']) : '';
         $anim_walk   = isset($_POST['anim_walk']) ? sanitize_text_field($_POST['anim_walk']) : '';
+        $anim_kneel_down = isset($_POST['anim_kneel_down']) ? sanitize_text_field($_POST['anim_kneel_down']) : '';
+        $anim_kneel_idle = isset($_POST['anim_kneel_idle']) ? sanitize_text_field($_POST['anim_kneel_idle']) : '';
         $skin        = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
         $shirt       = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
         $pants       = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
@@ -141,7 +143,9 @@ class BP_Profile {
             'scale'       => $scale,
             'offset_y'    => $offset_y,
             'anim_idle'   => $anim_idle,
-            'anim_walk'   => $anim_walk,
+            'anim_walk'       => $anim_walk,
+            'anim_kneel_down' => $anim_kneel_down,
+            'anim_kneel_idle' => $anim_kneel_idle,
             'skin'        => $skin,
             'shirt'       => $shirt,
             'pants'       => $pants,
@@ -169,7 +173,9 @@ class BP_Profile {
             'scale'       => 1.0,
             'offset_y'    => 0.0,
             'anim_idle'   => '',
-            'anim_walk'   => '',
+            'anim_walk'       => '',
+            'anim_kneel_down' => '',
+            'anim_kneel_idle' => '',
             'skin'        => '#ffe0bd',
             'shirt'       => '#10b981',
             'pants'       => '#1e3a8a',

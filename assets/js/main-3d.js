@@ -876,6 +876,60 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const gltfLoaderInstance = (typeof THREE !== 'undefined' && typeof THREE.GLTFLoader !== 'undefined') ? new THREE.GLTFLoader() : null;
+    const fbxLoaderInstance  = (typeof THREE !== 'undefined' && typeof THREE.FBXLoader !== 'undefined') ? new THREE.FBXLoader() : null;
+    const fbxClipCache = new Map();
+
+    // Helper para normalizar clips de animacion de Mixamo FBX hacia esqueletos GLB/FBX
+    function prepareMixamoClip(clip, model) {
+        if (!clip || !model) return clip;
+        const cloned = clip.clone();
+        const boneNames = new Set();
+        model.traverse(child => {
+            if (child.name) boneNames.add(child.name);
+        });
+
+        cloned.tracks.forEach(track => {
+            const dotIdx = track.name.lastIndexOf('.');
+            if (dotIdx === -1) return;
+            const prop = track.name.substring(dotIdx);
+            let rawNode = track.name.substring(0, dotIdx);
+
+            if (!boneNames.has(rawNode)) {
+                const stripped = rawNode.replace(/^Armature\|/, '').replace(/^mixamorig:/, 'mixamorig');
+                if (boneNames.has(stripped)) {
+                    track.name = stripped + prop;
+                } else {
+                    for (let bName of boneNames) {
+                        if (bName.toLowerCase() === stripped.toLowerCase() || bName.toLowerCase() === rawNode.toLowerCase()) {
+                            track.name = bName + prop;
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        return cloned;
+    }
+
+    // Helper asincrono para cargar y cachear clips de animacion FBX de Mixamo
+    function fetchFbxAnimClip(url, callback) {
+        if (!url || !fbxLoaderInstance) {
+            if (callback) callback(null);
+            return;
+        }
+        if (fbxClipCache.has(url)) {
+            if (callback) callback(fbxClipCache.get(url));
+            return;
+        }
+        fbxLoaderInstance.load(url, (fbxObj) => {
+            const clip = (fbxObj.animations && fbxObj.animations.length > 0) ? fbxObj.animations[0] : null;
+            fbxClipCache.set(url, clip);
+            if (callback) callback(clip);
+        }, undefined, (err) => {
+            console.warn('Error al cargar clip FBX:', url, err);
+            if (callback) callback(null);
+        });
+    }
     const glbModelCache = new Map();
     const activeAnimMixers = [];
 
@@ -1188,18 +1242,24 @@ document.addEventListener('DOMContentLoaded', () => {
         containerGroup.name = 'glbAvatarContainer';
 
         const glbUrl = config.glb_url;
-        if (!glbUrl || !gltfLoaderInstance) {
+        if (!glbUrl) {
             const fallbackMesh = createHumanAvatarModel(config);
             containerGroup.add(fallbackMesh);
             if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
             return containerGroup;
         }
 
+        const isFbx = (glbUrl || '').toLowerCase().split('?')[0].endsWith('.fbx');
         const scaleFactor = parseFloat(config.scale || 1.0) || 1.0;
         const offsetY = parseFloat(config.offset_y || 0.0) || 0.0;
 
-        function applyGLBScene(gltfData) {
-            const model = cloneGltfScene(gltfData.scene);
+        function applyModelScene(modelScene, baseAnimations = []) {
+            let model;
+            if (isFbx) {
+                model = (typeof THREE.SkeletonUtils !== 'undefined') ? THREE.SkeletonUtils.clone(modelScene) : modelScene.clone();
+            } else {
+                model = cloneGltfScene(modelScene);
+            }
 
             model.traverse(child => {
                 if (child.isMesh || child.isSkinnedMesh) {
@@ -1214,12 +1274,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // 2. Encajustar escala y centrar de forma automática
+            // Normalizar escala (Ajustar a 2 unidades de alto aprox.)
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
             const center = box.getCenter(new THREE.Vector3());
 
-            // Normalizar escala (Ajustar a 2 unidades de alto aprox.)
             const maxDim = Math.max(size.x, size.y, size.z);
             let scale = maxDim > 0 ? (2 / maxDim) : 1;
             if (config.scale && parseFloat(config.scale) !== 1.0) {
@@ -1227,70 +1286,119 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             model.scale.setScalar(scale);
 
-            // Centrar en la base (sobre la peana)
-            box.setFromObject(model); // Recalcular con nueva escala
+            // Centrar en la base (apoyar pies en suelo Y=0 + offset)
+            box.setFromObject(model);
             box.getCenter(center);
             model.position.sub(center);
-            model.position.y += (box.getSize(new THREE.Vector3()).y / 2) + offsetY; // Apoyar pies en Y=0
+            model.position.y += (box.getSize(new THREE.Vector3()).y / 2) + offsetY;
 
-            // 3. Activar animaciones de reposo (Idle) y caminata (Walk)
-            if (gltfData.animations && gltfData.animations.length > 0) {
-                console.log('Animaciones disponibles en GLB:', gltfData.animations.map(a => a.name));
-                const mixer = new THREE.AnimationMixer(model);
+            // Recopilar referencias de animaciones configuradas
+            const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
+            const glbMeta = glbList.find(g => (config.glb_id && g.id === config.glb_id) || (config.glb_url && g.file_url === config.glb_url)) || {};
+            const fbxList = config.fbx_animations || glbMeta.fbx_animations || [];
 
-                let idleClip = null;
-                let walkClip = null;
+            let animIdleRef      = config.anim_idle || glbMeta.anim_idle || '';
+            let animWalkRef      = config.anim_walk || glbMeta.anim_walk || '';
+            let animKneelDownRef = config.anim_kneel_down || glbMeta.anim_kneel_down || '';
+            let animKneelIdleRef = config.anim_kneel_idle || glbMeta.anim_kneel_idle || '';
 
-                if (config.anim_idle) {
-                    idleClip = gltfData.animations.find(c => c.name === config.anim_idle);
-                }
-                if (!idleClip) {
-                    idleClip = gltfData.animations.find(c => c.name.toLowerCase().includes('idle'));
-                }
-
-                if (config.anim_walk) {
-                    walkClip = gltfData.animations.find(c => c.name === config.anim_walk);
-                }
-                if (!walkClip) {
-                    walkClip = gltfData.animations.find(c => c.name.toLowerCase().includes('walk') || c.name.toLowerCase().includes('run'));
-                }
-
-                if (!idleClip && gltfData.animations[0]) idleClip = gltfData.animations[0];
-                if (!walkClip) walkClip = idleClip || gltfData.animations[0];
-
-                const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
-                const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
-
-                if (idleAction) {
-                    idleAction.play();
-                }
-
-                containerGroup.userData.mixer = mixer;
-                containerGroup.userData.idleAction = idleAction;
-                containerGroup.userData.walkAction = walkAction;
-                containerGroup.userData.activeAction = idleAction;
-                containerGroup.userData.isGLB = true;
-                containerGroup.userData.animations = gltfData.animations;
-
-                activeAnimMixers.push(mixer);
+            if (Array.isArray(fbxList)) {
+                fbxList.forEach(item => {
+                    if (item && item.url) {
+                        if (!animIdleRef && item.role === 'anim_idle') animIdleRef = item.url;
+                        if (!animWalkRef && item.role === 'anim_walk') animWalkRef = item.url;
+                        if (!animKneelDownRef && item.role === 'anim_kneel_down') animKneelDownRef = item.url;
+                        if (!animKneelIdleRef && item.role === 'anim_kneel_idle') animKneelIdleRef = item.url;
+                    }
+                });
             }
 
-                        // 4. Aplicar tintado híbrido dinámico preservando sombras y mapas de textura
-            applyGLBColors(model, config);
-
-            containerGroup.userData.applyColors = (cfg) => applyGLBColors(model, cfg);
-            containerGroup.userData.glbModel = model;
-            containerGroup.userData.glbConfig = config;
-
-            containerGroup.add(model);
-
-            if (typeof onLoadCallback === 'function') {
-                onLoadCallback(containerGroup);
+            // Resolver clips (FBX externo o animación base)
+            function resolveAnimClip(ref, defaultKeywords, onDone) {
+                if (ref && (ref.startsWith('http://') || ref.startsWith('https://') || ref.toLowerCase().includes('.fbx'))) {
+                    fetchFbxAnimClip(ref, (clip) => {
+                        onDone(clip ? prepareMixamoClip(clip, model) : null);
+                    });
+                    return;
+                }
+                if (baseAnimations && baseAnimations.length > 0) {
+                    let found = null;
+                    if (ref) {
+                        found = baseAnimations.find(a => a.name === ref);
+                    }
+                    if (!found && defaultKeywords && defaultKeywords.length > 0) {
+                        found = baseAnimations.find(a => defaultKeywords.some(kw => a.name.toLowerCase().includes(kw)));
+                    }
+                    onDone(found ? prepareMixamoClip(found, model) : null);
+                    return;
+                }
+                onDone(null);
             }
+
+            const mixer = new THREE.AnimationMixer(model);
+
+            resolveAnimClip(animIdleRef, ['idle', 'stand'], (idleClip) => {
+                resolveAnimClip(animWalkRef, ['walk', 'run', 'caminar'], (walkClip) => {
+                    resolveAnimClip(animKneelDownRef, ['kneel_down', 'kneeling_down', 'kneeldown', 'arrodillar'], (kneelDownClip) => {
+                        resolveAnimClip(animKneelIdleRef, ['kneel', 'kneeling', 'pray', 'rodilla'], (kneelIdleClip) => {
+
+                            // Fallbacks inteligentes
+                            if (!idleClip && baseAnimations && baseAnimations[0]) {
+                                idleClip = prepareMixamoClip(baseAnimations[0], model);
+                            }
+                            if (!walkClip) {
+                                walkClip = idleClip;
+                            }
+                            if (!kneelIdleClip && kneelDownClip) {
+                                kneelIdleClip = kneelDownClip;
+                            }
+
+                            const idleAction      = idleClip ? mixer.clipAction(idleClip) : null;
+                            const walkAction      = walkClip ? mixer.clipAction(walkClip) : null;
+                            const kneelDownAction = kneelDownClip ? mixer.clipAction(kneelDownClip) : null;
+                            const kneelIdleAction = kneelIdleClip ? mixer.clipAction(kneelIdleClip) : null;
+
+                            if (kneelDownAction) {
+                                kneelDownAction.setLoop(THREE.LoopOnce, 1);
+                                kneelDownAction.clampWhenFinished = true;
+                            }
+
+                            if (idleAction) {
+                                idleAction.play();
+                            }
+
+                            containerGroup.userData.mixer           = mixer;
+                            containerGroup.userData.idleAction      = idleAction;
+                            containerGroup.userData.walkAction      = walkAction;
+                            containerGroup.userData.kneelDownAction = kneelDownAction;
+                            containerGroup.userData.kneelIdleAction = kneelIdleAction;
+                            containerGroup.userData.activeAction    = idleAction;
+                            containerGroup.userData.isGLB           = true;
+                            containerGroup.userData.isKneelingState = false;
+
+                            activeAnimMixers.push(mixer);
+
+                            // Aplicar tintado de materiales
+                            applyGLBColors(model, config);
+
+                            containerGroup.userData.applyColors = (cfg) => applyGLBColors(model, cfg);
+                            containerGroup.userData.glbModel    = model;
+                            containerGroup.userData.glbConfig   = config;
+
+                            containerGroup.add(model);
+
+                            if (typeof onLoadCallback === 'function') {
+                                onLoadCallback(containerGroup);
+                            }
+                        });
+                    });
+                });
+            });
         }
 
         if (glbModelCache.has(glbUrl)) {
-            applyGLBScene(glbModelCache.get(glbUrl));
+            const cached = glbModelCache.get(glbUrl);
+            applyModelScene(cached.scene, cached.animations);
         } else {
             const placeholderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
             const placeholderMaterial = new THREE.MeshBasicMaterial({ color: 0x10b981, wireframe: true });
@@ -1298,7 +1406,6 @@ document.addEventListener('DOMContentLoaded', () => {
             placeholderMesh.position.y = 0.4;
             containerGroup.add(placeholderMesh);
 
-            // Añadir parametro de version / timestamp para evitar cache antigua
             let versionedUrl = glbUrl;
             const cacheBuster = 't=' + (window.BP_Settings && window.BP_Settings.version ? window.BP_Settings.version : Date.now());
             if (versionedUrl.indexOf('?') === -1) {
@@ -1307,22 +1414,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 versionedUrl += '&' + cacheBuster;
             }
 
-            gltfLoaderInstance.load(
-                versionedUrl,
-                (gltf) => {
-                    glbModelCache.set(glbUrl, gltf);
-                    containerGroup.remove(placeholderMesh);
-                    applyGLBScene(gltf);
-                },
-                undefined,
-                (err) => {
-                    console.warn('Error al cargar avatar GLB:', glbUrl, err);
-                    containerGroup.remove(placeholderMesh);
-                    const fallbackMesh = createHumanAvatarModel(config);
-                    containerGroup.add(fallbackMesh);
-                    if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
-                }
-            );
+            if (isFbx && fbxLoaderInstance) {
+                fbxLoaderInstance.load(
+                    versionedUrl,
+                    (fbxScene) => {
+                        glbModelCache.set(glbUrl, { scene: fbxScene, animations: fbxScene.animations || [] });
+                        containerGroup.remove(placeholderMesh);
+                        applyModelScene(fbxScene, fbxScene.animations || []);
+                    },
+                    undefined,
+                    (err) => {
+                        console.warn('Error al cargar avatar FBX:', glbUrl, err);
+                        containerGroup.remove(placeholderMesh);
+                        const fallbackMesh = createHumanAvatarModel(config);
+                        containerGroup.add(fallbackMesh);
+                        if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
+                    }
+                );
+            } else if (gltfLoaderInstance) {
+                gltfLoaderInstance.load(
+                    versionedUrl,
+                    (gltf) => {
+                        glbModelCache.set(glbUrl, { scene: gltf.scene, animations: gltf.animations || [] });
+                        containerGroup.remove(placeholderMesh);
+                        applyModelScene(gltf.scene, gltf.animations || []);
+                    },
+                    undefined,
+                    (err) => {
+                        console.warn('Error al cargar avatar GLB:', glbUrl, err);
+                        containerGroup.remove(placeholderMesh);
+                        const fallbackMesh = createHumanAvatarModel(config);
+                        containerGroup.add(fallbackMesh);
+                        if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
+                    }
+                );
+            }
         }
 
         return containerGroup;
@@ -2147,23 +2273,70 @@ document.addEventListener('DOMContentLoaded', () => {
         return avatarGroup;
     }
 
-    function updateAvatarAnimation(avatarGroup, isWalking, delta) {
+    function updateAvatarAnimation(avatarGroup, isWalking, delta, isKneeling = false) {
         if (!avatarGroup) return;
 
-        // Soporte dinámico para modelos 3D GLB con animaciones Idle / Walk
+        // Soporte dinámico para modelos 3D GLB/FBX con animaciones Idle / Walk / Kneel
         if (avatarGroup.userData && avatarGroup.userData.isGLB) {
-            const idleAction = avatarGroup.userData.idleAction;
-            const walkAction = avatarGroup.userData.walkAction;
+            const idleAction      = avatarGroup.userData.idleAction;
+            const walkAction      = avatarGroup.userData.walkAction;
+            const kneelDownAction = avatarGroup.userData.kneelDownAction;
+            const kneelIdleAction = avatarGroup.userData.kneelIdleAction;
 
-            if (walkAction && idleAction) {
-                const targetAction = isWalking ? walkAction : idleAction;
-                if (avatarGroup.userData.activeAction !== targetAction) {
+            if (isKneeling) {
+                if (!avatarGroup.userData.isKneelingState) {
+                    avatarGroup.userData.isKneelingState = true;
                     const prevAction = avatarGroup.userData.activeAction;
-                    avatarGroup.userData.activeAction = targetAction;
-                    if (prevAction) {
-                        prevAction.fadeOut(0.2);
+
+                    if (kneelDownAction) {
+                        avatarGroup.userData.activeAction = kneelDownAction;
+                        if (prevAction && prevAction !== kneelDownAction) prevAction.fadeOut(0.25);
+                        kneelDownAction.reset().fadeIn(0.25).play();
+
+                        if (kneelIdleAction) {
+                            const downDur = (kneelDownAction.getClip().duration || 1.4) * 1000;
+                            if (avatarGroup.userData.kneelTimer) clearTimeout(avatarGroup.userData.kneelTimer);
+                            avatarGroup.userData.kneelTimer = setTimeout(() => {
+                                if (avatarGroup.userData && avatarGroup.userData.isKneelingState) {
+                                    kneelDownAction.fadeOut(0.3);
+                                    kneelIdleAction.reset().fadeIn(0.3).play();
+                                    avatarGroup.userData.activeAction = kneelIdleAction;
+                                }
+                            }, Math.max(200, downDur - 250));
+                        }
+                    } else if (kneelIdleAction) {
+                        if (avatarGroup.userData.activeAction !== kneelIdleAction) {
+                            if (prevAction) prevAction.fadeOut(0.25);
+                            kneelIdleAction.reset().fadeIn(0.25).play();
+                            avatarGroup.userData.activeAction = kneelIdleAction;
+                        }
                     }
-                    targetAction.reset().fadeIn(0.2).play();
+                }
+                return;
+            } else {
+                if (avatarGroup.userData.isKneelingState) {
+                    avatarGroup.userData.isKneelingState = false;
+                    if (avatarGroup.userData.kneelTimer) {
+                        clearTimeout(avatarGroup.userData.kneelTimer);
+                        avatarGroup.userData.kneelTimer = null;
+                    }
+                    if (kneelDownAction) kneelDownAction.fadeOut(0.25);
+                    if (kneelIdleAction) kneelIdleAction.fadeOut(0.25);
+                }
+
+                if (walkAction && idleAction) {
+                    const targetAction = isWalking ? walkAction : idleAction;
+                    if (avatarGroup.userData.activeAction !== targetAction) {
+                        const prevAction = avatarGroup.userData.activeAction;
+                        avatarGroup.userData.activeAction = targetAction;
+                        if (prevAction) {
+                            prevAction.fadeOut(0.25);
+                        }
+                        targetAction.reset().fadeIn(0.25).play();
+                    }
+                } else if (idleAction && !avatarGroup.userData.activeAction) {
+                    avatarGroup.userData.activeAction = idleAction;
+                    idleAction.play();
                 }
             }
             return;
@@ -2180,6 +2353,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const legBR = avatarGroup.getObjectByName('legBackRight');
             const tail = avatarGroup.getObjectByName('tailGroup');
             const torso = avatarGroup.getObjectByName('torsoGroup');
+
+            if (isKneeling) {
+                // Posición agachada o reposando frente a la tumba
+                if (legFL) legFL.rotation.x = -0.5;
+                if (legFR) legFR.rotation.x = -0.5;
+                if (legBL) legBL.rotation.x = 0.6;
+                if (legBR) legBR.rotation.x = 0.6;
+                if (torso) torso.position.y = 0.18;
+                return;
+            }
 
             if (isWalking) {
                 avatarGroup.userData.walkTime += delta * 12;
@@ -2221,6 +2404,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const torsoGroup = avatarGroup.getObjectByName('torsoGroup');
             const headGroup = avatarGroup.getObjectByName('headGroup');
 
+            if (isKneeling) {
+                // Postura arrodillada respetuosa frente a la tumba
+                if (leftLeg) leftLeg.rotation.x = -1.15;
+                if (rightLeg) rightLeg.rotation.x = -1.15;
+                if (leftArm) {
+                    leftArm.rotation.x = -0.3;
+                    leftArm.rotation.z = 0.1;
+                }
+                if (rightArm) {
+                    rightArm.rotation.x = -0.3;
+                    rightArm.rotation.z = -0.1;
+                }
+                if (torsoGroup) {
+                    torsoGroup.position.y = 0.38;
+                    torsoGroup.rotation.x = 0.15;
+                }
+                if (headGroup) {
+                    headGroup.rotation.x = 0.2;
+                }
+                return;
+            }
+
             if (isWalking) {
                 avatarGroup.userData.walkTime += delta * 10;
                 const wt = avatarGroup.userData.walkTime;
@@ -2234,9 +2439,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (torsoGroup) {
                     torsoGroup.position.y = 0.54 + Math.abs(Math.sin(wt)) * 0.03;
                     torsoGroup.rotation.z = Math.sin(wt) * 0.025; // Inclinación natural de hombros
+                    torsoGroup.rotation.x += (0 - torsoGroup.rotation.x) * 0.15;
                 }
                 if (headGroup) {
                     headGroup.rotation.z = -Math.sin(wt) * 0.02; // Contrabalanceo sutil de la cabeza
+                    headGroup.rotation.x += (0 - headGroup.rotation.x) * 0.15;
                 }
             } else {
                 avatarGroup.userData.walkTime += delta * 2;
@@ -2257,9 +2464,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (torsoGroup) {
                     torsoGroup.position.y += ((0.54 + Math.sin(wt * 1.5) * 0.005) - torsoGroup.position.y) * 0.15; // Respiración sutil
                     torsoGroup.rotation.z += (0 - torsoGroup.rotation.z) * 0.15;
+                    torsoGroup.rotation.x += (0 - torsoGroup.rotation.x) * 0.15;
                 }
                 if (headGroup) {
                     headGroup.rotation.z = Math.sin(wt * 0.8) * 0.02; // Pequeño gesto ocioso
+                    headGroup.rotation.x += (0 - headGroup.rotation.x) * 0.15;
                 }
             }
         }
@@ -4315,6 +4524,9 @@ document.addEventListener('DOMContentLoaded', () => {
             offset_y: 0.0,
             anim_idle: '',
             anim_walk: '',
+            anim_kneel_down: '',
+            anim_kneel_idle: '',
+            fbx_animations: [],
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
@@ -4462,6 +4674,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentConfig.glb_url     = '';
                     currentConfig.anim_idle   = '';
                     currentConfig.anim_walk   = '';
+                    currentConfig.anim_kneel_down = '';
+                    currentConfig.anim_kneel_idle = '';
                     if (!humanSkins.includes(currentConfig.skin)) {
                         currentConfig.skin = '#ffe0bd';
                     }
@@ -4476,6 +4690,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentConfig.glb_url     = '';
                     currentConfig.anim_idle   = '';
                     currentConfig.anim_walk   = '';
+                    currentConfig.anim_kneel_down = '';
+                    currentConfig.anim_kneel_idle = '';
                     if (!petFurs.includes(currentConfig.skin)) {
                         if (currentConfig.pet_species === 'cat') currentConfig.skin = '#334155';
                         else if (currentConfig.pet_species === 'rabbit') currentConfig.skin = '#f8fafc';
@@ -4493,6 +4709,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentConfig.offset_y    = parseFloat(card.dataset.offsetY || '0.0');
                     currentConfig.anim_idle   = card.dataset.animIdle || '';
                     currentConfig.anim_walk   = card.dataset.animWalk || '';
+                    currentConfig.anim_kneel_down = card.dataset.animKneelDown || '';
+                    currentConfig.anim_kneel_idle = card.dataset.animKneelIdle || '';
                 }
 
                 syncCustomizerControls(currentConfig);
@@ -4572,6 +4790,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('offset_y', currentConfig.offset_y || 0.0);
                 formData.append('anim_idle', currentConfig.anim_idle || '');
                 formData.append('anim_walk', currentConfig.anim_walk || '');
+                formData.append('anim_kneel_down', currentConfig.anim_kneel_down || '');
+                formData.append('anim_kneel_idle', currentConfig.anim_kneel_idle || '');
                 formData.append('skin', currentConfig.skin);
                 formData.append('shirt', currentConfig.shirt);
                 formData.append('pants', currentConfig.pants);
@@ -4720,7 +4940,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const isSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id === item.id || avatar.glb_url === item.file_url));
                                 const thumb = item.icon_url || '';
                                 return `
-                                    <div class="bp-glb-card bp-model-card ${isSelected ? 'active' : ''}" data-model-type="glb" data-id="${item.id}" data-url="${item.file_url}" data-category="${item.category || 'human'}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}" data-anim-idle="${item.anim_idle || ''}" data-anim-walk="${item.anim_walk || ''}">
+                                    <div class="bp-glb-card bp-model-card ${isSelected ? 'active' : ''}" data-model-type="glb" data-id="${item.id}" data-url="${item.file_url}" data-category="${item.category || 'human'}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}" data-anim-idle="${item.anim_idle || ''}" data-anim-walk="${item.anim_walk || ''}" data-anim-kneel-down="${item.anim_kneel_down || ''}" data-anim-kneel-idle="${item.anim_kneel_idle || ''}">
                                         ${thumb ? `<img src="${thumb}" class="bp-glb-thumb" />` : `<div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:24px;">📦</div>`}
                                         <div class="bp-glb-title">${item.title}</div>
                                         ${isSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
@@ -6109,7 +6329,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (localPlayerAvatar) {
                 localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
                 localPlayerAvatar.rotation.y = cameraYaw + Math.PI;
-                updateAvatarAnimation(localPlayerAvatar, isMoving, delta);
+                const isKneeling = Boolean(focusedPlotId);
+                updateAvatarAnimation(localPlayerAvatar, isMoving, delta, isKneeling);
             }
 
             if (currentMode === MODE_GROUND) {
