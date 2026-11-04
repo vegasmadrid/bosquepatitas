@@ -91,6 +91,7 @@ class BosquePatitas {
         $approved_pets = array();
         $avatar_config = array(
             'avatar_type' => 'human',
+            'category'    => 'human',
             'pet_species' => 'dog',
             'glb_id'      => '',
             'glb_url'     => '',
@@ -145,6 +146,10 @@ class BosquePatitas {
         if (is_array($all_glb)) {
             foreach ($all_glb as $g) {
                 if (!empty($g['active']) && !empty($g['file_url'])) {
+                    if (!empty($g['detected_materials']) && is_string($g['detected_materials'])) {
+                        $decoded = json_decode($g['detected_materials'], true);
+                        $g['detected_materials'] = is_array($decoded) ? $decoded : array();
+                    }
                     $active_glb[] = $g;
                 }
             }

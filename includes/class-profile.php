@@ -116,6 +116,7 @@ class BP_Profile {
         $user_id = get_current_user_id();
 
         $avatar_type = isset($_POST['avatar_type']) ? sanitize_text_field($_POST['avatar_type']) : 'human';
+        $category    = isset($_POST['category']) ? sanitize_text_field($_POST['category']) : 'human';
         $pet_species = isset($_POST['pet_species']) ? sanitize_text_field($_POST['pet_species']) : 'dog';
         $glb_id      = isset($_POST['glb_id']) ? sanitize_text_field($_POST['glb_id']) : '';
         $glb_url     = isset($_POST['glb_url']) ? esc_url_raw($_POST['glb_url']) : '';
@@ -133,6 +134,7 @@ class BP_Profile {
 
         $avatar_data = array(
             'avatar_type' => $avatar_type,
+            'category'    => $category,
             'pet_species' => $pet_species,
             'glb_id'      => $glb_id,
             'glb_url'     => $glb_url,
@@ -160,6 +162,7 @@ class BP_Profile {
     private function get_default_avatar_data() {
         return array(
             'avatar_type' => 'human',
+            'category'    => 'human',
             'pet_species' => 'dog',
             'glb_id'      => '',
             'glb_url'     => '',
