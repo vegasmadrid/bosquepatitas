@@ -10,6 +10,7 @@ class BP_Admin_GLB {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
         add_action('admin_post_bp_save_glb_avatar', array($this, 'handle_save_avatar'));
         add_action('admin_post_bp_delete_glb_avatar', array($this, 'handle_delete_avatar'));
+        add_action('admin_post_bp_save_global_animations', array($this, 'handle_save_global_animations'));
     }
 
     public function allow_glb_mime_types($mimes) {
@@ -58,6 +59,67 @@ class BP_Admin_GLB {
     public function get_avatars() {
         $avatars = get_option('bp_glb_avatars_list', array());
         return is_array($avatars) ? $avatars : array();
+    }
+
+    public static function get_global_animations() {
+        $defaults = array(
+            'anim_idle'        => '',
+            'walk_styles'      => array(
+                array('id' => 'walk_1', 'name' => 'Paso Normal', 'url' => ''),
+                array('id' => 'walk_2', 'name' => 'Paso Alegre', 'url' => ''),
+                array('id' => 'walk_3', 'name' => 'Paseo Relajado', 'url' => '')
+            ),
+            'anim_kneel_down'  => '',
+            'anim_kneel_idle'  => '',
+            'anim_dance'       => ''
+        );
+        $saved = get_option('bp_global_animations', array());
+        if (!is_array($saved)) {
+            $saved = array();
+        }
+
+        $merged = array_merge($defaults, $saved);
+        if (!isset($merged['walk_styles']) || !is_array($merged['walk_styles']) || count($merged['walk_styles']) < 3) {
+            $merged['walk_styles'] = $defaults['walk_styles'];
+        }
+        return $merged;
+    }
+
+    public function handle_save_global_animations() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Acceso no autorizado.');
+        }
+
+        check_admin_referer('bp_save_global_animations_nonce');
+
+        $anim_idle       = isset($_POST['global_anim_idle']) ? esc_url_raw($_POST['global_anim_idle']) : '';
+        $anim_kneel_down = isset($_POST['global_anim_kneel_down']) ? esc_url_raw($_POST['global_anim_kneel_down']) : '';
+        $anim_kneel_idle = isset($_POST['global_anim_kneel_idle']) ? esc_url_raw($_POST['global_anim_kneel_idle']) : '';
+        $anim_dance      = isset($_POST['global_anim_dance']) ? esc_url_raw($_POST['global_anim_dance']) : '';
+
+        $walk_styles = array();
+        for ($i = 1; $i <= 3; $i++) {
+            $w_name = isset($_POST["global_walk_{$i}_name"]) ? sanitize_text_field($_POST["global_walk_{$i}_name"]) : "Estilo {$i}";
+            $w_url  = isset($_POST["global_walk_{$i}_url"]) ? esc_url_raw($_POST["global_walk_{$i}_url"]) : '';
+            $walk_styles[] = array(
+                'id'   => "walk_{$i}",
+                'name' => $w_name ?: "Estilo {$i}",
+                'url'  => $w_url
+            );
+        }
+
+        $data = array(
+            'anim_idle'       => $anim_idle,
+            'walk_styles'     => $walk_styles,
+            'anim_kneel_down' => $anim_kneel_down,
+            'anim_kneel_idle' => $anim_kneel_idle,
+            'anim_dance'      => $anim_dance
+        );
+
+        update_option('bp_global_animations', $data);
+
+        wp_redirect(admin_url('edit.php?post_type=mascota_tumba&page=bp-glb-avatars&message=global_saved'));
+        exit;
     }
 
     public function handle_save_avatar() {
@@ -192,18 +254,117 @@ class BP_Admin_GLB {
         $allow_colors_val = isset($editing_avatar['allow_colors']) ? (int)$editing_avatar['allow_colors'] : 1;
         $saved_detected = isset($editing_avatar['detected_materials']) ? $editing_avatar['detected_materials'] : '[]';
         $saved_fbx = isset($editing_avatar['fbx_animations']) ? $editing_avatar['fbx_animations'] : '[]';
+        $global_anims = self::get_global_animations();
 
         $msg = isset($_GET['message']) ? sanitize_text_field($_GET['message']) : '';
         ?>
         <div class="wrap">
-            <h1 class="wp-heading-inline">Gestión de Avatares 3D (Modelos GLB / FBX y Animaciones Mixamo)</h1>
-            <p>Sube modelos 3D en formato <code>.glb</code> o <code>.fbx</code> y añade múltiples archivos de animación <code>.fbx</code> descargados de Mixamo (para estar quieto, caminar, arrodillarse y estar de rodillas al mirar una tumba).</p>
+            <h1 class="wp-heading-inline">Gestión de Avatares 3D (Modelos GLB / FBX y Biblioteca de Animaciones)</h1>
+            <p>Configura las animaciones globales una sola vez para que sirvan a todas las skins o sube archivos independientes para skins específicas.</p>
 
             <?php if ($msg === 'saved'): ?>
                 <div class="notice notice-success is-dismissible"><p>¡Avatar 3D guardado con éxito!</p></div>
             <?php elseif ($msg === 'deleted'): ?>
                 <div class="notice notice-warning is-dismissible"><p>Avatar 3D eliminado.</p></div>
+            <?php elseif ($msg === 'global_saved'): ?>
+                <div class="notice notice-success is-dismissible"><p>¡Biblioteca de animaciones globales actualizada con éxito!</p></div>
             <?php endif; ?>
+
+            <!-- BIBLIOTECA GLOBAL DE ANIMACIONES COMPARTIDAS -->
+            <div style="background: #f8fafc; border: 2px solid #10b981; border-radius: 8px; padding: 20px; margin-top: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+                    <div>
+                        <h2 style="margin:0; font-size:18px; color:#065f46; display:flex; align-items:center; gap:8px;">
+                            <span>🎬</span> Biblioteca de Animaciones Globales (Compartidas para todas las skins)
+                        </h2>
+                        <p style="margin:4px 0 0 0; color:#475569; font-size:13px;">
+                            Sube aquí los archivos <code>.fbx</code> de Mixamo una sola vez. Se aplicarán automáticamente a todos los avatares y el usuario podrá elegir entre los 3 estilos de caminata en su personalizador.
+                        </p>
+                    </div>
+                </div>
+
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <input type="hidden" name="action" value="bp_save_global_animations">
+                    <?php wp_nonce_field('bp_save_global_animations_nonce'); ?>
+
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:16px; margin-top:14px;">
+
+                        <!-- Quieto / Idle -->
+                        <div style="background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:12px;">
+                            <label for="global_anim_idle"><strong>🧍 1. Estar Quieto (Idle Base):</strong></label>
+                            <div style="display:flex; gap:6px; margin-top:6px;">
+                                <input type="text" id="global_anim_idle" name="global_anim_idle" value="<?php echo esc_attr($global_anims['anim_idle'] ?? ''); ?>" class="widefat" placeholder="https://... idle.fbx">
+                                <button type="button" class="button button-secondary bp-btn-upload-anim" data-target="global_anim_idle">Subir</button>
+                            </div>
+                            <small class="description">Animación por defecto en reposo para todos los personajes.</small>
+                        </div>
+
+                        <!-- Baile / Dance -->
+                        <div style="background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:12px; border-left:4px solid #f59e0b;">
+                            <label for="global_anim_dance"><strong>🕺 2. Baile (Reacción / Gestos):</strong></label>
+                            <div style="display:flex; gap:6px; margin-top:6px;">
+                                <input type="text" id="global_anim_dance" name="global_anim_dance" value="<?php echo esc_attr($global_anims['anim_dance'] ?? ''); ?>" class="widefat" placeholder="https://... dance.fbx">
+                                <button type="button" class="button button-secondary bp-btn-upload-anim" data-target="global_anim_dance">Subir</button>
+                            </div>
+                            <small class="description">Animación ejecutada al pulsar el botón de baile en los gestos. Baila en bucle hasta que el usuario se mueve.</small>
+                        </div>
+
+                        <!-- Tumbas: Arrodillarse -->
+                        <div style="background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:12px;">
+                            <label for="global_anim_kneel_down"><strong>🧎 3. Arrodillarse (Kneel Down al mirar tumba):</strong></label>
+                            <div style="display:flex; gap:6px; margin-top:6px;">
+                                <input type="text" id="global_anim_kneel_down" name="global_anim_kneel_down" value="<?php echo esc_attr($global_anims['anim_kneel_down'] ?? ''); ?>" class="widefat" placeholder="https://... kneel_down.fbx">
+                                <button type="button" class="button button-secondary bp-btn-upload-anim" data-target="global_anim_kneel_down">Subir</button>
+                            </div>
+                            <small class="description">Transición al agacharse frente a la lápida de una mascota.</small>
+                        </div>
+
+                        <!-- Tumbas: Estar de Rodillas -->
+                        <div style="background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:12px;">
+                            <label for="global_anim_kneel_idle"><strong>🧎‍♂️ 4. Estar de Rodillas (Kneel Idle velando tumba):</strong></label>
+                            <div style="display:flex; gap:6px; margin-top:6px;">
+                                <input type="text" id="global_anim_kneel_idle" name="global_anim_kneel_idle" value="<?php echo esc_attr($global_anims['anim_kneel_idle'] ?? ''); ?>" class="widefat" placeholder="https://... kneel_idle.fbx">
+                                <button type="button" class="button button-secondary bp-btn-upload-anim" data-target="global_anim_kneel_idle">Subir</button>
+                            </div>
+                            <small class="description">Bucle mientras el avatar vela frente a la tumba.</small>
+                        </div>
+
+                    </div>
+
+                    <!-- 3 ESTILOS DE CAMINATA -->
+                    <div style="background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:14px; margin-top:16px;">
+                        <h3 style="margin:0 0 10px 0; font-size:14px; color:#1e293b;">
+                            🚶‍♂️ Los 3 Estilos de Caminata (Disponibles para elegir en el personalizador del avatar)
+                        </h3>
+                        <p style="margin:0 0 12px 0; font-size:12px; color:#64748b;">
+                            Define el nombre y sube el archivo FBX de cada uno de los 3 estilos para que el usuario pueda alternar entre ellos en vivo.
+                        </p>
+
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+                            <?php for ($w = 1; $w <= 3; $w++):
+                                $style_data = $global_anims['walk_styles'][$w - 1] ?? array('name' => "Estilo {$w}", 'url' => '');
+                            ?>
+                                <div style="background:#f1f5f9; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
+                                    <label><strong>Estilo <?php echo $w; ?> - Nombre Visible:</strong></label>
+                                    <input type="text" name="global_walk_<?php echo $w; ?>_name" value="<?php echo esc_attr($style_data['name'] ?? "Estilo {$w}"); ?>" class="widefat" style="margin-top:4px; margin-bottom:8px;" placeholder="Ej: Paso Alegre, Paseo Relajado...">
+
+                                    <label><strong>Archivo Animación FBX:</strong></label>
+                                    <div style="display:flex; gap:6px; margin-top:4px;">
+                                        <input type="text" id="global_walk_<?php echo $w; ?>_url" name="global_walk_<?php echo $w; ?>_url" value="<?php echo esc_attr($style_data['url'] ?? ''); ?>" class="widefat" placeholder="https://... walk_<?php echo $w; ?>.fbx">
+                                        <button type="button" class="button button-secondary bp-btn-upload-anim" data-target="global_walk_<?php echo $w; ?>_url">Subir</button>
+                                    </div>
+                                </div>
+                            <?php endfor; ?>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:16px; text-align:right;">
+                        <button type="submit" class="button button-primary" style="background:#10b981; border-color:#059669; font-weight:bold; padding:4px 20px;">
+                            💾 Guardar Biblioteca de Animaciones Globales
+                        </button>
+                    </div>
+                </form>
+            </div>
 
             <div style="display: flex; gap: 20px; margin-top: 20px; align-items: flex-start; flex-wrap: wrap;">
 
@@ -885,6 +1046,29 @@ class BP_Admin_GLB {
 
             setupMediaUploader('btn_upload_glb', 'file_url');
             setupMediaUploader('btn_upload_icon', 'icon_url');
+
+            // Uploaders para animaciones de la biblioteca global
+            document.querySelectorAll('.bp-btn-upload-anim').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    var targetId = btn.getAttribute('data-target');
+                    var targetInput = document.getElementById(targetId);
+                    if (!targetInput) return;
+
+                    var frame = wp.media({
+                        title: 'Seleccionar Archivo FBX de Animación',
+                        button: { text: 'Usar esta animación' },
+                        multiple: false
+                    });
+
+                    frame.on('select', function() {
+                        var attachment = frame.state().get('selection').first().toJSON();
+                        targetInput.value = attachment.url;
+                    });
+
+                    frame.open();
+                });
+            });
 
             if (fileInput) {
                 fileInput.addEventListener('change', function() {

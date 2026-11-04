@@ -176,6 +176,9 @@ class BosquePatitas {
         $revision   = 'Rev 2026.10.29-0850';
         $build_date = '29/10/2026 08:50';
 
+        // Obtener animaciones globales
+        $global_anims = class_exists('BP_Admin_GLB') ? BP_Admin_GLB::get_global_animations() : array();
+
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
             'apiUrl'           => esc_url_raw(rest_url('wp/v2/tumbas')),
@@ -190,6 +193,7 @@ class BosquePatitas {
             'approvedPets'     => $approved_pets,
             'avatar'           => $avatar_config,
             'glbAvatars'       => $active_glb,
+            'globalAnimations' => $global_anims,
             'pusherKey'        => esc_attr($pusher_key),
             'pusherCluster'    => esc_attr($pusher_cluster),
             'showVersionBadge' => $show_version_badge,

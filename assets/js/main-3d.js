@@ -343,15 +343,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const avConfig = settings.avatar || {};
         if (!avConfig.incognito) {
             localPlayerAvatar = create3DAvatarModel(avConfig, (meshGroup) => {
-                if (meshGroup) {
+                if (meshGroup && scene) {
                     meshGroup.name = 'localPlayerAvatar';
                     meshGroup.position.set(playerPosition.x, 0, playerPosition.z);
                     meshGroup.visible = (currentMode !== MODE_GROUND);
+                    triggerAvatarLightPulse(scene, new THREE.Vector3(playerPosition.x, 0, playerPosition.z), false);
                 }
             });
             localPlayerAvatar.name = 'localPlayerAvatar';
             localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
-            localPlayerAvatar.visible = (currentMode !== MODE_GROUND);
+            localPlayerAvatar.visible = (currentMode !== MODE_GROUND && (!avConfig.glb_url || glbModelCache.has(avConfig.glb_url)));
             scene.add(localPlayerAvatar);
         }
     }
@@ -529,10 +530,34 @@ document.addEventListener('DOMContentLoaded', () => {
     function triggerEmote3D(avatarGroup, emoteType) {
         if (!avatarGroup) return;
 
+        // Si es baile, activar animación de baile en bucle
+        if (emoteType === 'dance') {
+            if (!avatarGroup.userData) avatarGroup.userData = {};
+            avatarGroup.userData.isDancingState = true;
+
+            // Mantener emojis flotantes en bucle mientras esté bailando
+            if (!avatarGroup.userData.danceEmojiInterval) {
+                avatarGroup.userData.danceEmojiInterval = setInterval(() => {
+                    if (avatarGroup && avatarGroup.userData && avatarGroup.userData.isDancingState) {
+                        spawnEmoteParticles(avatarGroup, '🕺');
+                    } else {
+                        clearInterval(avatarGroup.userData.danceEmojiInterval);
+                        avatarGroup.userData.danceEmojiInterval = null;
+                    }
+                }, 1600);
+            }
+        }
+
         const emoteIcons = { wave: '👋', heart: '❤️', flower: '🌸', candle: '🕯️', dance: '🕺' };
         const icon = emoteIcons[emoteType] || '✨';
 
-        for (let i = 0; i < 6; i++) {
+        spawnEmoteParticles(avatarGroup, icon);
+    }
+
+    function spawnEmoteParticles(avatarGroup, icon) {
+        if (!avatarGroup || !scene) return;
+
+        for (let i = 0; i < 5; i++) {
             const pCanvas = document.createElement('canvas');
             pCanvas.width = 128;
             pCanvas.height = 128;
@@ -563,10 +588,72 @@ document.addEventListener('DOMContentLoaded', () => {
                     requestAnimationFrame(animateParticle);
                 } else {
                     scene.remove(pSprite);
+                    if (pSprite.geometry) pSprite.geometry.dispose();
+                    if (pSprite.material) {
+                        if (pSprite.material.map) pSprite.material.map.dispose();
+                        pSprite.material.dispose();
+                    }
                 }
             }
             requestAnimationFrame(animateParticle);
         }
+    }
+
+    // Animación de Destello / Pulso de Luz al aparecer el avatar 3D
+    function triggerAvatarLightPulse(targetScene, targetPosition, isPreview = false) {
+        if (!targetScene) return;
+
+        const pulseGroup = new THREE.Group();
+        const basePos = (targetPosition && typeof targetPosition.clone === 'function')
+            ? targetPosition.clone()
+            : new THREE.Vector3(0, 0, 0);
+
+        pulseGroup.position.copy(basePos);
+
+        // Luz puntual de destello brillante
+        const pulseLight = new THREE.PointLight(0x34d399, isPreview ? 3.0 : 4.5, isPreview ? 6.0 : 12.0);
+        pulseLight.position.set(0, 0.9, 0);
+        pulseGroup.add(pulseLight);
+
+        // Esfera de expansión de energía luminosa translúcida
+        const ringGeo = new THREE.SphereGeometry(isPreview ? 0.35 : 0.5, 24, 24);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xa7f3d0,
+            transparent: true,
+            opacity: 0.85,
+            wireframe: false,
+            side: THREE.BackSide
+        });
+        const pulseSphere = new THREE.Mesh(ringGeo, ringMat);
+        pulseSphere.position.set(0, 0.8, 0);
+        pulseGroup.add(pulseSphere);
+
+        targetScene.add(pulseGroup);
+
+        const startTime = performance.now();
+        const duration = 750; // ms
+
+        function animatePulse(now) {
+            const elapsed = now - startTime;
+            const progress = Math.min(1.0, elapsed / duration);
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+
+            const scale = 1.0 + easeOut * (isPreview ? 2.2 : 3.0);
+            pulseSphere.scale.set(scale, scale, scale);
+            pulseSphere.material.opacity = Math.max(0, (1.0 - easeOut) * 0.85);
+
+            pulseLight.intensity = Math.max(0, (isPreview ? 3.0 : 4.5) * (1.0 - easeOut));
+
+            if (progress < 1.0) {
+                requestAnimationFrame(animatePulse);
+            } else {
+                targetScene.remove(pulseGroup);
+                if (pulseSphere.geometry) pulseSphere.geometry.dispose();
+                if (pulseSphere.material) pulseSphere.material.dispose();
+            }
+        }
+
+        requestAnimationFrame(animatePulse);
     }
 
     function addChatMessageToBox(senderName, text, isPrivate = false) {
@@ -1292,23 +1379,36 @@ document.addEventListener('DOMContentLoaded', () => {
             model.position.sub(center);
             model.position.y += (box.getSize(new THREE.Vector3()).y / 2) + offsetY;
 
-            // Recopilar referencias de animaciones configuradas
+            // Recopilar referencias de animaciones configuradas y biblioteca global
             const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
             const glbMeta = glbList.find(g => (config.glb_id && g.id === config.glb_id) || (config.glb_url && g.file_url === config.glb_url)) || {};
             const fbxList = config.fbx_animations || glbMeta.fbx_animations || [];
 
-            let animIdleRef      = config.anim_idle || glbMeta.anim_idle || '';
-            let animWalkRef      = config.anim_walk || glbMeta.anim_walk || '';
-            let animKneelDownRef = config.anim_kneel_down || glbMeta.anim_kneel_down || '';
-            let animKneelIdleRef = config.anim_kneel_idle || glbMeta.anim_kneel_idle || '';
+            const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
+            const globalWalkStyles = Array.isArray(globalAnims.walk_styles) ? globalAnims.walk_styles : [];
+
+            // Resolver estilo de caminata seleccionado (walk_1, walk_2, walk_3 o URL explícita)
+            let chosenWalkUrl = '';
+            const userWalkStyle = config.walk_style || (settings.avatar && settings.avatar.walk_style) || 'walk_1';
+            const matchedWalkStyle = globalWalkStyles.find(ws => ws.id === userWalkStyle);
+            if (matchedWalkStyle && matchedWalkStyle.url) {
+                chosenWalkUrl = matchedWalkStyle.url;
+            }
+
+            let animIdleRef      = config.anim_idle || glbMeta.anim_idle || globalAnims.anim_idle || '';
+            let animWalkRef      = chosenWalkUrl || config.anim_walk || glbMeta.anim_walk || (globalWalkStyles[0] ? globalWalkStyles[0].url : '');
+            let animKneelDownRef = config.anim_kneel_down || glbMeta.anim_kneel_down || globalAnims.anim_kneel_down || '';
+            let animKneelIdleRef = config.anim_kneel_idle || glbMeta.anim_kneel_idle || globalAnims.anim_kneel_idle || '';
+            let animDanceRef     = config.anim_dance || globalAnims.anim_dance || '';
 
             if (Array.isArray(fbxList)) {
                 fbxList.forEach(item => {
                     if (item && item.url) {
                         if (!animIdleRef && item.role === 'anim_idle') animIdleRef = item.url;
-                        if (!animWalkRef && item.role === 'anim_walk') animWalkRef = item.url;
+                        if (!chosenWalkUrl && !animWalkRef && item.role === 'anim_walk') animWalkRef = item.url;
                         if (!animKneelDownRef && item.role === 'anim_kneel_down') animKneelDownRef = item.url;
                         if (!animKneelIdleRef && item.role === 'anim_kneel_idle') animKneelIdleRef = item.url;
+                        if (!animDanceRef && item.role === 'anim_dance') animDanceRef = item.url;
                     }
                 });
             }
@@ -1341,42 +1441,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 resolveAnimClip(animWalkRef, ['walk', 'run', 'caminar'], (walkClip) => {
                     resolveAnimClip(animKneelDownRef, ['kneel_down', 'kneeling_down', 'kneeldown', 'arrodillar'], (kneelDownClip) => {
                         resolveAnimClip(animKneelIdleRef, ['kneel', 'kneeling', 'pray', 'rodilla'], (kneelIdleClip) => {
+                            resolveAnimClip(animDanceRef, ['dance', 'baile', 'bailar'], (danceClip) => {
 
-                            // Fallbacks inteligentes
-                            if (!idleClip && baseAnimations && baseAnimations[0]) {
-                                idleClip = prepareMixamoClip(baseAnimations[0], model);
-                            }
-                            if (!walkClip) {
-                                walkClip = idleClip;
-                            }
-                            if (!kneelIdleClip && kneelDownClip) {
-                                kneelIdleClip = kneelDownClip;
-                            }
+                                // Fallbacks inteligentes
+                                if (!idleClip && baseAnimations && baseAnimations[0]) {
+                                    idleClip = prepareMixamoClip(baseAnimations[0], model);
+                                }
+                                if (!walkClip) {
+                                    walkClip = idleClip;
+                                }
+                                if (!kneelIdleClip && kneelDownClip) {
+                                    kneelIdleClip = kneelDownClip;
+                                }
 
-                            const idleAction      = idleClip ? mixer.clipAction(idleClip) : null;
-                            const walkAction      = walkClip ? mixer.clipAction(walkClip) : null;
-                            const kneelDownAction = kneelDownClip ? mixer.clipAction(kneelDownClip) : null;
-                            const kneelIdleAction = kneelIdleClip ? mixer.clipAction(kneelIdleClip) : null;
+                                const idleAction      = idleClip ? mixer.clipAction(idleClip) : null;
+                                const walkAction      = walkClip ? mixer.clipAction(walkClip) : null;
+                                const kneelDownAction = kneelDownClip ? mixer.clipAction(kneelDownClip) : null;
+                                const kneelIdleAction = kneelIdleClip ? mixer.clipAction(kneelIdleClip) : null;
+                                const danceAction     = danceClip ? mixer.clipAction(danceClip) : null;
 
-                            if (kneelDownAction) {
-                                kneelDownAction.setLoop(THREE.LoopOnce, 1);
-                                kneelDownAction.clampWhenFinished = true;
-                            }
+                                if (kneelDownAction) {
+                                    kneelDownAction.setLoop(THREE.LoopOnce, 1);
+                                    kneelDownAction.clampWhenFinished = true;
+                                }
 
-                            if (idleAction) {
-                                idleAction.play();
-                            }
+                                if (idleAction) {
+                                    idleAction.play();
+                                }
 
-                            containerGroup.userData.mixer           = mixer;
-                            containerGroup.userData.idleAction      = idleAction;
-                            containerGroup.userData.walkAction      = walkAction;
-                            containerGroup.userData.kneelDownAction = kneelDownAction;
-                            containerGroup.userData.kneelIdleAction = kneelIdleAction;
-                            containerGroup.userData.activeAction    = idleAction;
-                            containerGroup.userData.isGLB           = true;
-                            containerGroup.userData.isKneelingState = false;
+                                containerGroup.userData.mixer           = mixer;
+                                containerGroup.userData.idleAction      = idleAction;
+                                containerGroup.userData.walkAction      = walkAction;
+                                containerGroup.userData.kneelDownAction = kneelDownAction;
+                                containerGroup.userData.kneelIdleAction = kneelIdleAction;
+                                containerGroup.userData.danceAction     = danceAction;
+                                containerGroup.userData.activeAction    = idleAction;
+                                containerGroup.userData.isGLB           = true;
+                                containerGroup.userData.isKneelingState = false;
+                                containerGroup.userData.isDancingState  = false;
 
-                            activeAnimMixers.push(mixer);
+                                activeAnimMixers.push(mixer);
 
                             // Aplicar tintado de materiales
                             applyGLBColors(model, config);
@@ -1390,6 +1494,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (typeof onLoadCallback === 'function') {
                                 onLoadCallback(containerGroup);
                             }
+                            });
                         });
                     });
                 });
@@ -1400,12 +1505,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const cached = glbModelCache.get(glbUrl);
             applyModelScene(cached.scene, cached.animations);
         } else {
-            const placeholderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
-            const placeholderMaterial = new THREE.MeshBasicMaterial({ color: 0x10b981, wireframe: true });
-            const placeholderMesh = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
-            placeholderMesh.position.y = 0.4;
-            containerGroup.add(placeholderMesh);
-
             let versionedUrl = glbUrl;
             const cacheBuster = 't=' + (window.BP_Settings && window.BP_Settings.version ? window.BP_Settings.version : Date.now());
             if (versionedUrl.indexOf('?') === -1) {
@@ -1419,13 +1518,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     versionedUrl,
                     (fbxScene) => {
                         glbModelCache.set(glbUrl, { scene: fbxScene, animations: fbxScene.animations || [] });
-                        containerGroup.remove(placeholderMesh);
                         applyModelScene(fbxScene, fbxScene.animations || []);
                     },
                     undefined,
                     (err) => {
                         console.warn('Error al cargar avatar FBX:', glbUrl, err);
-                        containerGroup.remove(placeholderMesh);
                         const fallbackMesh = createHumanAvatarModel(config);
                         containerGroup.add(fallbackMesh);
                         if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
@@ -1436,13 +1533,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     versionedUrl,
                     (gltf) => {
                         glbModelCache.set(glbUrl, { scene: gltf.scene, animations: gltf.animations || [] });
-                        containerGroup.remove(placeholderMesh);
                         applyModelScene(gltf.scene, gltf.animations || []);
                     },
                     undefined,
                     (err) => {
                         console.warn('Error al cargar avatar GLB:', glbUrl, err);
-                        containerGroup.remove(placeholderMesh);
                         const fallbackMesh = createHumanAvatarModel(config);
                         containerGroup.add(fallbackMesh);
                         if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
@@ -2276,12 +2371,32 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateAvatarAnimation(avatarGroup, isWalking, delta, isKneeling = false) {
         if (!avatarGroup) return;
 
-        // Soporte dinámico para modelos 3D GLB/FBX con animaciones Idle / Walk / Kneel
+        // Si el usuario camina o se mueve, cancelar automáticamente el estado de baile
+        if (isWalking && avatarGroup.userData && avatarGroup.userData.isDancingState) {
+            avatarGroup.userData.isDancingState = false;
+            if (avatarGroup.userData.danceAction) {
+                avatarGroup.userData.danceAction.fadeOut(0.25);
+            }
+        }
+
+        // Soporte dinámico para modelos 3D GLB/FBX con animaciones Idle / Walk / Kneel / Dance
         if (avatarGroup.userData && avatarGroup.userData.isGLB) {
             const idleAction      = avatarGroup.userData.idleAction;
             const walkAction      = avatarGroup.userData.walkAction;
             const kneelDownAction = avatarGroup.userData.kneelDownAction;
             const kneelIdleAction = avatarGroup.userData.kneelIdleAction;
+            const danceAction     = avatarGroup.userData.danceAction;
+
+            // Modo Baile en bucle
+            if (avatarGroup.userData.isDancingState && !isWalking && !isKneeling) {
+                if (danceAction && avatarGroup.userData.activeAction !== danceAction) {
+                    const prevAction = avatarGroup.userData.activeAction;
+                    avatarGroup.userData.activeAction = danceAction;
+                    if (prevAction) prevAction.fadeOut(0.25);
+                    danceAction.reset().fadeIn(0.25).play();
+                }
+                return;
+            }
 
             if (isKneeling) {
                 if (!avatarGroup.userData.isKneelingState) {
@@ -2339,6 +2454,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     idleAction.play();
                 }
             }
+            return;
+        }
+
+        // Procedural Dance for classic avatars (Tutor humano o Mascota)
+        if (avatarGroup.userData && avatarGroup.userData.isDancingState && !isWalking && !isKneeling) {
+            avatarGroup.userData.walkTime += delta * 14;
+            const dt = avatarGroup.userData.walkTime;
+
+            const torso = avatarGroup.getObjectByName('torsoGroup');
+            const head = avatarGroup.getObjectByName('headGroup');
+            const lArm = avatarGroup.getObjectByName('leftArm');
+            const rArm = avatarGroup.getObjectByName('rightArm');
+            const lLeg = avatarGroup.getObjectByName('leftLeg');
+            const rLeg = avatarGroup.getObjectByName('rightLeg');
+
+            if (torso) {
+                torso.position.y = 0.54 + Math.abs(Math.sin(dt * 0.8)) * 0.06;
+                torso.rotation.z = Math.sin(dt * 0.5) * 0.15;
+                torso.rotation.y = Math.cos(dt * 0.5) * 0.20;
+            }
+            if (head) {
+                head.rotation.z = -Math.sin(dt * 0.5) * 0.18;
+            }
+            if (lArm) {
+                lArm.rotation.x = -1.2 + Math.sin(dt) * 0.45;
+                lArm.rotation.z = 0.5 + Math.cos(dt) * 0.35;
+            }
+            if (rArm) {
+                rArm.rotation.x = -1.2 - Math.sin(dt) * 0.45;
+                rArm.rotation.z = -0.5 - Math.cos(dt) * 0.35;
+            }
+            if (lLeg) lLeg.rotation.x = Math.sin(dt * 0.5) * 0.25;
+            if (rLeg) rLeg.rotation.x = -Math.sin(dt * 0.5) * 0.25;
             return;
         }
 
@@ -4299,7 +4447,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (previewAnimFrame) cancelAnimationFrame(previewAnimFrame);
 
+        // Preserve or create loading overlay
+        let loadingOverlay = document.getElementById('bp-avatar-preview-loading');
         previewContainer.innerHTML = '';
+        if (!loadingOverlay) {
+            loadingOverlay = document.createElement('div');
+            loadingOverlay.id = 'bp-avatar-preview-loading';
+            loadingOverlay.className = 'bp-avatar-loading-overlay hidden';
+            loadingOverlay.innerHTML = `
+                <div class="bp-emerald-spinner"></div>
+                <div class="bp-avatar-loading-text">CARGANDO PERSONAJE...</div>
+            `;
+        }
+        previewContainer.appendChild(loadingOverlay);
 
         previewScene = new THREE.Scene();
         previewScene.background = new THREE.Color(0x0b1711);
@@ -4411,14 +4571,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function rebuildPreviewMesh(cfg) {
+            const loadingOverlay = document.getElementById('bp-avatar-preview-loading');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('hidden');
+            }
+
             if (previewAvatarMesh) {
                 disposeThreeObject(previewAvatarMesh);
                 previewScene.remove(previewAvatarMesh);
                 previewAvatarMesh = null;
             }
+
+            let isAsyncGlb = (cfg.avatar_type === 'glb' || (cfg.glb_url && cfg.glb_url !== '')) && !glbModelCache.has(cfg.glb_url);
+
             previewAvatarMesh = create3DAvatarModel(cfg, (loadedMesh) => {
                 if (loadedMesh) {
                     loadedMesh.position.set(0, 0, 0);
+                    loadedMesh.visible = true;
+                    if (loadingOverlay) {
+                        loadingOverlay.classList.add('hidden');
+                    }
+                    triggerAvatarLightPulse(previewScene, new THREE.Vector3(0, 0, 0), true);
+
                     requestAnimationFrame(() => {
                         framePreviewAvatar(previewAvatarMesh);
                         if (typeof syncCustomizerControls === 'function') {
@@ -4428,6 +4602,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             previewAvatarMesh.position.set(0, 0, 0);
+            if (isAsyncGlb) {
+                previewAvatarMesh.visible = false;
+            } else {
+                if (loadingOverlay) {
+                    loadingOverlay.classList.add('hidden');
+                }
+                triggerAvatarLightPulse(previewScene, new THREE.Vector3(0, 0, 0), true);
+            }
             previewScene.add(previewAvatarMesh);
 
             requestAnimationFrame(() => {
@@ -4496,14 +4678,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Animation Loop
         let previewClock = new THREE.Clock();
+        let previewWalkUntil = 0;
+
         function animatePreview() {
             previewAnimFrame = requestAnimationFrame(animatePreview);
 
             const delta = previewClock.getDelta();
+            const now = performance.now();
+            const isPreviewWalking = now < previewWalkUntil;
+
             if (!isDragging && previewAvatarMesh) {
                 previewAvatarMesh.rotation.y += 0.008;
             }
-            updateAvatarAnimation(previewAvatarMesh, false, delta);
+            updateAvatarAnimation(previewAvatarMesh, isPreviewWalking, delta);
 
             if (previewAvatarMesh && previewAvatarMesh.userData && previewAvatarMesh.userData.mixer) {
                 previewAvatarMesh.userData.mixer.update(delta);
@@ -4533,6 +4720,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hair_style: 'classic',
             hair_color: '#3b2314',
             accessory: 'none',
+            walk_style: 'walk_1',
             incognito: 0
         }, avatarConfig);
 
@@ -4764,6 +4952,29 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Manejo de botones de Estilo de Caminata con Vista Previa Animada en Vivo
+        document.querySelectorAll('.bp-walk-style-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const walkId = btn.getAttribute('data-walk-id');
+                const walkUrl = btn.getAttribute('data-walk-url');
+                currentConfig.walk_style = walkId;
+                if (walkUrl) {
+                    currentConfig.anim_walk = walkUrl;
+                }
+
+                document.querySelectorAll('.bp-walk-style-btn').forEach(b => {
+                    b.classList.remove('bp-arcade-btn-yellow');
+                    b.classList.add('bp-arcade-btn-green');
+                });
+                btn.classList.remove('bp-arcade-btn-green');
+                btn.classList.add('bp-arcade-btn-yellow');
+
+                // Si se cambió de animación walk en un GLB, reconstruir el mesh; si no, activar caminata
+                rebuildPreviewMesh(currentConfig);
+                previewWalkUntil = performance.now() + 3500; // Reproducir 3.5 segundos de caminata
+            });
+        });
+
         const chkIncognito = document.getElementById('bp-chk-incognito');
         if (chkIncognito) {
             chkIncognito.addEventListener('change', () => {
@@ -4790,6 +5001,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('offset_y', currentConfig.offset_y || 0.0);
                 formData.append('anim_idle', currentConfig.anim_idle || '');
                 formData.append('anim_walk', currentConfig.anim_walk || '');
+                formData.append('walk_style', currentConfig.walk_style || 'walk_1');
                 formData.append('anim_kneel_down', currentConfig.anim_kneel_down || '');
                 formData.append('anim_kneel_idle', currentConfig.anim_kneel_idle || '');
                 formData.append('skin', currentConfig.skin);
@@ -4888,8 +5100,16 @@ document.addEventListener('DOMContentLoaded', () => {
             hair_style: 'classic',
             hair_color: '#3b2314',
             accessory: 'none',
+            walk_style: 'walk_1',
             incognito: 0
         }, settings.avatar || {});
+
+        const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
+        const globalWalkStyles = Array.isArray(globalAnims.walk_styles) ? globalAnims.walk_styles : [
+            { id: 'walk_1', name: 'Paso Normal' },
+            { id: 'walk_2', name: 'Paso Alegre' },
+            { id: 'walk_3', name: 'Paseo Relajado' }
+        ];
 
         const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
 
@@ -5045,6 +5265,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             </select>
                         </div>
 
+                        <!-- 3 ESTILOS DE CAMINATA -->
+                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3);">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">
+                                🚶 ESTILO DE CAMINATA (Haz clic para probar en vivo):
+                            </label>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-walk-styles-container">
+                                ${globalWalkStyles.map((ws, idx) => {
+                                    const isCurrent = (avatar.walk_style === ws.id) || (!avatar.walk_style && idx === 0);
+                                    return `
+                                        <button type="button" class="bp-arcade-btn bp-walk-style-btn ${isCurrent ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" data-walk-id="${ws.id}" data-walk-url="${ws.url || ''}" style="flex:1; min-width:90px; font-size:8px; padding:10px 6px;">
+                                            ${ws.name || ('Estilo ' + (idx + 1))}
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
                         <!-- INCOGNITO CHECKBOX -->
                         <div style="margin-bottom:20px; background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
                             <label style="font-size:12px; color:#a7f3d0; cursor:pointer; display:flex; align-items:center; gap:8px;">
@@ -5065,7 +5302,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-family:'Press Start 2P', monospace; font-size:11px; color:#ffd600; margin-bottom:10px;">
                             🕹️ VISTA PREVIA EN VIVO 3D
                         </div>
-                        <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;"></div>
+                        <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;">
+                            <div id="bp-avatar-preview-loading" class="bp-avatar-loading-overlay hidden">
+                                <div class="bp-emerald-spinner"></div>
+                                <div class="bp-avatar-loading-text">CARGANDO PERSONAJE...</div>
+                            </div>
+                        </div>
                         <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa • Rueda para zoom</div>
                     </div>
 
