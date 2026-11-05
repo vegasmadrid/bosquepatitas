@@ -535,6 +535,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!avatarGroup.userData) avatarGroup.userData = {};
             avatarGroup.userData.isDancingState = true;
 
+            // Si el avatar tiene una animación de baile 3D configurada en userData, reproducirla
+            if (avatarGroup.userData.danceAction) {
+                if (avatarGroup.userData.idleAction) avatarGroup.userData.idleAction.fadeOut(0.3);
+                if (avatarGroup.userData.walkAction) avatarGroup.userData.walkAction.fadeOut(0.3);
+                avatarGroup.userData.danceAction.reset().fadeIn(0.3).play();
+            }
+
             // Mantener emojis flotantes en bucle mientras esté bailando
             if (!avatarGroup.userData.danceEmojiInterval) {
                 avatarGroup.userData.danceEmojiInterval = setInterval(() => {
@@ -1142,7 +1149,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!root) return;
 
         const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
-        const glbMeta = glbList.find(g => (config.glb_id && g.id === config.glb_id) || (config.glb_url && g.file_url === config.glb_url)) || {};
+        const glbMeta = glbList.find(g => (config.glb_id && String(g.id) === String(config.glb_id)) || (config.glb_url && g.file_url === config.glb_url)) || {};
 
         let allowColors = true;
         if (typeof config.allow_colors !== 'undefined') {
@@ -1153,58 +1160,55 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!allowColors) return;
 
         // Leer capas configuradas por el admin
-        let configuredLayers = [];
-        if (glbMeta && glbMeta.custom_layers) {
-            if (typeof glbMeta.custom_layers === 'string') {
-                try { configuredLayers = JSON.parse(glbMeta.custom_layers); } catch(e) { configuredLayers = []; }
-            } else if (Array.isArray(glbMeta.custom_layers)) {
-                configuredLayers = glbMeta.custom_layers;
-            }
-        }
-
+        const configuredLayers = getGLBAvatarCustomLayers(glbMeta);
         const userLayerColors = config.layer_colors || (settings.avatar && settings.avatar.layer_colors) || {};
 
         root.traverse(child => {
             if (!child.isMesh && !child.isSkinnedMesh) return;
             if (!child.material) return;
 
+            // Guardar color y textura base originales para poder restaurar o modular limpiamente
             const mats = Array.isArray(child.material) ? child.material : [child.material];
             mats.forEach(mat => {
                 if (!mat || !mat.color || typeof mat.color.copy !== 'function') return;
 
+                if (!mat.userData) mat.userData = {};
+                if (!mat.userData.origColor) {
+                    mat.userData.origColor = mat.color.clone();
+                }
+
                 const meshName = (child.name || '').trim();
                 const matName = (mat.name || '').trim();
 
-                // 1. Coincidencia con capas configuradas en el back end
                 let matchedColor = null;
+
+                // 1. Coincidencia con capas personalizadas configuradas en el back end
                 if (Array.isArray(configuredLayers) && configuredLayers.length > 0) {
                     for (let layer of configuredLayers) {
-                        if (!layer.enabled) continue;
                         const lName = (layer.name || '').toLowerCase();
                         if (lName === meshName.toLowerCase() || lName === matName.toLowerCase()) {
-                            matchedColor = userLayerColors[layer.name] || layer.defColor || '#10b981';
+                            // Solo si el usuario ha seleccionado un color explícito o la capa tiene color por defecto definido
+                            if (userLayerColors[layer.name]) {
+                                matchedColor = userLayerColors[layer.name];
+                            } else if (layer.defColor) {
+                                matchedColor = layer.defColor;
+                            }
                             break;
                         }
                     }
-                }
-
-                // 2. Si no hay capas personalizadas o como fallback, aplicar canales clásicos
-                if (!matchedColor) {
+                } else {
+                    // 2. Si no hay capas personalizadas activas, solo aplicar si hay selección explícita
                     const category = config.category || glbMeta.category || 'human';
-                    const skinColor  = config.skin || (category === 'pet' ? '#d97706' : '#ffe0bd');
-                    const shirtColor = config.shirt || (category === 'pet' ? '#ef4444' : '#10b981');
-                    const pantsColor = config.pants || '#1e3a8a';
-                    const hairColor  = config.hair_color || '#3b2314';
-
                     const testStr = `${meshName} ${matName}`.toLowerCase();
-                    if (/skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(testStr)) {
-                        matchedColor = skinColor;
-                    } else if (/shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i.test(testStr)) {
-                        matchedColor = shirtColor;
-                    } else if (/pant|trousers|leg|pierna|bottom|jean|short/i.test(testStr) && category !== 'pet') {
-                        matchedColor = pantsColor;
-                    } else if (/hair|pelo|cabello/i.test(testStr) && category !== 'pet') {
-                        matchedColor = hairColor;
+
+                    if (config.skin && /skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(testStr)) {
+                        matchedColor = config.skin;
+                    } else if (config.shirt && /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i.test(testStr)) {
+                        matchedColor = config.shirt;
+                    } else if (config.pants && /pant|trousers|leg|pierna|bottom|jean|short/i.test(testStr) && category !== 'pet') {
+                        matchedColor = config.pants;
+                    } else if (config.hair_color && /hair|pelo|cabello/i.test(testStr) && category !== 'pet') {
+                        matchedColor = config.hair_color;
                     }
                 }
 
@@ -1213,6 +1217,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         mat.color.copy(new THREE.Color(matchedColor));
                         mat.needsUpdate = true;
                     } catch (e) {}
+                } else if (mat.userData.origColor) {
+                    // Restaurar el color original del modelo 3D
+                    mat.color.copy(mat.userData.origColor);
+                    mat.needsUpdate = true;
                 }
             });
         });
@@ -1229,7 +1237,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 layers = glbItem.custom_layers;
             }
         }
-        return Array.isArray(layers) ? layers.filter(l => Boolean(l.enabled)) : [];
+        return Array.isArray(layers) ? layers.filter(l => (l.enabled == 1 || l.enabled === true || l.enabled === '1')) : [];
     }
 
     function createGLBAvatarModel(config = {}, onLoadCallback = null) {
@@ -1292,10 +1300,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const glbMeta = glbList.find(g => (config.glb_id && g.id === config.glb_id) || (config.glb_url && g.file_url === config.glb_url)) || {};
             const fbxList = config.fbx_animations || glbMeta.fbx_animations || [];
 
-            let animIdleRef      = config.anim_idle || glbMeta.anim_idle || '';
-            let animWalkRef      = config.anim_walk || glbMeta.anim_walk || '';
-            let animKneelDownRef = config.anim_kneel_down || glbMeta.anim_kneel_down || '';
-            let animKneelIdleRef = config.anim_kneel_idle || glbMeta.anim_kneel_idle || '';
+            const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
+            const selectedWalkStyle = config.walk_style || (settings.avatar && settings.avatar.walk_style) || 'walk_1';
+            let walkStyleUrl = '';
+            if (globalAnims && Array.isArray(globalAnims.walk_styles)) {
+                const foundWs = globalAnims.walk_styles.find(w => w.id === selectedWalkStyle);
+                if (foundWs && foundWs.url) walkStyleUrl = foundWs.url;
+            }
+
+            let animIdleRef      = config.anim_idle || glbMeta.anim_idle || (globalAnims ? globalAnims.anim_idle : '') || '';
+            let animWalkRef      = walkStyleUrl || config.anim_walk || glbMeta.anim_walk || (globalAnims ? globalAnims.anim_walk : '') || '';
+            let animKneelDownRef = config.anim_kneel_down || glbMeta.anim_kneel_down || (globalAnims ? globalAnims.anim_kneel_down : '') || '';
+            let animKneelIdleRef = config.anim_kneel_idle || glbMeta.anim_kneel_idle || (globalAnims ? globalAnims.anim_kneel_idle : '') || '';
+            let animDanceRef     = config.anim_dance || (globalAnims ? globalAnims.anim_dance : '') || '';
 
             if (Array.isArray(fbxList)) {
                 fbxList.forEach(item => {
@@ -1336,6 +1353,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resolveAnimClip(animWalkRef, ['walk', 'run', 'caminar'], (walkClip) => {
                     resolveAnimClip(animKneelDownRef, ['kneel_down', 'kneeling_down', 'kneeldown', 'arrodillar'], (kneelDownClip) => {
                         resolveAnimClip(animKneelIdleRef, ['kneel', 'kneeling', 'pray', 'rodilla'], (kneelIdleClip) => {
+                            resolveAnimClip(animDanceRef, ['dance', 'bailar', 'baile'], (danceClip) => {
 
                             // Fallbacks inteligentes
                             if (!idleClip && baseAnimations && baseAnimations[0]) {
@@ -1362,11 +1380,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 idleAction.play();
                             }
 
+                            const danceAction = danceClip ? mixer.clipAction(danceClip) : null;
+
                             containerGroup.userData.mixer           = mixer;
                             containerGroup.userData.idleAction      = idleAction;
                             containerGroup.userData.walkAction      = walkAction;
                             containerGroup.userData.kneelDownAction = kneelDownAction;
                             containerGroup.userData.kneelIdleAction = kneelIdleAction;
+                            containerGroup.userData.danceAction     = danceAction;
                             containerGroup.userData.activeAction    = idleAction;
                             containerGroup.userData.isGLB           = true;
                             containerGroup.userData.isKneelingState = false;
@@ -1385,6 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (typeof onLoadCallback === 'function') {
                                 onLoadCallback(containerGroup);
                             }
+                            });
                         });
                     });
                 });
@@ -3874,6 +3896,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
         let handled = true;
+        // Cancelar estado de baile si el jugador inicia movimiento
+        if (localPlayerAvatar && localPlayerAvatar.userData && localPlayerAvatar.userData.isDancingState) {
+            localPlayerAvatar.userData.isDancingState = false;
+            if (localPlayerAvatar.userData.danceAction) {
+                localPlayerAvatar.userData.danceAction.fadeOut(0.3);
+                if (localPlayerAvatar.userData.idleAction) localPlayerAvatar.userData.idleAction.reset().fadeIn(0.3).play();
+            }
+        }
+
         switch (e.code) {
             case 'ArrowUp':
             case 'KeyW':
@@ -4338,10 +4369,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dirL.shadow.camera.bottom = -1.0;
         previewScene.add(dirL);
 
-        // Peana circular que recibe sombras proyectadas
+        // Peana circular que recibe sombras proyectadas (tono neutro oscuro elegante para evitar reflejos verdosos en el modelo)
         const pedMesh = new THREE.Mesh(
             new THREE.CylinderGeometry(0.55, 0.60, 0.08, 32),
-            new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4, metalness: 0.1 })
+            new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.1 })
         );
         pedMesh.position.y = -0.04;
         pedMesh.receiveShadow = true;
@@ -4406,14 +4437,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function rebuildPreviewMesh(cfg) {
+            const previewLoading = document.getElementById('bp-avatar-preview-loading');
+            if (previewLoading) previewLoading.classList.remove('hidden');
+
             if (previewAvatarMesh) {
                 disposeThreeObject(previewAvatarMesh);
                 previewScene.remove(previewAvatarMesh);
                 previewAvatarMesh = null;
             }
             previewAvatarMesh = create3DAvatarModel(cfg, (loadedMesh) => {
+                if (previewLoading) previewLoading.classList.add('hidden');
                 if (loadedMesh) {
                     loadedMesh.position.set(0, 0, 0);
+                    triggerAvatarLightPulse(previewScene, new THREE.Vector3(0, 0, 0), true);
+
+                    // Si se acaba de seleccionar un estilo de caminata, reproducir acción de caminar unos segundos en la preview
+                    if (loadedMesh.userData && loadedMesh.userData.walkAction) {
+                        if (loadedMesh.userData.idleAction) loadedMesh.userData.idleAction.fadeOut(0.2);
+                        loadedMesh.userData.walkAction.reset().fadeIn(0.2).play();
+                        setTimeout(() => {
+                            if (loadedMesh.userData && loadedMesh.userData.walkAction && loadedMesh.userData.idleAction) {
+                                loadedMesh.userData.walkAction.fadeOut(0.3);
+                                loadedMesh.userData.idleAction.reset().fadeIn(0.3).play();
+                            }
+                        }, 2500);
+                    }
+
                     requestAnimationFrame(() => {
                         framePreviewAvatar(previewAvatarMesh);
                         if (typeof syncCustomizerControls === 'function') {
@@ -4559,11 +4608,12 @@ document.addEventListener('DOMContentLoaded', () => {
         function syncCustomizerControls(cfg) {
             const isGlb = (cfg.avatar_type === 'glb' && (cfg.glb_id || cfg.glb_url));
             const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
-            const glbItem = isGlb ? glbList.find(g => (cfg.glb_id && g.id === cfg.glb_id) || (cfg.glb_url && g.file_url === cfg.glb_url)) : null;
+            const glbItem = isGlb ? glbList.find(g => (cfg.glb_id && String(g.id) === String(cfg.glb_id)) || (cfg.glb_url && g.file_url === cfg.glb_url)) : null;
 
             const humanBox = document.getElementById('bp-human-custom-options');
             const petBox = document.getElementById('bp-pet-custom-options');
             const fixedNotice = document.getElementById('bp-block-fixed-notice');
+            const glbLayersBox = document.getElementById('bp-glb-custom-layers-options');
 
             const blockSkin = document.getElementById('bp-block-skin');
             const blockShirt = document.getElementById('bp-block-shirt');
@@ -4576,6 +4626,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!isGlb) {
                 if (fixedNotice) fixedNotice.style.display = 'none';
+                if (glbLayersBox) glbLayersBox.style.display = 'none';
 
                 if (cfg.avatar_type === 'pet') {
                     if (humanBox) humanBox.style.display = 'none';
@@ -4603,45 +4654,140 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Modelo GLB
-            const channels = getGLBAvatarChannelAvailability(glbItem, cfg.glb_url);
-            const category = (glbItem && glbItem.category) || cfg.category || 'human';
+            const customLayers = getGLBAvatarCustomLayers(glbItem);
+            const allowColors = (glbItem && typeof glbItem.allow_colors !== 'undefined')
+                ? (glbItem.allow_colors == 1 || glbItem.allow_colors === true || glbItem.allow_colors === '1')
+                : true;
 
-            if (!channels.allowColors || (!channels.hasSkin && !channels.hasShirt && !channels.hasPants && !channels.hasHair)) {
-                if (humanBox) humanBox.style.display = 'none';
-                if (petBox) petBox.style.display = 'none';
+            if (humanBox) humanBox.style.display = 'none';
+            if (petBox) petBox.style.display = 'none';
+
+            if (!allowColors) {
                 if (fixedNotice) fixedNotice.style.display = 'block';
+                if (glbLayersBox) glbLayersBox.style.display = 'none';
                 return;
             }
 
-            if (fixedNotice) fixedNotice.style.display = 'none';
-
-            if (category === 'pet') {
-                if (humanBox) humanBox.style.display = 'none';
-                if (petBox) petBox.style.display = 'block';
-
-                if (blockFur) blockFur.style.display = channels.hasSkin ? 'block' : 'none';
-                if (blockCollar) blockCollar.style.display = channels.hasShirt ? 'block' : 'none';
-
-                if (channels.hasSkin) updateSwatchActive('bp-swatches-fur', cfg.skin);
-                if (channels.hasShirt) updateSwatchActive('bp-swatches-collar', cfg.shirt);
+            if (customLayers && customLayers.length > 0) {
+                if (fixedNotice) fixedNotice.style.display = 'none';
+                if (glbLayersBox) {
+                    renderGLBCustomLayersUI(glbLayersBox, customLayers, cfg);
+                    glbLayersBox.style.display = 'block';
+                }
             } else {
-                if (petBox) petBox.style.display = 'none';
-                if (humanBox) humanBox.style.display = 'block';
-
-                if (blockSkin) blockSkin.style.display = channels.hasSkin ? 'block' : 'none';
-                if (blockShirt) blockShirt.style.display = channels.hasShirt ? 'block' : 'none';
-                if (blockPants) blockPants.style.display = channels.hasPants ? 'block' : 'none';
-
-                // Ocultar limpiamente peinados procedurales clásicos para modelos GLB
-                if (blockHairStyle) blockHairStyle.style.display = 'none';
-                // Mostrar selector de color de pelo solo si el GLB tiene malla/material de pelo identificable
-                if (blockHairColor) blockHairColor.style.display = channels.hasHair ? 'block' : 'none';
-
-                if (channels.hasSkin) updateSwatchActive('bp-swatches-skin', cfg.skin);
-                if (channels.hasShirt) updateSwatchActive('bp-swatches-shirt', cfg.shirt);
-                if (channels.hasPants) updateSwatchActive('bp-swatches-pants', cfg.pants);
-                if (channels.hasHair) updateSwatchActive('bp-swatches-hair', cfg.hair_color);
+                if (glbLayersBox) glbLayersBox.style.display = 'none';
+                if (fixedNotice) fixedNotice.style.display = 'block';
             }
+        }
+
+        // Renderizador dinámico de controles de color para las capas detectadas y configuradas
+        function renderGLBCustomLayersUI(container, layers, cfg) {
+            if (!container) return;
+            const currentLayerColors = cfg.layer_colors || {};
+            const standardPalette = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff', '#ffe0bd', '#8d5524'];
+
+            container.innerHTML = `
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:10px;">
+                        🎨 CAPAS PERSONALIZABLES DEL MODELO 3D:
+                    </label>
+                    ${layers.map((layer, idx) => {
+                        const activeCol = currentLayerColors[layer.name] || layer.defColor || '';
+                        return `
+                            <div class="bp-glb-layer-control" style="margin-bottom:14px; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <span style="font-size:11px; font-weight:700; color:#34d399;">
+                                        ${idx + 1}. ${layer.label || layer.name}
+                                    </span>
+                                    <input type="color" class="bp-layer-color-picker" data-layer-name="${layer.name}" value="${activeCol || '#ffffff'}" style="width:28px; height:24px; padding:0; border:none; cursor:pointer; background:none;" />
+                                </div>
+                                <div style="display:flex; gap:6px; flex-wrap:wrap;" class="bp-layer-swatches-row" data-layer-name="${layer.name}">
+                                    ${standardPalette.map(c => `
+                                        <div class="bp-color-swatch ${activeCol === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:26px; height:26px; border-radius:4px; cursor:pointer; border:2px solid ${activeCol === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
+                                    <div class="bp-color-swatch-reset" title="Restaurar original" style="display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:4px; cursor:pointer; background:#334155; font-size:11px; border:1px solid #475569;">↺</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+            // Vincular eventos de selección de color
+            container.querySelectorAll('.bp-layer-swatches-row').forEach(row => {
+                const layerName = row.dataset.layerName;
+                row.querySelectorAll('.bp-color-swatch').forEach(sw => {
+                    sw.addEventListener('click', () => {
+                        const color = sw.dataset.color;
+                        if (!currentConfig.layer_colors) currentConfig.layer_colors = {};
+                        currentConfig.layer_colors[layerName] = color;
+
+                        row.querySelectorAll('.bp-color-swatch').forEach(s => {
+                            s.classList.remove('active');
+                            s.style.borderColor = '#000000';
+                        });
+                        sw.classList.add('active');
+                        sw.style.borderColor = '#ffd600';
+
+                        const picker = container.querySelector(`.bp-layer-color-picker[data-layer-name="${layerName}"]`);
+                        if (picker) picker.value = color;
+
+                        if (previewAvatarMesh) {
+                            if (previewAvatarMesh.userData && typeof previewAvatarMesh.userData.applyColors === 'function') {
+                                previewAvatarMesh.userData.applyColors(currentConfig);
+                            } else {
+                                applyGLBColors(previewAvatarMesh, currentConfig);
+                            }
+                        }
+                    });
+                });
+
+                const resetBtn = row.querySelector('.bp-color-swatch-reset');
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', () => {
+                        if (currentConfig.layer_colors && currentConfig.layer_colors[layerName]) {
+                            delete currentConfig.layer_colors[layerName];
+                        }
+                        row.querySelectorAll('.bp-color-swatch').forEach(s => {
+                            s.classList.remove('active');
+                            s.style.borderColor = '#000000';
+                        });
+                        if (previewAvatarMesh) {
+                            if (previewAvatarMesh.userData && typeof previewAvatarMesh.userData.applyColors === 'function') {
+                                previewAvatarMesh.userData.applyColors(currentConfig);
+                            } else {
+                                applyGLBColors(previewAvatarMesh, currentConfig);
+                            }
+                        }
+                    });
+                }
+            });
+
+            container.querySelectorAll('.bp-layer-color-picker').forEach(picker => {
+                picker.addEventListener('input', () => {
+                    const layerName = picker.dataset.layerName;
+                    const color = picker.value;
+                    if (!currentConfig.layer_colors) currentConfig.layer_colors = {};
+                    currentConfig.layer_colors[layerName] = color;
+
+                    const row = container.querySelector(`.bp-layer-swatches-row[data-layer-name="${layerName}"]`);
+                    if (row) {
+                        row.querySelectorAll('.bp-color-swatch').forEach(s => {
+                            const isMatch = (s.dataset.color.toLowerCase() === color.toLowerCase());
+                            s.classList.toggle('active', isMatch);
+                            s.style.borderColor = isMatch ? '#ffd600' : '#000000';
+                        });
+                    }
+
+                    if (previewAvatarMesh) {
+                        if (previewAvatarMesh.userData && typeof previewAvatarMesh.userData.applyColors === 'function') {
+                            previewAvatarMesh.userData.applyColors(currentConfig);
+                        } else {
+                            applyGLBColors(previewAvatarMesh, currentConfig);
+                        }
+                    }
+                });
+            });
         }
 
         // Model Cards Listener
@@ -4758,6 +4904,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 rebuildPreviewMesh(currentConfig);
             });
         }
+
+        // Eventos para selección y previsualización en vivo de los 3 estilos de caminata
+        document.querySelectorAll('.bp-walk-style-btn').forEach(wsBtn => {
+            wsBtn.addEventListener('click', () => {
+                const walkId = wsBtn.getAttribute('data-walk-id');
+                currentConfig.walk_style = walkId;
+
+                document.querySelectorAll('.bp-walk-style-btn').forEach(b => {
+                    b.classList.remove('bp-arcade-btn-yellow');
+                    b.classList.add('bp-arcade-btn-green');
+                });
+                wsBtn.classList.remove('bp-arcade-btn-green');
+                wsBtn.classList.add('bp-arcade-btn-yellow');
+
+                // Si hay vista previa 3D activa, alternar temporalmente al modo caminata para probarlo en vivo
+                rebuildPreviewMesh(currentConfig);
+            });
+        });
 
         const chkIncognito = document.getElementById('bp-chk-incognito');
         if (chkIncognito) {

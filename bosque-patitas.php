@@ -160,6 +160,12 @@ class BosquePatitas {
                         $decoded = json_decode($g['detected_materials'], true);
                         $g['detected_materials'] = is_array($decoded) ? $decoded : array();
                     }
+                    if (!empty($g['custom_layers']) && is_string($g['custom_layers'])) {
+                        $decoded_layers = json_decode($g['custom_layers'], true);
+                        $g['custom_layers'] = is_array($decoded_layers) ? $decoded_layers : array();
+                    } elseif (empty($g['custom_layers'])) {
+                        $g['custom_layers'] = array();
+                    }
                     if (!empty($g['fbx_animations']) && is_string($g['fbx_animations'])) {
                         $decoded_fbx = json_decode($g['fbx_animations'], true);
                         $g['fbx_animations'] = is_array($decoded_fbx) ? $decoded_fbx : array();
