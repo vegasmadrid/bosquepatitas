@@ -973,7 +973,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fbxLoaderInstance  = (typeof THREE !== 'undefined' && typeof THREE.FBXLoader !== 'undefined') ? new THREE.FBXLoader() : null;
     const fbxClipCache = new Map();
 
-    // Helper para normalizar clips de animacion de Mixamo FBX hacia esqueletos GLB/FBX
+    // Helper para normalizar clips de animacion de Mixamo FBX hacia esqueletos GLB/FBX y anular Root Motion
     function prepareMixamoClip(clip, model) {
         if (!clip || !model) return clip;
         const cloned = clip.clone();
@@ -982,23 +982,42 @@ document.addEventListener('DOMContentLoaded', () => {
             if (child.name) boneNames.add(child.name);
         });
 
+        // Detectar si el clip es una animación de desplazamiento/caminata para anular root motion
+        const clipNameLower = (cloned.name || '').toLowerCase();
+        const isLocomotionClip = /walk|run|trot|march|caminar|correr/i.test(clipNameLower) || true; // seguro aplicar a clips de Mixamo
+
         cloned.tracks.forEach(track => {
             const dotIdx = track.name.lastIndexOf('.');
             if (dotIdx === -1) return;
             const prop = track.name.substring(dotIdx);
             let rawNode = track.name.substring(0, dotIdx);
 
+            let mappedNode = rawNode;
             if (!boneNames.has(rawNode)) {
                 const stripped = rawNode.replace(/^Armature\|/, '').replace(/^mixamorig:/, 'mixamorig');
                 if (boneNames.has(stripped)) {
-                    track.name = stripped + prop;
+                    mappedNode = stripped;
                 } else {
                     for (let bName of boneNames) {
                         if (bName.toLowerCase() === stripped.toLowerCase() || bName.toLowerCase() === rawNode.toLowerCase()) {
-                            track.name = bName + prop;
+                            mappedNode = bName;
                             break;
                         }
                     }
+                }
+            }
+            track.name = mappedNode + prop;
+
+            // Anulación de Root Motion (In-Place)
+            // Si la pista controla la posición de las caderas o raíz (Hips / Root), fijamos X y Z a su valor inicial
+            // conservando la fluctuación vertical Y para mantener la naturalidad del andar
+            const isRootOrHips = /hip|root|pelvis/i.test(mappedNode);
+            if (isRootOrHips && prop === '.position' && track.values && track.values.length >= 3) {
+                const firstX = track.values[0];
+                const firstZ = track.values[2];
+                for (let i = 0; i < track.values.length; i += 3) {
+                    track.values[i] = firstX;     // Bloquear desplazamiento en X
+                    track.values[i + 2] = firstZ; // Bloquear desplazamiento en Z
                 }
             }
         });
@@ -1167,6 +1186,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!child.isMesh && !child.isSkinnedMesh) return;
             if (!child.material) return;
 
+            // Asegurar que cada sub-malla tenga su propia instancia de material clonada para evitar tintados cruzados no deseados
+            if (Array.isArray(child.material)) {
+                child.material = child.material.map(m => (m && !m.userData?.isCloned ? Object.assign(m.clone(), { userData: { ...m.userData, isCloned: true } }) : m));
+            } else if (child.material && !child.material.userData?.isCloned) {
+                child.material = Object.assign(child.material.clone(), { userData: { ...child.material.userData, isCloned: true } });
+            }
+
             // Guardar color y textura base originales para poder restaurar o modular limpiamente
             const mats = Array.isArray(child.material) ? child.material : [child.material];
             mats.forEach(mat => {
@@ -1176,22 +1202,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!mat.userData.origColor) {
                     mat.userData.origColor = mat.color.clone();
                 }
+                if (typeof mat.userData.origMap === 'undefined') {
+                    mat.userData.origMap = mat.map || null;
+                }
 
                 const meshName = (child.name || '').trim();
                 const matName = (mat.name || '').trim();
+                const cleanMesh = meshName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const cleanMat = matName.toLowerCase().replace(/[^a-z0-9]/g, '');
 
                 let matchedColor = null;
+                let forceSolid = false;
 
                 // 1. Coincidencia con capas personalizadas configuradas en el back end
                 if (Array.isArray(configuredLayers) && configuredLayers.length > 0) {
                     for (let layer of configuredLayers) {
-                        const lName = (layer.name || '').toLowerCase();
-                        if (lName === meshName.toLowerCase() || lName === matName.toLowerCase()) {
-                            // Solo si el usuario ha seleccionado un color explícito o la capa tiene color por defecto definido
+                        const lName = (layer.name || '').trim();
+                        const cleanL = lName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        // Comparación exacta o normalizada por nombres
+                        const matchesName = (
+                            lName.toLowerCase() === meshName.toLowerCase() ||
+                            lName.toLowerCase() === matName.toLowerCase() ||
+                            (cleanL && (cleanL === cleanMesh || cleanL === cleanMat))
+                        );
+
+                        if (matchesName) {
                             if (userLayerColors[layer.name]) {
                                 matchedColor = userLayerColors[layer.name];
-                            } else if (layer.defColor) {
+                            } else if (layer.defColor && (layer.hasDefColor !== 0 && layer.hasDefColor !== false && layer.hasDefColor !== '0')) {
                                 matchedColor = layer.defColor;
+                            }
+                            if (layer.forceSolid) {
+                                forceSolid = true;
                             }
                             break;
                         }
@@ -1215,11 +1257,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (matchedColor) {
                     try {
                         mat.color.copy(new THREE.Color(matchedColor));
+
+                        // En modelos con textura difusa fija:
+                        // Si se solicita forzar color sólido o el color original del material era casi negro (lo que oscurece el tinte),
+                        // desacoplamos el mapa para que el color se aplique nítidamente.
+                        if (forceSolid) {
+                            mat.map = null;
+                        } else if (mat.map && mat.userData.origColor) {
+                            // Si el color original era muy oscuro, lo subimos para permitir que la textura se tinte
+                            const lum = mat.userData.origColor.r * 0.299 + mat.userData.origColor.g * 0.587 + mat.userData.origColor.b * 0.114;
+                            if (lum < 0.1) {
+                                // Desacoplar textura oscura para que el tinte no resulte negro
+                                mat.map = null;
+                            }
+                        }
                         mat.needsUpdate = true;
                     } catch (e) {}
-                } else if (mat.userData.origColor) {
-                    // Restaurar el color original del modelo 3D
-                    mat.color.copy(mat.userData.origColor);
+                } else {
+                    // Restaurar el color y mapa original del modelo 3D
+                    if (mat.userData.origColor) {
+                        mat.color.copy(mat.userData.origColor);
+                    }
+                    if (typeof mat.userData.origMap !== 'undefined') {
+                        mat.map = mat.userData.origMap;
+                    }
                     mat.needsUpdate = true;
                 }
             });
@@ -4684,7 +4745,12 @@ document.addEventListener('DOMContentLoaded', () => {
         function renderGLBCustomLayersUI(container, layers, cfg) {
             if (!container) return;
             const currentLayerColors = cfg.layer_colors || {};
-            const standardPalette = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff', '#ffe0bd', '#8d5524'];
+            const standardPalette = [
+                '#10b981', '#059669', '#3b82f6', '#1d4ed8', '#ef4444',
+                '#dc2626', '#f59e0b', '#d97706', '#8b5cf6', '#6d28d9',
+                '#ec4899', '#db2777', '#1e293b', '#0f172a', '#ffffff',
+                '#94a3b8', '#ffe0bd', '#d08b5b', '#8d5524', '#3b2314'
+            ];
 
             container.innerHTML = `
                 <div style="margin-bottom:16px;">
@@ -4692,20 +4758,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         🎨 CAPAS PERSONALIZABLES DEL MODELO 3D:
                     </label>
                     ${layers.map((layer, idx) => {
-                        const activeCol = currentLayerColors[layer.name] || layer.defColor || '';
+                        const defaultCol = (layer.hasDefColor !== 0 && layer.hasDefColor !== false && layer.hasDefColor !== '0') ? (layer.defColor || '') : '';
+                        const activeCol = currentLayerColors[layer.name] || defaultCol || '';
                         return `
                             <div class="bp-glb-layer-control" style="margin-bottom:14px; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
                                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                     <span style="font-size:11px; font-weight:700; color:#34d399;">
                                         ${idx + 1}. ${layer.label || layer.name}
+                                        ${defaultCol ? `<small style="color:#94a3b8; font-weight:normal; margin-left:4px;">(Defecto)</small>` : ''}
                                     </span>
-                                    <input type="color" class="bp-layer-color-picker" data-layer-name="${layer.name}" value="${activeCol || '#ffffff'}" style="width:28px; height:24px; padding:0; border:none; cursor:pointer; background:none;" />
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <label title="Elegir cualquier color personalizado" style="font-size:9px; color:#ffd600; cursor:pointer;">Selector:</label>
+                                        <input type="color" class="bp-layer-color-picker" data-layer-name="${layer.name}" value="${activeCol || '#ffffff'}" style="width:28px; height:24px; padding:0; border:1px solid #ffd600; border-radius:4px; cursor:pointer; background:none;" />
+                                    </div>
                                 </div>
                                 <div style="display:flex; gap:6px; flex-wrap:wrap;" class="bp-layer-swatches-row" data-layer-name="${layer.name}">
                                     ${standardPalette.map(c => `
-                                        <div class="bp-color-swatch ${activeCol === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:26px; height:26px; border-radius:4px; cursor:pointer; border:2px solid ${activeCol === c ? '#ffd600' : '#000000'};"></div>
+                                        <div class="bp-color-swatch ${activeCol.toLowerCase() === c.toLowerCase() ? 'active' : ''}" data-color="${c}" style="background:${c}; width:24px; height:24px; border-radius:4px; cursor:pointer; border:2px solid ${activeCol.toLowerCase() === c.toLowerCase() ? '#ffd600' : '#000000'};"></div>
                                     `).join('')}
-                                    <div class="bp-color-swatch-reset" title="Restaurar original" style="display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:4px; cursor:pointer; background:#334155; font-size:11px; border:1px solid #475569;">↺</div>
+                                    <div class="bp-color-swatch-reset" title="Restaurar valor inicial" style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; cursor:pointer; background:#334155; font-size:11px; border:1px solid #475569;" data-layer-name="${layer.name}">↺</div>
                                 </div>
                             </div>
                         `;
@@ -4748,10 +4819,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (currentConfig.layer_colors && currentConfig.layer_colors[layerName]) {
                             delete currentConfig.layer_colors[layerName];
                         }
+                        const layerObj = layers.find(l => l.name === layerName);
+                        const fallbackCol = (layerObj && layerObj.hasDefColor && layerObj.defColor) ? layerObj.defColor : '';
+
                         row.querySelectorAll('.bp-color-swatch').forEach(s => {
-                            s.classList.remove('active');
-                            s.style.borderColor = '#000000';
+                            const isMatch = fallbackCol && (s.dataset.color.toLowerCase() === fallbackCol.toLowerCase());
+                            s.classList.toggle('active', isMatch);
+                            s.style.borderColor = isMatch ? '#ffd600' : '#000000';
                         });
+
+                        const picker = container.querySelector(`.bp-layer-color-picker[data-layer-name="${layerName}"]`);
+                        if (picker) picker.value = fallbackCol || '#ffffff';
+
                         if (previewAvatarMesh) {
                             if (previewAvatarMesh.userData && typeof previewAvatarMesh.userData.applyColors === 'function') {
                                 previewAvatarMesh.userData.applyColors(currentConfig);

@@ -155,12 +155,14 @@ class BP_Admin_GLB {
                 foreach ($decoded_layers as $l) {
                     if (is_array($l) && !empty($l['name'])) {
                         $sanitized_layers[] = array(
-                            'id'       => sanitize_key($l['id'] ?? uniqid('layer_')),
-                            'name'     => sanitize_text_field($l['name']),
-                            'label'    => sanitize_text_field($l['label'] ?? $l['name']),
-                            'type'     => sanitize_text_field($l['type'] ?? 'material'),
-                            'enabled'  => !empty($l['enabled']) ? 1 : 0,
-                            'defColor' => sanitize_hex_color($l['defColor'] ?? '#10b981') ?: '#10b981'
+                            'id'          => sanitize_key($l['id'] ?? uniqid('layer_')),
+                            'name'        => sanitize_text_field($l['name']),
+                            'label'       => sanitize_text_field($l['label'] ?? $l['name']),
+                            'type'        => sanitize_text_field($l['type'] ?? 'material'),
+                            'enabled'     => !empty($l['enabled']) ? 1 : 0,
+                            'hasDefColor' => !empty($l['hasDefColor']) ? 1 : 0,
+                            'defColor'    => sanitize_hex_color($l['defColor'] ?? '#10b981') ?: '#10b981',
+                            'forceSolid'  => !empty($l['forceSolid']) ? 1 : 0
                         );
                     }
                 }
@@ -583,21 +585,25 @@ class BP_Admin_GLB {
 
                 // Header
                 var headerDiv = document.createElement('div');
-                headerDiv.style.cssText = 'display:grid; grid-template-columns: 36px 1fr 1fr; gap:10px; font-weight:700; font-size:11px; color:#1e293b; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:6px;';
-                headerDiv.innerHTML = '<span>Activa</span><span>Capa Detectada</span><span>Nombre Visible para el Usuario</span>';
+                headerDiv.style.cssText = 'display:grid; grid-template-columns: 36px 1fr 1fr 140px 90px; gap:10px; font-weight:700; font-size:11px; color:#1e293b; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:6px; align-items:center;';
+                headerDiv.innerHTML = '<span title="Activar personalización de esta capa">Activa</span><span>Capa Detectada</span><span>Nombre Visible</span><span title="Color por defecto que verá el usuario">Color por Defecto</span><span title="Forzar color sólido si tiene texturas oscuras o fijas">Color Sólido</span>';
                 customLayersContainer.appendChild(headerDiv);
 
                 detectedItems.forEach(function(item, idx) {
                     var existing = currentLayers.find(function(l) { return l.name === item.name; });
                     var isEnabled = existing ? Boolean(existing.enabled) : true;
                     var labelVal = existing && existing.label ? existing.label : defaultLabelForName(item.name);
+                    var hasDefCol = existing && typeof existing.hasDefColor !== 'undefined' ? Boolean(existing.hasDefColor) : false;
+                    var defColVal = existing && existing.defColor ? existing.defColor : '#10b981';
+                    var forceSolidVal = existing && typeof existing.forceSolid !== 'undefined' ? Boolean(existing.forceSolid) : false;
 
                     var row = document.createElement('div');
-                    row.style.cssText = 'display:grid; grid-template-columns: 36px 1fr 1fr; gap:10px; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:6px 10px; border-radius:4px;';
+                    row.style.cssText = 'display:grid; grid-template-columns: 36px 1fr 1fr 140px 90px; gap:10px; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:6px 10px; border-radius:4px; margin-bottom:4px;';
 
                     var chk = document.createElement('input');
                     chk.type = 'checkbox';
                     chk.checked = isEnabled;
+                    chk.className = 'bp-layer-chk-enabled';
                     chk.style.cssText = 'width:18px; height:18px; cursor:pointer; accent-color:#10b981; margin:0 auto;';
 
                     var info = document.createElement('div');
@@ -606,23 +612,70 @@ class BP_Admin_GLB {
                     var labelInput = document.createElement('input');
                     labelInput.type = 'text';
                     labelInput.value = labelVal;
-                    labelInput.className = 'widefat';
+                    labelInput.className = 'widefat bp-layer-input-label';
                     labelInput.style.cssText = 'font-size:12px; padding:4px 8px;';
                     labelInput.placeholder = 'Nombre visible para el usuario';
+
+                    // Columna: Color por defecto
+                    var colorCol = document.createElement('div');
+                    colorCol.style.cssText = 'display:flex; align-items:center; gap:6px;';
+
+                    var hasColorChk = document.createElement('input');
+                    hasColorChk.type = 'checkbox';
+                    hasColorChk.checked = hasDefCol;
+                    hasColorChk.className = 'bp-layer-chk-hasdefcolor';
+                    hasColorChk.title = 'Marcar para asignar un color por defecto';
+                    hasColorChk.style.cssText = 'width:16px; height:16px; cursor:pointer; accent-color:#0284c7;';
+
+                    var colorPicker = document.createElement('input');
+                    colorPicker.type = 'color';
+                    colorPicker.value = defColVal;
+                    colorPicker.className = 'bp-layer-color-def';
+                    colorPicker.style.cssText = 'width:28px; height:26px; padding:0; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer; opacity:' + (hasDefCol ? '1' : '0.4') + ';';
+                    colorPicker.disabled = !hasDefCol;
+
+                    hasColorChk.addEventListener('change', function() {
+                        colorPicker.disabled = !hasColorChk.checked;
+                        colorPicker.style.opacity = hasColorChk.checked ? '1' : '0.4';
+                        updateLayersState();
+                    });
+
+                    colorCol.appendChild(hasColorChk);
+                    colorCol.appendChild(colorPicker);
+
+                    // Columna: Forzar color sólido (desacoplar texturas oscuras/fijas)
+                    var solidCol = document.createElement('div');
+                    solidCol.style.cssText = 'display:flex; align-items:center; justify-content:center;';
+
+                    var forceSolidChk = document.createElement('input');
+                    forceSolidChk.type = 'checkbox';
+                    forceSolidChk.checked = forceSolidVal;
+                    forceSolidChk.className = 'bp-layer-chk-forcesolid';
+                    forceSolidChk.title = 'Forzar color sólido (remueve texturas fijas para color 100% puro)';
+                    forceSolidChk.style.cssText = 'width:16px; height:16px; cursor:pointer; accent-color:#f59e0b;';
+
+                    solidCol.appendChild(forceSolidChk);
 
                     function updateLayersState() {
                         var updatedList = [];
                         var rows = customLayersContainer.querySelectorAll('.bp-layer-row');
                         rows.forEach(function(r) {
-                            var rChk = r.querySelector('input[type="checkbox"]');
+                            var rChk = r.querySelector('.bp-layer-chk-enabled');
                             var rName = r.getAttribute('data-name');
                             var rType = r.getAttribute('data-type');
-                            var rLabelInput = r.querySelector('input[type="text"]');
+                            var rLabelInput = r.querySelector('.bp-layer-input-label');
+                            var rHasColorChk = r.querySelector('.bp-layer-chk-hasdefcolor');
+                            var rColorPicker = r.querySelector('.bp-layer-color-def');
+                            var rSolidChk = r.querySelector('.bp-layer-chk-forcesolid');
+
                             updatedList.push({
                                 name: rName,
                                 type: rType,
-                                label: rLabelInput.value.trim() || rName,
-                                enabled: rChk.checked ? 1 : 0
+                                label: rLabelInput ? (rLabelInput.value.trim() || rName) : rName,
+                                enabled: (rChk && rChk.checked) ? 1 : 0,
+                                hasDefColor: (rHasColorChk && rHasColorChk.checked) ? 1 : 0,
+                                defColor: rColorPicker ? rColorPicker.value : '#10b981',
+                                forceSolid: (rSolidChk && rSolidChk.checked) ? 1 : 0
                             });
                         });
                         currentLayers = updatedList;
@@ -633,6 +686,8 @@ class BP_Admin_GLB {
 
                     chk.addEventListener('change', updateLayersState);
                     labelInput.addEventListener('input', updateLayersState);
+                    colorPicker.addEventListener('input', updateLayersState);
+                    forceSolidChk.addEventListener('change', updateLayersState);
 
                     row.className = 'bp-layer-row';
                     row.setAttribute('data-name', item.name);
@@ -641,6 +696,8 @@ class BP_Admin_GLB {
                     row.appendChild(chk);
                     row.appendChild(info);
                     row.appendChild(labelInput);
+                    row.appendChild(colorCol);
+                    row.appendChild(solidCol);
                     customLayersContainer.appendChild(row);
                 });
 
@@ -648,15 +705,22 @@ class BP_Admin_GLB {
                 var initialList = [];
                 var rows = customLayersContainer.querySelectorAll('.bp-layer-row');
                 rows.forEach(function(r) {
-                    var rChk = r.querySelector('input[type="checkbox"]');
+                    var rChk = r.querySelector('.bp-layer-chk-enabled');
                     var rName = r.getAttribute('data-name');
                     var rType = r.getAttribute('data-type');
-                    var rLabelInput = r.querySelector('input[type="text"]');
+                    var rLabelInput = r.querySelector('.bp-layer-input-label');
+                    var rHasColorChk = r.querySelector('.bp-layer-chk-hasdefcolor');
+                    var rColorPicker = r.querySelector('.bp-layer-color-def');
+                    var rSolidChk = r.querySelector('.bp-layer-chk-forcesolid');
+
                     initialList.push({
                         name: rName,
                         type: rType,
-                        label: rLabelInput.value.trim() || rName,
-                        enabled: rChk.checked ? 1 : 0
+                        label: rLabelInput ? (rLabelInput.value.trim() || rName) : rName,
+                        enabled: (rChk && rChk.checked) ? 1 : 0,
+                        hasDefColor: (rHasColorChk && rHasColorChk.checked) ? 1 : 0,
+                        defColor: rColorPicker ? rColorPicker.value : '#10b981',
+                        forceSolid: (rSolidChk && rSolidChk.checked) ? 1 : 0
                     });
                 });
                 currentLayers = initialList;
