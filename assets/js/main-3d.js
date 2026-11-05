@@ -343,15 +343,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const avConfig = settings.avatar || {};
         if (!avConfig.incognito) {
             localPlayerAvatar = create3DAvatarModel(avConfig, (meshGroup) => {
-                if (meshGroup) {
+                if (meshGroup && scene) {
                     meshGroup.name = 'localPlayerAvatar';
                     meshGroup.position.set(playerPosition.x, 0, playerPosition.z);
                     meshGroup.visible = (currentMode !== MODE_GROUND);
+                    triggerAvatarLightPulse(scene, new THREE.Vector3(playerPosition.x, 0, playerPosition.z), false);
                 }
             });
             localPlayerAvatar.name = 'localPlayerAvatar';
             localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
-            localPlayerAvatar.visible = (currentMode !== MODE_GROUND);
+            localPlayerAvatar.visible = (currentMode !== MODE_GROUND && (!avConfig.glb_url || glbModelCache.has(avConfig.glb_url)));
             scene.add(localPlayerAvatar);
         }
     }
@@ -529,10 +530,41 @@ document.addEventListener('DOMContentLoaded', () => {
     function triggerEmote3D(avatarGroup, emoteType) {
         if (!avatarGroup) return;
 
+        // Si es baile, activar animación de baile en bucle
+        if (emoteType === 'dance') {
+            if (!avatarGroup.userData) avatarGroup.userData = {};
+            avatarGroup.userData.isDancingState = true;
+
+            // Si el avatar tiene una animación de baile 3D configurada en userData, reproducirla
+            if (avatarGroup.userData.danceAction) {
+                if (avatarGroup.userData.idleAction) avatarGroup.userData.idleAction.fadeOut(0.3);
+                if (avatarGroup.userData.walkAction) avatarGroup.userData.walkAction.fadeOut(0.3);
+                avatarGroup.userData.danceAction.reset().fadeIn(0.3).play();
+            }
+
+            // Mantener emojis flotantes en bucle mientras esté bailando
+            if (!avatarGroup.userData.danceEmojiInterval) {
+                avatarGroup.userData.danceEmojiInterval = setInterval(() => {
+                    if (avatarGroup && avatarGroup.userData && avatarGroup.userData.isDancingState) {
+                        spawnEmoteParticles(avatarGroup, '🕺');
+                    } else {
+                        clearInterval(avatarGroup.userData.danceEmojiInterval);
+                        avatarGroup.userData.danceEmojiInterval = null;
+                    }
+                }, 1600);
+            }
+        }
+
         const emoteIcons = { wave: '👋', heart: '❤️', flower: '🌸', candle: '🕯️', dance: '🕺' };
         const icon = emoteIcons[emoteType] || '✨';
 
-        for (let i = 0; i < 6; i++) {
+        spawnEmoteParticles(avatarGroup, icon);
+    }
+
+    function spawnEmoteParticles(avatarGroup, icon) {
+        if (!avatarGroup || !scene) return;
+
+        for (let i = 0; i < 5; i++) {
             const pCanvas = document.createElement('canvas');
             pCanvas.width = 128;
             pCanvas.height = 128;
@@ -563,10 +595,72 @@ document.addEventListener('DOMContentLoaded', () => {
                     requestAnimationFrame(animateParticle);
                 } else {
                     scene.remove(pSprite);
+                    if (pSprite.geometry) pSprite.geometry.dispose();
+                    if (pSprite.material) {
+                        if (pSprite.material.map) pSprite.material.map.dispose();
+                        pSprite.material.dispose();
+                    }
                 }
             }
             requestAnimationFrame(animateParticle);
         }
+    }
+
+    // Animación de Destello / Pulso de Luz al aparecer el avatar 3D
+    function triggerAvatarLightPulse(targetScene, targetPosition, isPreview = false) {
+        if (!targetScene) return;
+
+        const pulseGroup = new THREE.Group();
+        const basePos = (targetPosition && typeof targetPosition.clone === 'function')
+            ? targetPosition.clone()
+            : new THREE.Vector3(0, 0, 0);
+
+        pulseGroup.position.copy(basePos);
+
+        // Luz puntual de destello brillante
+        const pulseLight = new THREE.PointLight(0x34d399, isPreview ? 3.0 : 4.5, isPreview ? 6.0 : 12.0);
+        pulseLight.position.set(0, 0.9, 0);
+        pulseGroup.add(pulseLight);
+
+        // Esfera de expansión de energía luminosa translúcida
+        const ringGeo = new THREE.SphereGeometry(isPreview ? 0.35 : 0.5, 24, 24);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xa7f3d0,
+            transparent: true,
+            opacity: 0.85,
+            wireframe: false,
+            side: THREE.BackSide
+        });
+        const pulseSphere = new THREE.Mesh(ringGeo, ringMat);
+        pulseSphere.position.set(0, 0.8, 0);
+        pulseGroup.add(pulseSphere);
+
+        targetScene.add(pulseGroup);
+
+        const startTime = performance.now();
+        const duration = 750; // ms
+
+        function animatePulse(now) {
+            const elapsed = now - startTime;
+            const progress = Math.min(1.0, elapsed / duration);
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+
+            const scale = 1.0 + easeOut * (isPreview ? 2.2 : 3.0);
+            pulseSphere.scale.set(scale, scale, scale);
+            pulseSphere.material.opacity = Math.max(0, (1.0 - easeOut) * 0.85);
+
+            pulseLight.intensity = Math.max(0, (isPreview ? 3.0 : 4.5) * (1.0 - easeOut));
+
+            if (progress < 1.0) {
+                requestAnimationFrame(animatePulse);
+            } else {
+                targetScene.remove(pulseGroup);
+                if (pulseSphere.geometry) pulseSphere.geometry.dispose();
+                if (pulseSphere.material) pulseSphere.material.dispose();
+            }
+        }
+
+        requestAnimationFrame(animatePulse);
     }
 
     function addChatMessageToBox(senderName, text, isPrivate = false) {
@@ -1050,12 +1144,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return mesh;
     }
 
-        // Helper para tintado dinámico y no destructivo de avatares GLB (Materiales / Mallas / Heurísticas)
+    // Helper para tintado dinámico y no destructivo de avatares GLB según capas configuradas en el back end
     function applyGLBColors(root, config = {}) {
         if (!root) return;
 
         const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
-        const glbMeta = glbList.find(g => (config.glb_id && g.id === config.glb_id) || (config.glb_url && g.file_url === config.glb_url)) || {};
+        const glbMeta = glbList.find(g => (config.glb_id && String(g.id) === String(config.glb_id)) || (config.glb_url && g.file_url === config.glb_url)) || {};
 
         let allowColors = true;
         if (typeof config.allow_colors !== 'undefined') {
@@ -1065,176 +1159,85 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (!allowColors) return;
 
-        const matSkinMapping  = (config.mat_skin  || glbMeta.mat_skin  || '').trim();
-        const matShirtMapping = (config.mat_shirt || glbMeta.mat_shirt || '').trim();
-        const matPantsMapping = (config.mat_pants || glbMeta.mat_pants || '').trim();
-        const matHairMapping  = (config.mat_hair  || glbMeta.mat_hair  || '').trim();
-
-        const category = config.category || glbMeta.category || 'human';
-
-        // Canal de Piel / Pelaje
-        const skinColor  = config.skin || (category === 'pet' ? '#d97706' : '#ffe0bd');
-        // Canal de Camiseta / Torso / Collar
-        const shirtColor = config.shirt || (category === 'pet' ? '#ef4444' : '#10b981');
-        // Canales adicionales de Tutor Humano
-        const pantsColor = config.pants || '#1e3a8a';
-        const hairColor  = config.hair_color || '#3b2314';
-
-        // Expresiones regulares heurísticas oficiales
-        const regexHair  = /hair|pelo|cabello/i;
-        const regexShirt = /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i;
-        const regexPants = /pant|trousers|leg|pierna|bottom|jean|short/i;
-        const regexSkin  = /skin|piel|cuerpo|body|face|head|fur|pelaje/i;
-
-        function testExplicit(rule, meshName, matName) {
-            if (!rule) return false;
-            const r = rule.toLowerCase();
-            const mName = (meshName || '').toLowerCase();
-            const matN = (matName || '').toLowerCase();
-            return (r === mName || r === matN || r === 'mesh:' + mName || r === 'mat:' + matN);
-        }
+        // Leer capas configuradas por el admin
+        const configuredLayers = getGLBAvatarCustomLayers(glbMeta);
+        const userLayerColors = config.layer_colors || (settings.avatar && settings.avatar.layer_colors) || {};
 
         root.traverse(child => {
             if (!child.isMesh && !child.isSkinnedMesh) return;
             if (!child.material) return;
 
+            // Guardar color y textura base originales para poder restaurar o modular limpiamente
             const mats = Array.isArray(child.material) ? child.material : [child.material];
             mats.forEach(mat => {
                 if (!mat || !mat.color || typeof mat.color.copy !== 'function') return;
 
-                const meshName = child.name || '';
-                const matName = mat.name || '';
-                const testStr = (meshName + ' ' + matName).trim();
-
-                let matchedChannel = null;
-
-                // 1. Prioridad: Mapeo explícito configurado en panel de admin
-                if (testExplicit(matHairMapping, meshName, matName)) {
-                    matchedChannel = 'hair';
-                } else if (testExplicit(matShirtMapping, meshName, matName)) {
-                    matchedChannel = 'shirt';
-                } else if (testExplicit(matPantsMapping, meshName, matName)) {
-                    matchedChannel = 'pants';
-                } else if (testExplicit(matSkinMapping, meshName, matName)) {
-                    matchedChannel = 'skin';
+                if (!mat.userData) mat.userData = {};
+                if (!mat.userData.origColor) {
+                    mat.userData.origColor = mat.color.clone();
                 }
 
-                // 2. Heurística inteligente si no hay regla explícita que coincida
-                if (!matchedChannel) {
-                    if (regexHair.test(testStr)) {
-                        matchedChannel = 'hair';
-                    } else if (regexShirt.test(testStr)) {
-                        matchedChannel = 'shirt';
-                    } else if (regexPants.test(testStr)) {
-                        matchedChannel = 'pants';
-                    } else if (regexSkin.test(testStr)) {
-                        matchedChannel = 'skin';
+                const meshName = (child.name || '').trim();
+                const matName = (mat.name || '').trim();
+
+                let matchedColor = null;
+
+                // 1. Coincidencia con capas personalizadas configuradas en el back end
+                if (Array.isArray(configuredLayers) && configuredLayers.length > 0) {
+                    for (let layer of configuredLayers) {
+                        const lName = (layer.name || '').toLowerCase();
+                        if (lName === meshName.toLowerCase() || lName === matName.toLowerCase()) {
+                            // Solo si el usuario ha seleccionado un color explícito o la capa tiene color por defecto definido
+                            if (userLayerColors[layer.name]) {
+                                matchedColor = userLayerColors[layer.name];
+                            } else if (layer.defColor) {
+                                matchedColor = layer.defColor;
+                            }
+                            break;
+                        }
+                    }
+                } else {
+                    // 2. Si no hay capas personalizadas activas, solo aplicar si hay selección explícita
+                    const category = config.category || glbMeta.category || 'human';
+                    const testStr = `${meshName} ${matName}`.toLowerCase();
+
+                    if (config.skin && /skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(testStr)) {
+                        matchedColor = config.skin;
+                    } else if (config.shirt && /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i.test(testStr)) {
+                        matchedColor = config.shirt;
+                    } else if (config.pants && /pant|trousers|leg|pierna|bottom|jean|short/i.test(testStr) && category !== 'pet') {
+                        matchedColor = config.pants;
+                    } else if (config.hair_color && /hair|pelo|cabello/i.test(testStr) && category !== 'pet') {
+                        matchedColor = config.hair_color;
                     }
                 }
 
-                // 3. Tintado dinámico no destructivo (preserva texturas base 'map' y sombreado)
-                let targetHex = null;
-                if (matchedChannel === 'skin' && skinColor) {
-                    targetHex = skinColor;
-                } else if (matchedChannel === 'shirt' && shirtColor) {
-                    targetHex = shirtColor;
-                } else if (matchedChannel === 'pants' && category !== 'pet' && pantsColor) {
-                    targetHex = pantsColor;
-                } else if (matchedChannel === 'hair' && category !== 'pet' && hairColor) {
-                    targetHex = hairColor;
-                }
-
-                if (targetHex) {
+                if (matchedColor) {
                     try {
-                        mat.color.copy(new THREE.Color(targetHex));
+                        mat.color.copy(new THREE.Color(matchedColor));
                         mat.needsUpdate = true;
                     } catch (e) {}
+                } else if (mat.userData.origColor) {
+                    // Restaurar el color original del modelo 3D
+                    mat.color.copy(mat.userData.origColor);
+                    mat.needsUpdate = true;
                 }
             });
         });
     }
 
-    // Helper para detectar qué canales de personalización tiene disponibles un avatar GLB
-    function getGLBAvatarChannelAvailability(glbItem, glbUrl) {
-        const allowColors = (glbItem && typeof glbItem.allow_colors !== 'undefined')
-            ? (glbItem.allow_colors == 1 || glbItem.allow_colors === true || glbItem.allow_colors === '1')
-            : true;
-
-        if (!allowColors) {
-            return {
-                allowColors: false,
-                hasSkin: false,
-                hasShirt: false,
-                hasPants: false,
-                hasHair: false
-            };
-        }
-
-        let hasSkin  = Boolean(glbItem && glbItem.mat_skin);
-        let hasShirt = Boolean(glbItem && glbItem.mat_shirt);
-        let hasPants = Boolean(glbItem && glbItem.mat_pants);
-        let hasHair  = Boolean(glbItem && glbItem.mat_hair);
-
-        const regexHair  = /hair|pelo|cabello/i;
-        const regexShirt = /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i;
-        const regexPants = /pant|trousers|leg|pierna|bottom|jean|short/i;
-        const regexSkin  = /skin|piel|cuerpo|body|face|head|fur|pelaje/i;
-
-        let detected = [];
-        if (glbItem && glbItem.detected_materials) {
-            if (typeof glbItem.detected_materials === 'string') {
-                try { detected = JSON.parse(glbItem.detected_materials); } catch (e) { detected = []; }
-            } else if (Array.isArray(glbItem.detected_materials)) {
-                detected = glbItem.detected_materials;
+    // Helper para obtener las capas activas configuradas en el back end
+    function getGLBAvatarCustomLayers(glbItem) {
+        if (!glbItem) return [];
+        let layers = [];
+        if (glbItem.custom_layers) {
+            if (typeof glbItem.custom_layers === 'string') {
+                try { layers = JSON.parse(glbItem.custom_layers); } catch(e) { layers = []; }
+            } else if (Array.isArray(glbItem.custom_layers)) {
+                layers = glbItem.custom_layers;
             }
         }
-
-        if (Array.isArray(detected) && detected.length > 0) {
-            detected.forEach(item => {
-                const name = (typeof item === 'string') ? item : (item.name || '');
-                if (regexHair.test(name)) hasHair = true;
-                if (regexShirt.test(name)) hasShirt = true;
-                if (regexPants.test(name)) hasPants = true;
-                if (regexSkin.test(name)) hasSkin = true;
-            });
-        }
-
-        if (glbUrl && glbModelCache.has(glbUrl)) {
-            const cachedGltf = glbModelCache.get(glbUrl);
-            if (cachedGltf && cachedGltf.scene) {
-                cachedGltf.scene.traverse(child => {
-                    if (child.isMesh || child.isSkinnedMesh) {
-                        const meshName = child.name || '';
-                        let matNames = [];
-                        if (child.material) {
-                            const mats = Array.isArray(child.material) ? child.material : [child.material];
-                            matNames = mats.map(m => m ? m.name || '' : '');
-                        }
-                        const fullStr = `${meshName} ${matNames.join(' ')}`;
-                        if (regexHair.test(fullStr)) hasHair = true;
-                        if (regexShirt.test(fullStr)) hasShirt = true;
-                        if (regexPants.test(fullStr)) hasPants = true;
-                        if (regexSkin.test(fullStr)) hasSkin = true;
-                    }
-                });
-            }
-        }
-
-        if (!hasSkin && !hasShirt && !hasPants && !hasHair && (!detected || detected.length === 0)) {
-            hasSkin = true;
-            hasShirt = true;
-            if (glbItem && glbItem.category !== 'pet') {
-                hasPants = true;
-            }
-        }
-
-        return {
-            allowColors: true,
-            hasSkin,
-            hasShirt,
-            hasPants,
-            hasHair
-        };
+        return Array.isArray(layers) ? layers.filter(l => (l.enabled == 1 || l.enabled === true || l.enabled === '1')) : [];
     }
 
     function createGLBAvatarModel(config = {}, onLoadCallback = null) {
@@ -1297,10 +1300,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const glbMeta = glbList.find(g => (config.glb_id && g.id === config.glb_id) || (config.glb_url && g.file_url === config.glb_url)) || {};
             const fbxList = config.fbx_animations || glbMeta.fbx_animations || [];
 
-            let animIdleRef      = config.anim_idle || glbMeta.anim_idle || '';
-            let animWalkRef      = config.anim_walk || glbMeta.anim_walk || '';
-            let animKneelDownRef = config.anim_kneel_down || glbMeta.anim_kneel_down || '';
-            let animKneelIdleRef = config.anim_kneel_idle || glbMeta.anim_kneel_idle || '';
+            const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
+            const selectedWalkStyle = config.walk_style || (settings.avatar && settings.avatar.walk_style) || 'walk_1';
+            let walkStyleUrl = '';
+            if (globalAnims && Array.isArray(globalAnims.walk_styles)) {
+                const foundWs = globalAnims.walk_styles.find(w => w.id === selectedWalkStyle);
+                if (foundWs && foundWs.url) walkStyleUrl = foundWs.url;
+            }
+
+            let animIdleRef      = config.anim_idle || glbMeta.anim_idle || (globalAnims ? globalAnims.anim_idle : '') || '';
+            let animWalkRef      = walkStyleUrl || config.anim_walk || glbMeta.anim_walk || (globalAnims ? globalAnims.anim_walk : '') || '';
+            let animKneelDownRef = config.anim_kneel_down || glbMeta.anim_kneel_down || (globalAnims ? globalAnims.anim_kneel_down : '') || '';
+            let animKneelIdleRef = config.anim_kneel_idle || glbMeta.anim_kneel_idle || (globalAnims ? globalAnims.anim_kneel_idle : '') || '';
+            let animDanceRef     = config.anim_dance || (globalAnims ? globalAnims.anim_dance : '') || '';
 
             if (Array.isArray(fbxList)) {
                 fbxList.forEach(item => {
@@ -1341,6 +1353,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resolveAnimClip(animWalkRef, ['walk', 'run', 'caminar'], (walkClip) => {
                     resolveAnimClip(animKneelDownRef, ['kneel_down', 'kneeling_down', 'kneeldown', 'arrodillar'], (kneelDownClip) => {
                         resolveAnimClip(animKneelIdleRef, ['kneel', 'kneeling', 'pray', 'rodilla'], (kneelIdleClip) => {
+                            resolveAnimClip(animDanceRef, ['dance', 'bailar', 'baile'], (danceClip) => {
 
                             // Fallbacks inteligentes
                             if (!idleClip && baseAnimations && baseAnimations[0]) {
@@ -1367,11 +1380,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 idleAction.play();
                             }
 
+                            const danceAction = danceClip ? mixer.clipAction(danceClip) : null;
+
                             containerGroup.userData.mixer           = mixer;
                             containerGroup.userData.idleAction      = idleAction;
                             containerGroup.userData.walkAction      = walkAction;
                             containerGroup.userData.kneelDownAction = kneelDownAction;
                             containerGroup.userData.kneelIdleAction = kneelIdleAction;
+                            containerGroup.userData.danceAction     = danceAction;
                             containerGroup.userData.activeAction    = idleAction;
                             containerGroup.userData.isGLB           = true;
                             containerGroup.userData.isKneelingState = false;
@@ -1390,6 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (typeof onLoadCallback === 'function') {
                                 onLoadCallback(containerGroup);
                             }
+                            });
                         });
                     });
                 });
@@ -3879,6 +3896,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
         let handled = true;
+        // Cancelar estado de baile si el jugador inicia movimiento
+        if (localPlayerAvatar && localPlayerAvatar.userData && localPlayerAvatar.userData.isDancingState) {
+            localPlayerAvatar.userData.isDancingState = false;
+            if (localPlayerAvatar.userData.danceAction) {
+                localPlayerAvatar.userData.danceAction.fadeOut(0.3);
+                if (localPlayerAvatar.userData.idleAction) localPlayerAvatar.userData.idleAction.reset().fadeIn(0.3).play();
+            }
+        }
+
         switch (e.code) {
             case 'ArrowUp':
             case 'KeyW':
@@ -4343,10 +4369,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dirL.shadow.camera.bottom = -1.0;
         previewScene.add(dirL);
 
-        // Peana circular que recibe sombras proyectadas
+        // Peana circular que recibe sombras proyectadas (tono neutro oscuro elegante para evitar reflejos verdosos en el modelo)
         const pedMesh = new THREE.Mesh(
             new THREE.CylinderGeometry(0.55, 0.60, 0.08, 32),
-            new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4, metalness: 0.1 })
+            new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.1 })
         );
         pedMesh.position.y = -0.04;
         pedMesh.receiveShadow = true;
@@ -4411,14 +4437,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function rebuildPreviewMesh(cfg) {
+            const previewLoading = document.getElementById('bp-avatar-preview-loading');
+            if (previewLoading) previewLoading.classList.remove('hidden');
+
             if (previewAvatarMesh) {
                 disposeThreeObject(previewAvatarMesh);
                 previewScene.remove(previewAvatarMesh);
                 previewAvatarMesh = null;
             }
             previewAvatarMesh = create3DAvatarModel(cfg, (loadedMesh) => {
+                if (previewLoading) previewLoading.classList.add('hidden');
                 if (loadedMesh) {
                     loadedMesh.position.set(0, 0, 0);
+                    triggerAvatarLightPulse(previewScene, new THREE.Vector3(0, 0, 0), true);
+
+                    // Si se acaba de seleccionar un estilo de caminata, reproducir acción de caminar unos segundos en la preview
+                    if (loadedMesh.userData && loadedMesh.userData.walkAction) {
+                        if (loadedMesh.userData.idleAction) loadedMesh.userData.idleAction.fadeOut(0.2);
+                        loadedMesh.userData.walkAction.reset().fadeIn(0.2).play();
+                        setTimeout(() => {
+                            if (loadedMesh.userData && loadedMesh.userData.walkAction && loadedMesh.userData.idleAction) {
+                                loadedMesh.userData.walkAction.fadeOut(0.3);
+                                loadedMesh.userData.idleAction.reset().fadeIn(0.3).play();
+                            }
+                        }, 2500);
+                    }
+
                     requestAnimationFrame(() => {
                         framePreviewAvatar(previewAvatarMesh);
                         if (typeof syncCustomizerControls === 'function') {
@@ -4564,11 +4608,12 @@ document.addEventListener('DOMContentLoaded', () => {
         function syncCustomizerControls(cfg) {
             const isGlb = (cfg.avatar_type === 'glb' && (cfg.glb_id || cfg.glb_url));
             const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
-            const glbItem = isGlb ? glbList.find(g => (cfg.glb_id && g.id === cfg.glb_id) || (cfg.glb_url && g.file_url === cfg.glb_url)) : null;
+            const glbItem = isGlb ? glbList.find(g => (cfg.glb_id && String(g.id) === String(cfg.glb_id)) || (cfg.glb_url && g.file_url === cfg.glb_url)) : null;
 
             const humanBox = document.getElementById('bp-human-custom-options');
             const petBox = document.getElementById('bp-pet-custom-options');
             const fixedNotice = document.getElementById('bp-block-fixed-notice');
+            const glbLayersBox = document.getElementById('bp-glb-custom-layers-options');
 
             const blockSkin = document.getElementById('bp-block-skin');
             const blockShirt = document.getElementById('bp-block-shirt');
@@ -4581,6 +4626,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!isGlb) {
                 if (fixedNotice) fixedNotice.style.display = 'none';
+                if (glbLayersBox) glbLayersBox.style.display = 'none';
 
                 if (cfg.avatar_type === 'pet') {
                     if (humanBox) humanBox.style.display = 'none';
@@ -4608,45 +4654,140 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Modelo GLB
-            const channels = getGLBAvatarChannelAvailability(glbItem, cfg.glb_url);
-            const category = (glbItem && glbItem.category) || cfg.category || 'human';
+            const customLayers = getGLBAvatarCustomLayers(glbItem);
+            const allowColors = (glbItem && typeof glbItem.allow_colors !== 'undefined')
+                ? (glbItem.allow_colors == 1 || glbItem.allow_colors === true || glbItem.allow_colors === '1')
+                : true;
 
-            if (!channels.allowColors || (!channels.hasSkin && !channels.hasShirt && !channels.hasPants && !channels.hasHair)) {
-                if (humanBox) humanBox.style.display = 'none';
-                if (petBox) petBox.style.display = 'none';
+            if (humanBox) humanBox.style.display = 'none';
+            if (petBox) petBox.style.display = 'none';
+
+            if (!allowColors) {
                 if (fixedNotice) fixedNotice.style.display = 'block';
+                if (glbLayersBox) glbLayersBox.style.display = 'none';
                 return;
             }
 
-            if (fixedNotice) fixedNotice.style.display = 'none';
-
-            if (category === 'pet') {
-                if (humanBox) humanBox.style.display = 'none';
-                if (petBox) petBox.style.display = 'block';
-
-                if (blockFur) blockFur.style.display = channels.hasSkin ? 'block' : 'none';
-                if (blockCollar) blockCollar.style.display = channels.hasShirt ? 'block' : 'none';
-
-                if (channels.hasSkin) updateSwatchActive('bp-swatches-fur', cfg.skin);
-                if (channels.hasShirt) updateSwatchActive('bp-swatches-collar', cfg.shirt);
+            if (customLayers && customLayers.length > 0) {
+                if (fixedNotice) fixedNotice.style.display = 'none';
+                if (glbLayersBox) {
+                    renderGLBCustomLayersUI(glbLayersBox, customLayers, cfg);
+                    glbLayersBox.style.display = 'block';
+                }
             } else {
-                if (petBox) petBox.style.display = 'none';
-                if (humanBox) humanBox.style.display = 'block';
-
-                if (blockSkin) blockSkin.style.display = channels.hasSkin ? 'block' : 'none';
-                if (blockShirt) blockShirt.style.display = channels.hasShirt ? 'block' : 'none';
-                if (blockPants) blockPants.style.display = channels.hasPants ? 'block' : 'none';
-
-                // Ocultar limpiamente peinados procedurales clásicos para modelos GLB
-                if (blockHairStyle) blockHairStyle.style.display = 'none';
-                // Mostrar selector de color de pelo solo si el GLB tiene malla/material de pelo identificable
-                if (blockHairColor) blockHairColor.style.display = channels.hasHair ? 'block' : 'none';
-
-                if (channels.hasSkin) updateSwatchActive('bp-swatches-skin', cfg.skin);
-                if (channels.hasShirt) updateSwatchActive('bp-swatches-shirt', cfg.shirt);
-                if (channels.hasPants) updateSwatchActive('bp-swatches-pants', cfg.pants);
-                if (channels.hasHair) updateSwatchActive('bp-swatches-hair', cfg.hair_color);
+                if (glbLayersBox) glbLayersBox.style.display = 'none';
+                if (fixedNotice) fixedNotice.style.display = 'block';
             }
+        }
+
+        // Renderizador dinámico de controles de color para las capas detectadas y configuradas
+        function renderGLBCustomLayersUI(container, layers, cfg) {
+            if (!container) return;
+            const currentLayerColors = cfg.layer_colors || {};
+            const standardPalette = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff', '#ffe0bd', '#8d5524'];
+
+            container.innerHTML = `
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:10px;">
+                        🎨 CAPAS PERSONALIZABLES DEL MODELO 3D:
+                    </label>
+                    ${layers.map((layer, idx) => {
+                        const activeCol = currentLayerColors[layer.name] || layer.defColor || '';
+                        return `
+                            <div class="bp-glb-layer-control" style="margin-bottom:14px; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <span style="font-size:11px; font-weight:700; color:#34d399;">
+                                        ${idx + 1}. ${layer.label || layer.name}
+                                    </span>
+                                    <input type="color" class="bp-layer-color-picker" data-layer-name="${layer.name}" value="${activeCol || '#ffffff'}" style="width:28px; height:24px; padding:0; border:none; cursor:pointer; background:none;" />
+                                </div>
+                                <div style="display:flex; gap:6px; flex-wrap:wrap;" class="bp-layer-swatches-row" data-layer-name="${layer.name}">
+                                    ${standardPalette.map(c => `
+                                        <div class="bp-color-swatch ${activeCol === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:26px; height:26px; border-radius:4px; cursor:pointer; border:2px solid ${activeCol === c ? '#ffd600' : '#000000'};"></div>
+                                    `).join('')}
+                                    <div class="bp-color-swatch-reset" title="Restaurar original" style="display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:4px; cursor:pointer; background:#334155; font-size:11px; border:1px solid #475569;">↺</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+            // Vincular eventos de selección de color
+            container.querySelectorAll('.bp-layer-swatches-row').forEach(row => {
+                const layerName = row.dataset.layerName;
+                row.querySelectorAll('.bp-color-swatch').forEach(sw => {
+                    sw.addEventListener('click', () => {
+                        const color = sw.dataset.color;
+                        if (!currentConfig.layer_colors) currentConfig.layer_colors = {};
+                        currentConfig.layer_colors[layerName] = color;
+
+                        row.querySelectorAll('.bp-color-swatch').forEach(s => {
+                            s.classList.remove('active');
+                            s.style.borderColor = '#000000';
+                        });
+                        sw.classList.add('active');
+                        sw.style.borderColor = '#ffd600';
+
+                        const picker = container.querySelector(`.bp-layer-color-picker[data-layer-name="${layerName}"]`);
+                        if (picker) picker.value = color;
+
+                        if (previewAvatarMesh) {
+                            if (previewAvatarMesh.userData && typeof previewAvatarMesh.userData.applyColors === 'function') {
+                                previewAvatarMesh.userData.applyColors(currentConfig);
+                            } else {
+                                applyGLBColors(previewAvatarMesh, currentConfig);
+                            }
+                        }
+                    });
+                });
+
+                const resetBtn = row.querySelector('.bp-color-swatch-reset');
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', () => {
+                        if (currentConfig.layer_colors && currentConfig.layer_colors[layerName]) {
+                            delete currentConfig.layer_colors[layerName];
+                        }
+                        row.querySelectorAll('.bp-color-swatch').forEach(s => {
+                            s.classList.remove('active');
+                            s.style.borderColor = '#000000';
+                        });
+                        if (previewAvatarMesh) {
+                            if (previewAvatarMesh.userData && typeof previewAvatarMesh.userData.applyColors === 'function') {
+                                previewAvatarMesh.userData.applyColors(currentConfig);
+                            } else {
+                                applyGLBColors(previewAvatarMesh, currentConfig);
+                            }
+                        }
+                    });
+                }
+            });
+
+            container.querySelectorAll('.bp-layer-color-picker').forEach(picker => {
+                picker.addEventListener('input', () => {
+                    const layerName = picker.dataset.layerName;
+                    const color = picker.value;
+                    if (!currentConfig.layer_colors) currentConfig.layer_colors = {};
+                    currentConfig.layer_colors[layerName] = color;
+
+                    const row = container.querySelector(`.bp-layer-swatches-row[data-layer-name="${layerName}"]`);
+                    if (row) {
+                        row.querySelectorAll('.bp-color-swatch').forEach(s => {
+                            const isMatch = (s.dataset.color.toLowerCase() === color.toLowerCase());
+                            s.classList.toggle('active', isMatch);
+                            s.style.borderColor = isMatch ? '#ffd600' : '#000000';
+                        });
+                    }
+
+                    if (previewAvatarMesh) {
+                        if (previewAvatarMesh.userData && typeof previewAvatarMesh.userData.applyColors === 'function') {
+                            previewAvatarMesh.userData.applyColors(currentConfig);
+                        } else {
+                            applyGLBColors(previewAvatarMesh, currentConfig);
+                        }
+                    }
+                });
+            });
         }
 
         // Model Cards Listener
@@ -4764,6 +4905,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Eventos para selección y previsualización en vivo de los 3 estilos de caminata
+        document.querySelectorAll('.bp-walk-style-btn').forEach(wsBtn => {
+            wsBtn.addEventListener('click', () => {
+                const walkId = wsBtn.getAttribute('data-walk-id');
+                currentConfig.walk_style = walkId;
+
+                document.querySelectorAll('.bp-walk-style-btn').forEach(b => {
+                    b.classList.remove('bp-arcade-btn-yellow');
+                    b.classList.add('bp-arcade-btn-green');
+                });
+                wsBtn.classList.remove('bp-arcade-btn-green');
+                wsBtn.classList.add('bp-arcade-btn-yellow');
+
+                // Si hay vista previa 3D activa, alternar temporalmente al modo caminata para probarlo en vivo
+                rebuildPreviewMesh(currentConfig);
+            });
+        });
+
         const chkIncognito = document.getElementById('bp-chk-incognito');
         if (chkIncognito) {
             chkIncognito.addEventListener('change', () => {
@@ -4798,6 +4957,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('hair_style', currentConfig.hair_style);
                 formData.append('hair_color', currentConfig.hair_color);
                 formData.append('accessory', currentConfig.accessory);
+                formData.append('walk_style', currentConfig.walk_style || 'walk_1');
+                formData.append('layer_colors', JSON.stringify(currentConfig.layer_colors || {}));
                 formData.append('incognito', currentConfig.incognito ? 1 : 0);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
@@ -4888,8 +5049,17 @@ document.addEventListener('DOMContentLoaded', () => {
             hair_style: 'classic',
             hair_color: '#3b2314',
             accessory: 'none',
+            layer_colors: {},
+            walk_style: 'walk_1',
             incognito: 0
         }, settings.avatar || {});
+
+        const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
+        const globalWalkStyles = Array.isArray(globalAnims.walk_styles) ? globalAnims.walk_styles : [
+            { id: 'walk_1', name: 'Paso Normal' },
+            { id: 'walk_2', name: 'Paso Alegre' },
+            { id: 'walk_3', name: 'Paseo Relajado' }
+        ];
 
         const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
 
@@ -4955,6 +5125,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span style="font-family:'Press Start 2P', monospace; font-size:10px; color:#94a3b8; display:block; margin-bottom:6px;">TEXTURAS ORIGINALES FIJAS</span>
                             <p style="font-size:11px; color:#cbd5e1; margin:0;">Este modelo 3D cuenta con texturas y colores originales fijos.</p>
                         </div>
+
+                        <!-- CONTENEDOR DINÁMICO DE CAPAS PERSONALIZABLES PARA MODELOS GLB -->
+                        <div id="bp-glb-custom-layers-options" style="display:none;"></div>
 
                         <!-- HUMAN CUSTOMIZATION (TUTOR CLÁSICO O TUTOR GLB) -->
                         <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
@@ -5045,6 +5218,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             </select>
                         </div>
 
+                        <!-- 3 ESTILOS DE CAMINATA -->
+                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3);">
+                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">
+                                🚶 ESTILO DE CAMINATA (Haz clic para probar en vivo):
+                            </label>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-walk-styles-container">
+                                ${globalWalkStyles.map((ws, idx) => {
+                                    const isCurrent = (avatar.walk_style === ws.id) || (!avatar.walk_style && idx === 0);
+                                    return `
+                                        <button type="button" class="bp-arcade-btn bp-walk-style-btn ${isCurrent ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" data-walk-id="${ws.id}" data-walk-url="${ws.url || ''}" style="flex:1; min-width:90px; font-size:8px; padding:10px 6px;">
+                                            ${ws.name || ('Estilo ' + (idx + 1))}
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
                         <!-- INCOGNITO CHECKBOX -->
                         <div style="margin-bottom:20px; background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
                             <label style="font-size:12px; color:#a7f3d0; cursor:pointer; display:flex; align-items:center; gap:8px;">
@@ -5065,7 +5255,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-family:'Press Start 2P', monospace; font-size:11px; color:#ffd600; margin-bottom:10px;">
                             🕹️ VISTA PREVIA EN VIVO 3D
                         </div>
-                        <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;"></div>
+                        <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;">
+                            <div id="bp-avatar-preview-loading" class="bp-avatar-loading-overlay hidden">
+                                <div class="bp-emerald-spinner"></div>
+                                <div class="bp-avatar-loading-text">CARGANDO PERSONAJE...</div>
+                            </div>
+                        </div>
                         <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa • Rueda para zoom</div>
                     </div>
 

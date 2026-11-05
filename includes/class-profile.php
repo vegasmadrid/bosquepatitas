@@ -124,6 +124,7 @@ class BP_Profile {
         $offset_y    = isset($_POST['offset_y']) ? floatval($_POST['offset_y']) : 0.0;
         $anim_idle   = isset($_POST['anim_idle']) ? sanitize_text_field($_POST['anim_idle']) : '';
         $anim_walk   = isset($_POST['anim_walk']) ? sanitize_text_field($_POST['anim_walk']) : '';
+        $walk_style  = isset($_POST['walk_style']) ? sanitize_text_field($_POST['walk_style']) : 'walk_1';
         $anim_kneel_down = isset($_POST['anim_kneel_down']) ? sanitize_text_field($_POST['anim_kneel_down']) : '';
         $anim_kneel_idle = isset($_POST['anim_kneel_idle']) ? sanitize_text_field($_POST['anim_kneel_idle']) : '';
         $skin        = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
@@ -132,27 +133,36 @@ class BP_Profile {
         $hair_style  = isset($_POST['hair_style']) ? sanitize_text_field($_POST['hair_style']) : 'classic';
         $hair_color  = isset($_POST['hair_color']) ? sanitize_text_field($_POST['hair_color']) : '#3b2314';
         $accessory   = isset($_POST['accessory']) ? sanitize_text_field($_POST['accessory']) : 'none';
+        $layer_colors_raw = isset($_POST['layer_colors']) ? wp_unslash($_POST['layer_colors']) : '{}';
+        $layer_colors = json_decode($layer_colors_raw, true);
+        if (!is_array($layer_colors)) $layer_colors = array();
+        $sanitized_layers = array();
+        foreach ($layer_colors as $lk => $lv) {
+            $sanitized_layers[sanitize_text_field($lk)] = sanitize_hex_color($lv) ?: '#10b981';
+        }
         $incognito   = isset($_POST['incognito']) ? (int) $_POST['incognito'] : 0;
 
         $avatar_data = array(
-            'avatar_type' => $avatar_type,
-            'category'    => $category,
-            'pet_species' => $pet_species,
-            'glb_id'      => $glb_id,
-            'glb_url'     => $glb_url,
-            'scale'       => $scale,
-            'offset_y'    => $offset_y,
-            'anim_idle'   => $anim_idle,
-            'anim_walk'       => $anim_walk,
-            'anim_kneel_down' => $anim_kneel_down,
-            'anim_kneel_idle' => $anim_kneel_idle,
-            'skin'        => $skin,
-            'shirt'       => $shirt,
-            'pants'       => $pants,
-            'hair_style'  => $hair_style,
-            'hair_color'  => $hair_color,
-            'accessory'   => $accessory,
-            'incognito'   => $incognito
+            'avatar_type'  => $avatar_type,
+            'category'     => $category,
+            'pet_species'  => $pet_species,
+            'glb_id'       => $glb_id,
+            'glb_url'      => $glb_url,
+            'scale'        => $scale,
+            'offset_y'     => $offset_y,
+            'anim_idle'    => $anim_idle,
+            'anim_walk'        => $anim_walk,
+            'walk_style'       => $walk_style,
+            'anim_kneel_down'  => $anim_kneel_down,
+            'anim_kneel_idle'  => $anim_kneel_idle,
+            'skin'         => $skin,
+            'shirt'        => $shirt,
+            'pants'        => $pants,
+            'hair_style'   => $hair_style,
+            'hair_color'   => $hair_color,
+            'accessory'    => $accessory,
+            'layer_colors' => $sanitized_layers,
+            'incognito'    => $incognito
         );
 
         update_user_meta($user_id, 'bp_avatar_config', $avatar_data);
@@ -165,24 +175,26 @@ class BP_Profile {
 
     private function get_default_avatar_data() {
         return array(
-            'avatar_type' => 'human',
-            'category'    => 'human',
-            'pet_species' => 'dog',
-            'glb_id'      => '',
-            'glb_url'     => '',
-            'scale'       => 1.0,
-            'offset_y'    => 0.0,
-            'anim_idle'   => '',
-            'anim_walk'       => '',
-            'anim_kneel_down' => '',
-            'anim_kneel_idle' => '',
-            'skin'        => '#ffe0bd',
-            'shirt'       => '#10b981',
-            'pants'       => '#1e3a8a',
-            'hair_style'  => 'classic',
-            'hair_color'  => '#3b2314',
-            'accessory'   => 'none',
-            'incognito'   => 0
+            'avatar_type'  => 'human',
+            'category'     => 'human',
+            'pet_species'  => 'dog',
+            'glb_id'       => '',
+            'glb_url'      => '',
+            'scale'        => 1.0,
+            'offset_y'     => 0.0,
+            'anim_idle'    => '',
+            'anim_walk'        => '',
+            'walk_style'       => 'walk_1',
+            'anim_kneel_down'  => '',
+            'anim_kneel_idle'  => '',
+            'skin'         => '#ffe0bd',
+            'shirt'        => '#10b981',
+            'pants'        => '#1e3a8a',
+            'hair_style'   => 'classic',
+            'hair_color'   => '#3b2314',
+            'accessory'    => 'none',
+            'layer_colors' => array(),
+            'incognito'    => 0
         );
     }
 

@@ -160,6 +160,12 @@ class BosquePatitas {
                         $decoded = json_decode($g['detected_materials'], true);
                         $g['detected_materials'] = is_array($decoded) ? $decoded : array();
                     }
+                    if (!empty($g['custom_layers']) && is_string($g['custom_layers'])) {
+                        $decoded_layers = json_decode($g['custom_layers'], true);
+                        $g['custom_layers'] = is_array($decoded_layers) ? $decoded_layers : array();
+                    } elseif (empty($g['custom_layers'])) {
+                        $g['custom_layers'] = array();
+                    }
                     if (!empty($g['fbx_animations']) && is_string($g['fbx_animations'])) {
                         $decoded_fbx = json_decode($g['fbx_animations'], true);
                         $g['fbx_animations'] = is_array($decoded_fbx) ? $decoded_fbx : array();
@@ -176,6 +182,9 @@ class BosquePatitas {
         $revision   = 'Rev 2026.10.29-0850';
         $build_date = '29/10/2026 08:50';
 
+        // Obtener animaciones globales
+        $global_anims = class_exists('BP_Admin_GLB') ? BP_Admin_GLB::get_global_animations() : array();
+
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
             'apiUrl'           => esc_url_raw(rest_url('wp/v2/tumbas')),
@@ -190,6 +199,7 @@ class BosquePatitas {
             'approvedPets'     => $approved_pets,
             'avatar'           => $avatar_config,
             'glbAvatars'       => $active_glb,
+            'globalAnimations' => $global_anims,
             'pusherKey'        => esc_attr($pusher_key),
             'pusherCluster'    => esc_attr($pusher_cluster),
             'showVersionBadge' => $show_version_badge,
