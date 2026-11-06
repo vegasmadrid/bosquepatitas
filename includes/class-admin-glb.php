@@ -359,7 +359,7 @@ class BP_Admin_GLB {
             <div style="display: flex; gap: 20px; margin-top: 20px; align-items: flex-start; flex-wrap: wrap;">
 
                 <!-- Form Card -->
-                <div style="background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 8px; flex: 1; min-width: 340px; max-width: 540px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                <div style="background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 8px; flex: 1.2; min-width: 480px; max-width: 650px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
                     <h2><?php echo $editing_avatar ? 'Editar Avatar 3D' : 'Añadir Nuevo Avatar 3D'; ?></h2>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <input type="hidden" name="action" value="bp_save_glb_avatar">
@@ -629,8 +629,14 @@ class BP_Admin_GLB {
 
                 // Header
                 var headerDiv = document.createElement('div');
-                headerDiv.style.cssText = 'display:grid; grid-template-columns: 36px 1fr 1fr 140px 90px; gap:10px; font-weight:700; font-size:11px; color:#1e293b; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:6px; align-items:center;';
-                headerDiv.innerHTML = '<span title="Activar personalización de esta capa">Activa</span><span>Capa Detectada</span><span>Nombre Visible</span><span title="Color por defecto que verá el usuario">Color por Defecto</span><span title="Forzar color sólido si tiene texturas oscuras o fijas">Color Sólido</span>';
+                headerDiv.style.cssText = 'display:table; width:100%; border-bottom:2px solid #cbd5e1; padding-bottom:6px; margin-bottom:8px; font-weight:700; font-size:11px; color:#1e293b;';
+                headerDiv.innerHTML = '<div style="display:table-row;">' +
+                    '<div style="display:table-cell; width:34px; text-align:center;" title="Activar personalización de esta capa">Activa</div>' +
+                    '<div style="display:table-cell; width:110px; padding-left:8px;">Capa Detectada</div>' +
+                    '<div style="display:table-cell; padding-left:8px;">Nombre Visible</div>' +
+                    '<div style="display:table-cell; width:80px; text-align:center; padding-left:6px;" title="Color por defecto que verá el usuario">Por Defecto</div>' +
+                    '<div style="display:table-cell; width:65px; text-align:center; padding-left:6px;" title="Forzar color sólido (desacoplar texturas fijas para color nítido)">Sólido</div>' +
+                '</div>';
                 customLayersContainer.appendChild(headerDiv);
 
                 detectedItems.forEach(function(item, idx) {
@@ -642,63 +648,79 @@ class BP_Admin_GLB {
                     var forceSolidVal = existing && typeof existing.forceSolid !== 'undefined' ? Boolean(existing.forceSolid) : false;
 
                     var row = document.createElement('div');
-                    row.style.cssText = 'display:grid; grid-template-columns: 36px 1fr 1fr 140px 90px; gap:10px; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:6px 10px; border-radius:4px; margin-bottom:4px;';
+                    row.style.cssText = 'display:table; width:100%; background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:6px; padding:6px 0; box-shadow:0 1px 2px rgba(0,0,0,0.03);';
 
+                    var rowInner = document.createElement('div');
+                    rowInner.style.cssText = 'display:table-row; vertical-align:middle;';
+
+                    // Col 1: Activa Checkbox
+                    var cellChk = document.createElement('div');
+                    cellChk.style.cssText = 'display:table-cell; width:34px; text-align:center; vertical-align:middle;';
                     var chk = document.createElement('input');
                     chk.type = 'checkbox';
                     chk.checked = isEnabled;
                     chk.className = 'bp-layer-chk-enabled';
-                    chk.style.cssText = 'width:18px; height:18px; cursor:pointer; accent-color:#10b981; margin:0 auto;';
+                    chk.style.cssText = 'width:18px; height:18px; cursor:pointer; accent-color:#10b981; margin:0 auto; vertical-align:middle;';
+                    cellChk.appendChild(chk);
 
-                    var info = document.createElement('div');
-                    info.innerHTML = '<strong style="font-size:12px; color:#1e293b;">' + (item.type === 'mesh' ? '🔷 ' : '🎨 ') + item.name + '</strong><br><small style="color:#64748b; font-size:10px;">' + (item.type === 'mesh' ? 'Sub-malla' : 'Material') + '</small>';
+                    // Col 2: Info (Sub-malla o Material)
+                    var cellInfo = document.createElement('div');
+                    cellInfo.style.cssText = 'display:table-cell; width:110px; padding-left:8px; vertical-align:middle; word-break:break-word;';
+                    cellInfo.innerHTML = '<strong style="font-size:11px; color:#1e293b; display:block; line-height:1.2;">' + (item.type === 'mesh' ? '🔷 ' : '🎨 ') + item.name + '</strong>' +
+                        '<small style="color:#64748b; font-size:10px;">' + (item.type === 'mesh' ? 'Sub-malla' : 'Material') + '</small>';
 
+                    // Col 3: Input de Nombre Visible
+                    var cellLabel = document.createElement('div');
+                    cellLabel.style.cssText = 'display:table-cell; padding-left:8px; padding-right:8px; vertical-align:middle;';
                     var labelInput = document.createElement('input');
                     labelInput.type = 'text';
                     labelInput.value = labelVal;
                     labelInput.className = 'regular-text bp-layer-input-label';
-                    labelInput.style.cssText = 'width: 100% !important; min-width: 120px !important; box-sizing: border-box !important; font-size:12px; padding:4px 8px; border:1px solid #8c8f94; border-radius:4px; background:#fff; color:#2c3338; display:block;';
-                    labelInput.placeholder = 'Nombre visible para el usuario';
+                    labelInput.style.cssText = 'width: 100% !important; min-width: 90px !important; box-sizing: border-box !important; font-size:12px; padding:4px 6px; border:1px solid #8c8f94; border-radius:4px; background:#fff; color:#2c3338; display:block;';
+                    labelInput.placeholder = 'Nombre visible';
+                    cellLabel.appendChild(labelInput);
 
-                    // Columna: Color por defecto
-                    var colorCol = document.createElement('div');
-                    colorCol.style.cssText = 'display:flex; align-items:center; gap:6px;';
+                    // Col 4: Color por defecto
+                    var cellColor = document.createElement('div');
+                    cellColor.style.cssText = 'display:table-cell; width:80px; text-align:center; vertical-align:middle; padding-left:6px;';
+                    var colorWrap = document.createElement('div');
+                    colorWrap.style.cssText = 'display:inline-flex; align-items:center; justify-content:center; gap:4px;';
 
                     var hasColorChk = document.createElement('input');
                     hasColorChk.type = 'checkbox';
                     hasColorChk.checked = hasDefCol;
                     hasColorChk.className = 'bp-layer-chk-hasdefcolor';
-                    hasColorChk.title = 'Marcar para asignar un color por defecto';
-                    hasColorChk.style.cssText = 'width:16px; height:16px; cursor:pointer; accent-color:#0284c7;';
+                    hasColorChk.title = 'Marcar para activar color por defecto';
+                    hasColorChk.style.cssText = 'width:16px; height:16px; cursor:pointer; accent-color:#0284c7; margin:0; vertical-align:middle;';
 
                     var colorPicker = document.createElement('input');
                     colorPicker.type = 'color';
                     colorPicker.value = defColVal;
                     colorPicker.className = 'bp-layer-color-def';
-                    colorPicker.style.cssText = 'width:28px; height:26px; padding:0; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer; opacity:' + (hasDefCol ? '1' : '0.4') + ';';
+                    colorPicker.style.cssText = 'width:26px; height:24px; padding:0; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer; opacity:' + (hasDefCol ? '1' : '0.35') + '; vertical-align:middle;';
                     colorPicker.disabled = !hasDefCol;
 
                     hasColorChk.addEventListener('change', function() {
                         colorPicker.disabled = !hasColorChk.checked;
-                        colorPicker.style.opacity = hasColorChk.checked ? '1' : '0.4';
+                        colorPicker.style.opacity = hasColorChk.checked ? '1' : '0.35';
                         updateLayersState();
                     });
 
-                    colorCol.appendChild(hasColorChk);
-                    colorCol.appendChild(colorPicker);
+                    colorWrap.appendChild(hasColorChk);
+                    colorWrap.appendChild(colorPicker);
+                    cellColor.appendChild(colorWrap);
 
-                    // Columna: Forzar color sólido (desacoplar texturas oscuras/fijas)
-                    var solidCol = document.createElement('div');
-                    solidCol.style.cssText = 'display:flex; align-items:center; justify-content:center;';
+                    // Col 5: Forzar color sólido
+                    var cellSolid = document.createElement('div');
+                    cellSolid.style.cssText = 'display:table-cell; width:65px; text-align:center; vertical-align:middle; padding-left:6px;';
 
                     var forceSolidChk = document.createElement('input');
                     forceSolidChk.type = 'checkbox';
                     forceSolidChk.checked = forceSolidVal;
                     forceSolidChk.className = 'bp-layer-chk-forcesolid';
                     forceSolidChk.title = 'Forzar color sólido (remueve texturas fijas para color 100% puro)';
-                    forceSolidChk.style.cssText = 'width:16px; height:16px; cursor:pointer; accent-color:#f59e0b;';
-
-                    solidCol.appendChild(forceSolidChk);
+                    forceSolidChk.style.cssText = 'width:16px; height:16px; cursor:pointer; accent-color:#f59e0b; margin:0 auto; vertical-align:middle;';
+                    cellSolid.appendChild(forceSolidChk);
 
                     chk.addEventListener('change', updateLayersState);
                     labelInput.addEventListener('input', updateLayersState);
@@ -709,11 +731,12 @@ class BP_Admin_GLB {
                     row.setAttribute('data-name', item.name);
                     row.setAttribute('data-type', item.type);
 
-                    row.appendChild(chk);
-                    row.appendChild(info);
-                    row.appendChild(labelInput);
-                    row.appendChild(colorCol);
-                    row.appendChild(solidCol);
+                    rowInner.appendChild(cellChk);
+                    rowInner.appendChild(cellInfo);
+                    rowInner.appendChild(cellLabel);
+                    rowInner.appendChild(cellColor);
+                    rowInner.appendChild(cellSolid);
+                    row.appendChild(rowInner);
                     customLayersContainer.appendChild(row);
                 });
 
@@ -893,7 +916,12 @@ class BP_Admin_GLB {
             var adminScene, adminCamera, adminRenderer, adminControls, adminModelMesh;
 
             function initAdmin3DPreview() {
-                if (!adminPreviewContainer || typeof THREE === 'undefined') return;
+                if (!adminPreviewContainer) return;
+
+                if (typeof THREE === 'undefined') {
+                    setTimeout(initAdmin3DPreview, 300);
+                    return;
+                }
 
                 var width = adminPreviewContainer.clientWidth || 300;
                 var height = adminPreviewContainer.clientHeight || 280;
@@ -907,14 +935,19 @@ class BP_Admin_GLB {
                 adminRenderer = new THREE.WebGLRenderer({ antialias: true });
                 adminRenderer.setSize(width, height);
                 adminRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-                adminPreviewContainer.innerHTML = '';
+
+                // Preservar loading indicator pero asegurar canvas visible
+                while (adminPreviewContainer.firstChild) {
+                    if (adminPreviewContainer.firstChild === adminPreviewLoading) break;
+                    adminPreviewContainer.removeChild(adminPreviewContainer.firstChild);
+                }
                 adminPreviewContainer.appendChild(adminRenderer.domElement);
 
                 // Luces
-                var ambLight = new THREE.AmbientLight(0xffffff, 0.85);
+                var ambLight = new THREE.AmbientLight(0xffffff, 0.9);
                 adminScene.add(ambLight);
 
-                var dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+                var dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
                 dirLight.position.set(3, 5, 4);
                 adminScene.add(dirLight);
 
@@ -930,13 +963,14 @@ class BP_Admin_GLB {
                 pedestal.position.y = -0.04;
                 adminScene.add(pedestal);
 
-                if (typeof THREE.OrbitControls !== 'undefined') {
-                    adminControls = new THREE.OrbitControls(adminCamera, adminRenderer.domElement);
+                var ControlsClass = THREE.OrbitControls || (typeof OrbitControls !== 'undefined' ? OrbitControls : null);
+                if (ControlsClass) {
+                    adminControls = new ControlsClass(adminCamera, adminRenderer.domElement);
                     adminControls.enableDamping = true;
                     adminControls.dampingFactor = 0.05;
                     adminControls.target.set(0, 0.9, 0);
                     adminControls.maxDistance = 6;
-                    adminControls.minDistance = 1;
+                    adminControls.minDistance = 0.5;
                 }
 
                 function animate() {
@@ -1055,16 +1089,26 @@ class BP_Admin_GLB {
                     }
                 }
 
-                if (isFbx && typeof THREE.FBXLoader !== 'undefined') {
-                    new THREE.FBXLoader().load(url, handleLoadedModel, undefined, function() {
-                        if (adminPreviewLoading) adminPreviewLoading.textContent = '⚠️ No se pudo cargar el archivo FBX.';
-                    });
-                } else if (!isFbx && typeof THREE.GLTFLoader !== 'undefined') {
-                    new THREE.GLTFLoader().load(url, function(gltf) {
-                        handleLoadedModel(gltf.scene);
-                    }, undefined, function() {
-                        if (adminPreviewLoading) adminPreviewLoading.textContent = '⚠️ No se pudo cargar el archivo GLB.';
-                    });
+                if (isFbx) {
+                    var FBXLoaderClass = THREE.FBXLoader || (typeof FBXLoader !== 'undefined' ? FBXLoader : null);
+                    if (FBXLoaderClass) {
+                        new FBXLoaderClass().load(url, handleLoadedModel, undefined, function() {
+                            if (adminPreviewLoading) adminPreviewLoading.textContent = '⚠️ No se pudo cargar el archivo FBX.';
+                        });
+                    } else {
+                        setTimeout(function() { loadModelIntoAdminPreview(url); }, 500);
+                    }
+                } else {
+                    var GLTFLoaderClass = THREE.GLTFLoader || (typeof GLTFLoader !== 'undefined' ? GLTFLoader : null);
+                    if (GLTFLoaderClass) {
+                        new GLTFLoaderClass().load(url, function(gltf) {
+                            handleLoadedModel(gltf.scene);
+                        }, undefined, function() {
+                            if (adminPreviewLoading) adminPreviewLoading.textContent = '⚠️ No se pudo cargar el archivo GLB.';
+                        });
+                    } else {
+                        setTimeout(function() { loadModelIntoAdminPreview(url); }, 500);
+                    }
                 }
             }
 

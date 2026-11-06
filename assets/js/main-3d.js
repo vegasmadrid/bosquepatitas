@@ -1268,16 +1268,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         mat.color.copy(new THREE.Color(matchedColor));
 
-                        // En modelos con textura difusa fija:
-                        // Solo si se solicita explícitamente forzar color sólido (forceSolid),
-                        // desacoplamos el mapa de textura para permitir color 100% plano sin textura.
-                        if (forceSolid) {
+                        // En modelos FBX/GLB con texturas difusas fijas (como ropa, zapatos, accesorios con mapa):
+                        // Desacoplamos el mapa de textura difusa (mat.map = null) para que el color elegido
+                        // resalte de forma limpia, vibrante e inmediata en la prenda/sub-malla seleccionada,
+                        // tanto si se fuerza color sólido como si el usuario le asigna un color personalizado.
+                        if (forceSolid || mat.map) {
                             mat.map = null;
                         }
                         mat.needsUpdate = true;
                     } catch (e) {}
                 } else {
-                    // Restaurar el color y mapa original del modelo 3D
+                    // Restaurar el color y mapa original del modelo 3D si no hay color asignado
                     if (mat.userData.origColor) {
                         mat.color.copy(mat.userData.origColor);
                     }
