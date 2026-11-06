@@ -1180,7 +1180,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Leer capas configuradas por el admin
         const configuredLayers = getGLBAvatarCustomLayers(glbMeta);
-        const userLayerColors = config.layer_colors || (settings.avatar && settings.avatar.layer_colors) || {};
+        const userLayerColors = (typeof config.layer_colors !== 'undefined')
+            ? (config.layer_colors || {})
+            : ((settings.avatar && settings.avatar.layer_colors) || {});
 
         root.traverse(child => {
             if (!child.isMesh && !child.isSkinnedMesh) return;
@@ -1215,27 +1217,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 let forceSolid = false;
 
                 // 1. Coincidencia con capas personalizadas configuradas en el back end
+                // Regla crítica: Priorizar coincidencia exacta de la sub-malla (meshName) antes que el material compartido (matName)
+                // para que Ch33_body no secuestre los materiales de Ch33_Shoes, Ch33_Suit, Ch33_Pants, etc.
                 if (Array.isArray(configuredLayers) && configuredLayers.length > 0) {
-                    for (let layer of configuredLayers) {
+                    let matchedLayer = null;
+
+                    // Prioridad 1: Coincidencia por sub-malla (mesh)
+                    matchedLayer = configuredLayers.find(layer => {
                         const lName = (layer.name || '').trim();
                         const cleanL = lName.toLowerCase().replace(/[^a-z0-9]/g, '');
-                        // Comparación exacta o normalizada por nombres
-                        const matchesName = (
-                            lName.toLowerCase() === meshName.toLowerCase() ||
-                            lName.toLowerCase() === matName.toLowerCase() ||
-                            (cleanL && (cleanL === cleanMesh || cleanL === cleanMat))
-                        );
+                        return lName.toLowerCase() === meshName.toLowerCase() || (cleanL && cleanL === cleanMesh);
+                    });
 
-                        if (matchesName) {
-                            if (userLayerColors[layer.name]) {
-                                matchedColor = userLayerColors[layer.name];
-                            } else if (layer.defColor && (layer.hasDefColor !== 0 && layer.hasDefColor !== false && layer.hasDefColor !== '0')) {
-                                matchedColor = layer.defColor;
-                            }
-                            if (layer.forceSolid) {
-                                forceSolid = true;
-                            }
-                            break;
+                    // Prioridad 2: Si no coincide por sub-malla, coincidencia por material
+                    if (!matchedLayer) {
+                        matchedLayer = configuredLayers.find(layer => {
+                            const lName = (layer.name || '').trim();
+                            const cleanL = lName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                            return lName.toLowerCase() === matName.toLowerCase() || (cleanL && cleanL === cleanMat);
+                        });
+                    }
+
+                    if (matchedLayer) {
+                        if (userLayerColors[matchedLayer.name]) {
+                            matchedColor = userLayerColors[matchedLayer.name];
+                        } else if (matchedLayer.defColor && (matchedLayer.hasDefColor !== 0 && matchedLayer.hasDefColor !== false && matchedLayer.hasDefColor !== '0')) {
+                            matchedColor = matchedLayer.defColor;
+                        }
+                        if (matchedLayer.forceSolid) {
+                            forceSolid = true;
                         }
                     }
                 } else {
@@ -1259,17 +1269,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         mat.color.copy(new THREE.Color(matchedColor));
 
                         // En modelos con textura difusa fija:
-                        // Si se solicita forzar color sólido o el color original del material era casi negro (lo que oscurece el tinte),
-                        // desacoplamos el mapa para que el color se aplique nítidamente.
+                        // Solo si se solicita explícitamente forzar color sólido (forceSolid),
+                        // desacoplamos el mapa de textura para permitir color 100% plano sin textura.
                         if (forceSolid) {
                             mat.map = null;
-                        } else if (mat.map && mat.userData.origColor) {
-                            // Si el color original era muy oscuro, lo subimos para permitir que la textura se tinte
-                            const lum = mat.userData.origColor.r * 0.299 + mat.userData.origColor.g * 0.587 + mat.userData.origColor.b * 0.114;
-                            if (lum < 0.1) {
-                                // Desacoplar textura oscura para que el tinte no resulte negro
-                                mat.map = null;
-                            }
                         }
                         mat.needsUpdate = true;
                     } catch (e) {}

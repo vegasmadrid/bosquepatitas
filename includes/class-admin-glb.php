@@ -50,6 +50,7 @@ class BP_Admin_GLB {
         if (strpos($hook, 'bp-glb-avatars') !== false) {
             wp_enqueue_media();
             wp_enqueue_script('three-js', 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', array(), 'r128', true);
+            wp_enqueue_script('three-orbitcontrols', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', array('three-js'), '128', true);
             wp_enqueue_script('fflate', 'https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.js', array(), '0.7.4', true);
             wp_enqueue_script('three-gltfloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js', array('three-js'), 'r128', true);
             wp_enqueue_script('three-fbxloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js', array('three-js', 'fflate'), 'r128', true);
@@ -433,6 +434,17 @@ class BP_Admin_GLB {
                                         Sube o selecciona un archivo 3D arriba para inspeccionar y detectar sus capas automáticamente.
                                     </div>
                                 </div>
+
+                                <!-- VISOR 3D DE PREVISUALIZACIÓN EN EL BACKEND -->
+                                <div style="margin-top:16px; background:#0b1711; border:2px solid #10b981; border-radius:8px; padding:10px;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                        <span style="color:#ffd600; font-weight:bold; font-size:11px;">🕹️ VISTA PREVIA 3D EN TIEMPO REAL</span>
+                                        <span style="color:#94a3b8; font-size:10px;">Arrastra para rotar • Rueda para zoom</span>
+                                    </div>
+                                    <div id="glb-admin-3d-preview" style="width:100%; height:280px; position:relative; overflow:hidden; border-radius:4px; background:#1e293b;">
+                                        <div id="glb-admin-preview-loading" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:#10b981; font-weight:bold; font-size:12px;">Cargando visor 3D...</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -543,6 +555,38 @@ class BP_Admin_GLB {
 
             var currentLayers = [];
 
+            function updateLayersState() {
+                var updatedList = [];
+                if (!customLayersContainer) return;
+                var rows = customLayersContainer.querySelectorAll('.bp-layer-row');
+                rows.forEach(function(r) {
+                    var rChk = r.querySelector('.bp-layer-chk-enabled');
+                    var rName = r.getAttribute('data-name');
+                    var rType = r.getAttribute('data-type');
+                    var rLabelInput = r.querySelector('.bp-layer-input-label');
+                    var rHasColorChk = r.querySelector('.bp-layer-chk-hasdefcolor');
+                    var rColorPicker = r.querySelector('.bp-layer-color-def');
+                    var rSolidChk = r.querySelector('.bp-layer-chk-forcesolid');
+
+                    updatedList.push({
+                        name: rName,
+                        type: rType,
+                        label: rLabelInput ? (rLabelInput.value.trim() || rName) : rName,
+                        enabled: (rChk && rChk.checked) ? 1 : 0,
+                        hasDefColor: (rHasColorChk && rHasColorChk.checked) ? 1 : 0,
+                        defColor: rColorPicker ? rColorPicker.value : '#10b981',
+                        forceSolid: (rSolidChk && rSolidChk.checked) ? 1 : 0
+                    });
+                });
+                currentLayers = updatedList;
+                if (customLayersInput) {
+                    customLayersInput.value = JSON.stringify(currentLayers);
+                }
+                if (adminModelMesh && typeof applyAdminColorsToMesh === 'function') {
+                    applyAdminColorsToMesh(adminModelMesh);
+                }
+            }
+
             if (allowColorsChk && colorsWrapper) {
                 allowColorsChk.addEventListener('change', function() {
                     colorsWrapper.style.display = allowColorsChk.checked ? 'block' : 'none';
@@ -612,8 +656,8 @@ class BP_Admin_GLB {
                     var labelInput = document.createElement('input');
                     labelInput.type = 'text';
                     labelInput.value = labelVal;
-                    labelInput.className = 'widefat bp-layer-input-label';
-                    labelInput.style.cssText = 'font-size:12px; padding:4px 8px;';
+                    labelInput.className = 'regular-text bp-layer-input-label';
+                    labelInput.style.cssText = 'width: 100% !important; min-width: 120px !important; box-sizing: border-box !important; font-size:12px; padding:4px 8px; border:1px solid #8c8f94; border-radius:4px; background:#fff; color:#2c3338; display:block;';
                     labelInput.placeholder = 'Nombre visible para el usuario';
 
                     // Columna: Color por defecto
@@ -655,34 +699,6 @@ class BP_Admin_GLB {
                     forceSolidChk.style.cssText = 'width:16px; height:16px; cursor:pointer; accent-color:#f59e0b;';
 
                     solidCol.appendChild(forceSolidChk);
-
-                    function updateLayersState() {
-                        var updatedList = [];
-                        var rows = customLayersContainer.querySelectorAll('.bp-layer-row');
-                        rows.forEach(function(r) {
-                            var rChk = r.querySelector('.bp-layer-chk-enabled');
-                            var rName = r.getAttribute('data-name');
-                            var rType = r.getAttribute('data-type');
-                            var rLabelInput = r.querySelector('.bp-layer-input-label');
-                            var rHasColorChk = r.querySelector('.bp-layer-chk-hasdefcolor');
-                            var rColorPicker = r.querySelector('.bp-layer-color-def');
-                            var rSolidChk = r.querySelector('.bp-layer-chk-forcesolid');
-
-                            updatedList.push({
-                                name: rName,
-                                type: rType,
-                                label: rLabelInput ? (rLabelInput.value.trim() || rName) : rName,
-                                enabled: (rChk && rChk.checked) ? 1 : 0,
-                                hasDefColor: (rHasColorChk && rHasColorChk.checked) ? 1 : 0,
-                                defColor: rColorPicker ? rColorPicker.value : '#10b981',
-                                forceSolid: (rSolidChk && rSolidChk.checked) ? 1 : 0
-                            });
-                        });
-                        currentLayers = updatedList;
-                        if (customLayersInput) {
-                            customLayersInput.value = JSON.stringify(currentLayers);
-                        }
-                    }
 
                     chk.addEventListener('change', updateLayersState);
                     labelInput.addEventListener('input', updateLayersState);
@@ -869,9 +885,195 @@ class BP_Admin_GLB {
                 });
             });
 
+            // ==========================================
+            // VISOR 3D INTERACTIVO EN EL BACKEND
+            // ==========================================
+            var adminPreviewContainer = document.getElementById('glb-admin-3d-preview');
+            var adminPreviewLoading = document.getElementById('glb-admin-preview-loading');
+            var adminScene, adminCamera, adminRenderer, adminControls, adminModelMesh;
+
+            function initAdmin3DPreview() {
+                if (!adminPreviewContainer || typeof THREE === 'undefined') return;
+
+                var width = adminPreviewContainer.clientWidth || 300;
+                var height = adminPreviewContainer.clientHeight || 280;
+
+                adminScene = new THREE.Scene();
+                adminScene.background = new THREE.Color(0x1e293b);
+
+                adminCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+                adminCamera.position.set(0, 1.2, 3.2);
+
+                adminRenderer = new THREE.WebGLRenderer({ antialias: true });
+                adminRenderer.setSize(width, height);
+                adminRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                adminPreviewContainer.innerHTML = '';
+                adminPreviewContainer.appendChild(adminRenderer.domElement);
+
+                // Luces
+                var ambLight = new THREE.AmbientLight(0xffffff, 0.85);
+                adminScene.add(ambLight);
+
+                var dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+                dirLight.position.set(3, 5, 4);
+                adminScene.add(dirLight);
+
+                var dirLightBack = new THREE.DirectionalLight(0xa7f3d0, 0.5);
+                dirLightBack.position.set(-3, 3, -4);
+                adminScene.add(dirLightBack);
+
+                // Pedestal
+                var pedestal = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.8, 0.9, 0.08, 32),
+                    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 })
+                );
+                pedestal.position.y = -0.04;
+                adminScene.add(pedestal);
+
+                if (typeof THREE.OrbitControls !== 'undefined') {
+                    adminControls = new THREE.OrbitControls(adminCamera, adminRenderer.domElement);
+                    adminControls.enableDamping = true;
+                    adminControls.dampingFactor = 0.05;
+                    adminControls.target.set(0, 0.9, 0);
+                    adminControls.maxDistance = 6;
+                    adminControls.minDistance = 1;
+                }
+
+                function animate() {
+                    requestAnimationFrame(animate);
+                    if (adminControls) adminControls.update();
+                    if (adminRenderer && adminScene && adminCamera) {
+                        adminRenderer.render(adminScene, adminCamera);
+                    }
+                }
+                animate();
+
+                // Cargar modelo si ya hay URL
+                if (fileInput && fileInput.value.trim()) {
+                    loadModelIntoAdminPreview(fileInput.value.trim());
+                }
+            }
+
+            function applyAdminColorsToMesh(model) {
+                if (!model) return;
+                var layers = currentLayers || [];
+
+                model.traverse(function(child) {
+                    if (!child.isMesh && !child.isSkinnedMesh) return;
+                    if (!child.material) return;
+
+                    var mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(function(mat) {
+                        if (!mat || !mat.color) return;
+                        if (!mat.userData) mat.userData = {};
+                        if (!mat.userData.origColor) mat.userData.origColor = mat.color.clone();
+                        if (typeof mat.userData.origMap === 'undefined') mat.userData.origMap = mat.map || null;
+
+                        var meshName = (child.name || '').trim();
+                        var matName = (mat.name || '').trim();
+                        var cleanMesh = meshName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        var cleanMat = matName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                        // Prioridad 1: Sub-malla
+                        var matchedLayer = layers.find(function(l) {
+                            var cleanL = (l.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                            return (l.name || '').toLowerCase() === meshName.toLowerCase() || (cleanL && cleanL === cleanMesh);
+                        });
+
+                        // Prioridad 2: Material
+                        if (!matchedLayer) {
+                            matchedLayer = layers.find(function(l) {
+                                var cleanL = (l.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                return (l.name || '').toLowerCase() === matName.toLowerCase() || (cleanL && cleanL === cleanMat);
+                            });
+                        }
+
+                        if (matchedLayer && matchedLayer.hasDefColor && matchedLayer.defColor) {
+                            mat.color.copy(new THREE.Color(matchedLayer.defColor));
+                            if (matchedLayer.forceSolid || mat.map) {
+                                mat.map = null;
+                            }
+                            mat.needsUpdate = true;
+                        } else {
+                            if (mat.userData.origColor) mat.color.copy(mat.userData.origColor);
+                            if (typeof mat.userData.origMap !== 'undefined') mat.map = mat.userData.origMap;
+                            mat.needsUpdate = true;
+                        }
+                    });
+                });
+            }
+
+            function loadModelIntoAdminPreview(url) {
+                if (!url || !adminScene) return;
+
+                if (adminModelMesh) {
+                    adminScene.remove(adminModelMesh);
+                    adminModelMesh = null;
+                }
+
+                if (adminPreviewLoading) {
+                    adminPreviewLoading.style.display = 'block';
+                    adminPreviewLoading.textContent = 'Cargando personaje 3D...';
+                }
+
+                var isFbx = url.toLowerCase().split('?')[0].endsWith('.fbx');
+
+                function handleLoadedModel(loadedScene) {
+                    var model = loadedScene.clone();
+
+                    model.traverse(function(child) {
+                        if (child.isMesh || child.isSkinnedMesh) {
+                            if (child.material) {
+                                child.material = Array.isArray(child.material)
+                                    ? child.material.map(function(m) { return m.clone(); })
+                                    : child.material.clone();
+                            }
+                        }
+                    });
+
+                    var box = new THREE.Box3().setFromObject(model);
+                    var size = box.getSize(new THREE.Vector3());
+                    var center = box.getCenter(new THREE.Vector3());
+                    var maxDim = Math.max(size.x, size.y, size.z);
+                    var scale = maxDim > 0 ? (1.8 / maxDim) : 1;
+
+                    model.scale.setScalar(scale);
+                    box.setFromObject(model);
+                    box.getCenter(center);
+                    model.position.sub(center);
+                    model.position.y += (box.getSize(new THREE.Vector3()).y / 2);
+
+                    adminModelMesh = model;
+                    applyAdminColorsToMesh(adminModelMesh);
+                    adminScene.add(adminModelMesh);
+
+                    if (adminControls) {
+                        adminControls.target.set(0, (box.getSize(new THREE.Vector3()).y / 2), 0);
+                    }
+                    if (adminPreviewLoading) {
+                        adminPreviewLoading.style.display = 'none';
+                    }
+                }
+
+                if (isFbx && typeof THREE.FBXLoader !== 'undefined') {
+                    new THREE.FBXLoader().load(url, handleLoadedModel, undefined, function() {
+                        if (adminPreviewLoading) adminPreviewLoading.textContent = '⚠️ No se pudo cargar el archivo FBX.';
+                    });
+                } else if (!isFbx && typeof THREE.GLTFLoader !== 'undefined') {
+                    new THREE.GLTFLoader().load(url, function(gltf) {
+                        handleLoadedModel(gltf.scene);
+                    }, undefined, function() {
+                        if (adminPreviewLoading) adminPreviewLoading.textContent = '⚠️ No se pudo cargar el archivo GLB.';
+                    });
+                }
+            }
+
+            setTimeout(initAdmin3DPreview, 400);
+
             if (fileInput) {
                 fileInput.addEventListener('change', function() {
                     inspectModelFile(fileInput.value.trim());
+                    loadModelIntoAdminPreview(fileInput.value.trim());
                 });
                 if (fileInput.value.trim()) {
                     inspectModelFile(fileInput.value.trim());
