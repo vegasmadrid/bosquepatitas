@@ -50,6 +50,7 @@ class BP_Admin_GLB {
         if (strpos($hook, 'bp-glb-avatars') !== false) {
             wp_enqueue_media();
             wp_enqueue_script('three-js', 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', array(), 'r128', true);
+            wp_enqueue_script('three-skeletonutils', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js', array('three-js'), 'r128', true);
             wp_enqueue_script('three-orbitcontrols', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', array('three-js'), '128', true);
             wp_enqueue_script('fflate', 'https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.js', array(), '0.7.4', true);
             wp_enqueue_script('three-gltfloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js', array('three-js'), 'r128', true);
@@ -1052,11 +1053,38 @@ class BP_Admin_GLB {
 
                 var isFbx = url.toLowerCase().split('?')[0].endsWith('.fbx');
 
+                function getAccurateBounds(object) {
+                    object.updateMatrixWorld(true);
+                    var b = new THREE.Box3();
+                    var hasValidGeom = false;
+
+                    object.traverse(function(child) {
+                        if ((child.isMesh || child.isSkinnedMesh) && child.geometry) {
+                            var geom = child.geometry;
+                            if (!geom.boundingBox) geom.computeBoundingBox();
+                            if (geom.boundingBox) {
+                                var childBox = geom.boundingBox.clone();
+                                childBox.applyMatrix4(child.matrixWorld);
+                                b.union(childBox);
+                                hasValidGeom = true;
+                            }
+                        }
+                    });
+
+                    if (!hasValidGeom || b.isEmpty() || !isFinite(b.min.x)) {
+                        b.setFromObject(object);
+                    }
+                    return b;
+                }
+
                 function handleLoadedModel(loadedScene) {
-                    var model = loadedScene.clone();
+                    var model = (typeof THREE.SkeletonUtils !== 'undefined' && typeof THREE.SkeletonUtils.clone === 'function')
+                        ? THREE.SkeletonUtils.clone(loadedScene)
+                        : loadedScene.clone();
 
                     model.traverse(function(child) {
                         if (child.isMesh || child.isSkinnedMesh) {
+                            child.frustumCulled = false;
                             if (child.material) {
                                 child.material = Array.isArray(child.material)
                                     ? child.material.map(function(m) { return m.clone(); })
@@ -1065,25 +1093,55 @@ class BP_Admin_GLB {
                         }
                     });
 
-                    var box = new THREE.Box3().setFromObject(model);
-                    var size = box.getSize(new THREE.Vector3());
-                    var center = box.getCenter(new THREE.Vector3());
-                    var maxDim = Math.max(size.x, size.y, size.z);
-                    var scale = maxDim > 0 ? (1.8 / maxDim) : 1;
+                    // Calcular dimensiones precisas
+                    var rawBox = getAccurateBounds(model);
+                    var rawSize = rawBox.getSize(new THREE.Vector3());
+                    var rawCenter = rawBox.getCenter(new THREE.Vector3());
+                    var maxDim = Math.max(rawSize.x, rawSize.y, rawSize.z);
 
-                    model.scale.setScalar(scale);
-                    box.setFromObject(model);
-                    box.getCenter(center);
-                    model.position.sub(center);
-                    model.position.y += (box.getSize(new THREE.Vector3()).y / 2);
+                    // Normalizar a 1.8 unidades de altura para encajar perfecto en el viewport
+                    var targetHeight = 1.8;
+                    var baseScale = (maxDim > 0) ? (targetHeight / maxDim) : 1;
+                    model.scale.setScalar(baseScale);
+
+                    // Re-calcular límites tras escalado
+                    var scaledBox = getAccurateBounds(model);
+                    var scaledSize = scaledBox.getSize(new THREE.Vector3());
+                    var scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+
+                    // Centrar horizontalmente y apoyar los pies en el pedestal (Y = 0)
+                    model.position.x -= scaledCenter.x;
+                    model.position.z -= scaledCenter.z;
+                    model.position.y -= scaledBox.min.y;
 
                     adminModelMesh = model;
                     applyAdminColorsToMesh(adminModelMesh);
                     adminScene.add(adminModelMesh);
 
+                    // Auto-encuadre de cámara y controles para ver el personaje completo
+                    var finalBox = getAccurateBounds(model);
+                    var finalSize = finalBox.getSize(new THREE.Vector3());
+                    var finalCenter = finalBox.getCenter(new THREE.Vector3());
+                    var charHeight = Math.max(finalSize.y, 1.8);
+                    var targetCenterY = finalCenter.y > 0 ? finalCenter.y : (charHeight / 2);
+
+                    var fovY = (adminCamera.fov * Math.PI) / 180;
+                    var aspect = adminCamera.aspect || 1;
+                    var fovX = 2 * Math.atan(Math.tan(fovY / 2) * aspect);
+                    var distY = (charHeight * 1.35) / (2 * Math.tan(fovY / 2));
+                    var distX = (Math.max(finalSize.x, finalSize.z, 1.0) * 1.35) / (2 * Math.tan(fovX / 2));
+                    var cameraDist = Math.max(distY, distX, 2.8);
+
+                    adminCamera.position.set(0, targetCenterY + (charHeight * 0.15), cameraDist);
+                    adminCamera.lookAt(0, targetCenterY, 0);
+
                     if (adminControls) {
-                        adminControls.target.set(0, (box.getSize(new THREE.Vector3()).y / 2), 0);
+                        adminControls.target.set(0, targetCenterY, 0);
+                        adminControls.minDistance = 0.5;
+                        adminControls.maxDistance = cameraDist * 3.5;
+                        adminControls.update();
                     }
+
                     if (adminPreviewLoading) {
                         adminPreviewLoading.style.display = 'none';
                     }
