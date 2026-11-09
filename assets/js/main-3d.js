@@ -15,6 +15,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // ELEMENTOS UI & MENÚ INVENTARIO TIPO VIDEOJUEGO
     // ----------------------------------------------------
+    let forestAvatarLoading = document.getElementById('bp-forest-avatar-loading');
+    if (!forestAvatarLoading) {
+        forestAvatarLoading = document.createElement('div');
+        forestAvatarLoading.id = 'bp-forest-avatar-loading';
+        forestAvatarLoading.className = 'bp-forest-loading-toast hidden bp-ui-element';
+        forestAvatarLoading.innerHTML = `
+            <div class="bp-forest-spinner"></div>
+            <div class="bp-forest-loading-title">⏳ CARGANDO AVATAR 3D...</div>
+            <div class="bp-forest-loading-sub" id="bp-forest-avatar-loading-progress">DESCARGANDO MODELO Y TEXTURAS</div>
+        `;
+        container.appendChild(forestAvatarLoading);
+    }
+
+    function showForestAvatarLoading(text = 'DESCARGANDO MODELO Y TEXTURAS') {
+        if (!forestAvatarLoading) return;
+        const progressEl = document.getElementById('bp-forest-avatar-loading-progress');
+        if (progressEl) progressEl.textContent = text;
+        forestAvatarLoading.classList.remove('hidden');
+    }
+
+    function hideForestAvatarLoading() {
+        if (!forestAvatarLoading) return;
+        forestAvatarLoading.classList.add('hidden');
+    }
+
     let tooltip = document.getElementById('bp-tooltip');
     if (!tooltip) {
         tooltip = document.createElement('div');
@@ -352,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             localPlayerAvatar.name = 'localPlayerAvatar';
             localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
-            localPlayerAvatar.visible = (currentMode !== MODE_GROUND && (!avConfig.glb_url || glbModelCache.has(avConfig.glb_url)));
+            localPlayerAvatar.visible = (currentMode !== MODE_GROUND);
             scene.add(localPlayerAvatar);
         }
     }
@@ -1482,11 +1507,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const cached = glbModelCache.get(glbUrl);
             applyModelScene(cached.scene, cached.animations);
         } else {
-            const placeholderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
-            const placeholderMaterial = new THREE.MeshBasicMaterial({ color: 0x10b981, wireframe: true });
-            const placeholderMesh = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
-            placeholderMesh.position.y = 0.4;
-            containerGroup.add(placeholderMesh);
+            // Indicador de carga holográfico arcade 3D
+            const placeholderGroup = new THREE.Group();
+            placeholderGroup.name = 'loadingPlaceholder';
+
+            const holoPedestal = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.4, 0.08, 16),
+                new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, metalness: 0.8, wireframe: true })
+            );
+            holoPedestal.position.y = 0.04;
+            placeholderGroup.add(holoPedestal);
+
+            const holoBeacon = new THREE.Mesh(
+                new THREE.OctahedronGeometry(0.25, 0),
+                new THREE.MeshStandardMaterial({ color: 0xffd600, roughness: 0.2, metalness: 0.9, wireframe: true })
+            );
+            holoBeacon.position.y = 0.9;
+            placeholderGroup.add(holoBeacon);
+
+            containerGroup.add(placeholderGroup);
+
+            // Mostrar aviso central en el bosque si es el avatar del jugador
+            const isLocalPlayerLoading = (config === settings.avatar || config.glb_url === (settings.avatar && settings.avatar.glb_url));
+            if (isLocalPlayerLoading && typeof showForestAvatarLoading === 'function') {
+                showForestAvatarLoading('DESCARGANDO MODELO 3D...');
+            }
 
             let versionedUrl = glbUrl;
             const cacheBuster = 't=' + (window.BP_Settings && window.BP_Settings.version ? window.BP_Settings.version : Date.now());
@@ -1496,18 +1541,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 versionedUrl += '&' + cacheBuster;
             }
 
+            const onProgress = (xhr) => {
+                if (xhr.lengthComputable && xhr.total > 0) {
+                    const percent = Math.min(100, Math.round((xhr.loaded / xhr.total) * 100));
+                    if (isLocalPlayerLoading && typeof showForestAvatarLoading === 'function') {
+                        showForestAvatarLoading(`DESCARGANDO MODELO 3D: ${percent}%`);
+                    }
+                }
+            };
+
             if (isFbx && fbxLoaderInstance) {
                 fbxLoaderInstance.load(
                     versionedUrl,
                     (fbxScene) => {
+                        if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
+                            hideForestAvatarLoading();
+                        }
                         glbModelCache.set(glbUrl, { scene: fbxScene, animations: fbxScene.animations || [] });
-                        containerGroup.remove(placeholderMesh);
+                        containerGroup.remove(placeholderGroup);
+                        disposeThreeObject(placeholderGroup);
                         applyModelScene(fbxScene, fbxScene.animations || []);
                     },
-                    undefined,
+                    onProgress,
                     (err) => {
                         console.warn('Error al cargar avatar FBX:', glbUrl, err);
-                        containerGroup.remove(placeholderMesh);
+                        if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
+                            hideForestAvatarLoading();
+                        }
+                        containerGroup.remove(placeholderGroup);
+                        disposeThreeObject(placeholderGroup);
                         const fallbackMesh = createHumanAvatarModel(config);
                         containerGroup.add(fallbackMesh);
                         if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
@@ -1517,14 +1579,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 gltfLoaderInstance.load(
                     versionedUrl,
                     (gltf) => {
+                        if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
+                            hideForestAvatarLoading();
+                        }
                         glbModelCache.set(glbUrl, { scene: gltf.scene, animations: gltf.animations || [] });
-                        containerGroup.remove(placeholderMesh);
+                        containerGroup.remove(placeholderGroup);
+                        disposeThreeObject(placeholderGroup);
                         applyModelScene(gltf.scene, gltf.animations || []);
                     },
-                    undefined,
+                    onProgress,
                     (err) => {
                         console.warn('Error al cargar avatar GLB:', glbUrl, err);
-                        containerGroup.remove(placeholderMesh);
+                        if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
+                            hideForestAvatarLoading();
+                        }
+                        containerGroup.remove(placeholderGroup);
+                        disposeThreeObject(placeholderGroup);
                         const fallbackMesh = createHumanAvatarModel(config);
                         containerGroup.add(fallbackMesh);
                         if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
@@ -4383,6 +4453,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame;
+    let rebuildPreviewMesh = null;
+    let syncCustomizerControls = null;
 
     function initAvatarPreviewCanvas(avatarConfig) {
         const previewContainer = document.getElementById('bp-avatar-preview-container');
@@ -4501,7 +4573,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        function rebuildPreviewMesh(cfg) {
+        rebuildPreviewMesh = function(cfg) {
             const previewLoading = document.getElementById('bp-avatar-preview-loading');
             if (previewLoading) previewLoading.classList.remove('hidden');
 
@@ -4531,7 +4603,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     requestAnimationFrame(() => {
                         framePreviewAvatar(previewAvatarMesh);
                         if (typeof syncCustomizerControls === 'function') {
-                            syncCustomizerControls(currentConfig);
+                            syncCustomizerControls(cfg);
                         }
                     });
                 }
@@ -4542,7 +4614,7 @@ document.addEventListener('DOMContentLoaded', () => {
             requestAnimationFrame(() => {
                 framePreviewAvatar(previewAvatarMesh);
             });
-        }
+        };
 
         rebuildPreviewMesh(avatarConfig);
 
@@ -4622,7 +4694,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         animatePreview();
+    }
 
+    function setupArcadeCustomizerControls(avatarConfig) {
         // Attach Swatch & Form Listeners
         const currentConfig = Object.assign({
             avatar_type: 'human',
@@ -4670,7 +4744,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const petCollars = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'];
 
         // Sincronizador adaptativo de controles según canales y categoría del avatar
-        function syncCustomizerControls(cfg) {
+        syncCustomizerControls = function(cfg) {
             const isGlb = (cfg.avatar_type === 'glb' && (cfg.glb_id || cfg.glb_url));
             const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
             const glbItem = isGlb ? glbList.find(g => (cfg.glb_id && String(g.id) === String(cfg.glb_id)) || (cfg.glb_url && g.file_url === cfg.glb_url)) : null;
@@ -5351,9 +5425,12 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        // Setup Live Preview Scene
+        // Setup Live Preview Scene & Controls
         initAvatarPreviewCanvas(avatar);
-        syncCustomizerControls(avatar);
+        setupArcadeCustomizerControls(avatar);
+        if (typeof syncCustomizerControls === 'function') {
+            syncCustomizerControls(avatar);
+        }
     }
     function renderArcadePetsScreen(pets, editPet = null) {
         const arcadeContent = document.getElementById('bp-arcade-content');

@@ -1173,12 +1173,32 @@ class BP_Admin_GLB {
             setTimeout(initAdmin3DPreview, 400);
 
             if (fileInput) {
+                var lastInspectedUrl = '';
+                function triggerInspectAndPreview(url) {
+                    var trimmed = (url || '').trim();
+                    if (!trimmed || trimmed === lastInspectedUrl) return;
+                    lastInspectedUrl = trimmed;
+                    inspectModelFile(trimmed);
+                    loadModelIntoAdminPreview(trimmed);
+                }
+
                 fileInput.addEventListener('change', function() {
-                    inspectModelFile(fileInput.value.trim());
-                    loadModelIntoAdminPreview(fileInput.value.trim());
+                    triggerInspectAndPreview(fileInput.value);
                 });
+                fileInput.addEventListener('input', function() {
+                    var val = fileInput.value.trim();
+                    if (val.startsWith('http://') || val.startsWith('https://')) {
+                        triggerInspectAndPreview(val);
+                    }
+                });
+                fileInput.addEventListener('paste', function() {
+                    setTimeout(function() {
+                        triggerInspectAndPreview(fileInput.value);
+                    }, 50);
+                });
+
                 if (fileInput.value.trim()) {
-                    inspectModelFile(fileInput.value.trim());
+                    triggerInspectAndPreview(fileInput.value);
                 }
             }
         });
