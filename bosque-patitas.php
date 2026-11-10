@@ -177,6 +177,28 @@ class BosquePatitas {
             }
         }
 
+        // Sincronizar dinámicamente el avatar del usuario con la configuración del backend si es un modelo GLB/FBX
+        if (isset($avatar_config['avatar_type']) && $avatar_config['avatar_type'] === 'glb') {
+            $matched_backend_model = null;
+            if (!empty($avatar_config['glb_id'])) {
+                foreach ($active_glb as $active_item) {
+                    if (isset($active_item['id']) && (string) $active_item['id'] === (string) $avatar_config['glb_id']) {
+                        $matched_backend_model = $active_item;
+                        break;
+                    }
+                }
+            }
+            if ($matched_backend_model) {
+                // Siempre usar la URL y metadatos actualizados del backend
+                $avatar_config['glb_url']  = $matched_backend_model['file_url'];
+                if (isset($matched_backend_model['scale'])) $avatar_config['scale'] = $matched_backend_model['scale'];
+                if (isset($matched_backend_model['offset_y'])) $avatar_config['offset_y'] = $matched_backend_model['offset_y'];
+            } elseif (!empty($avatar_config['glb_url']) && strpos($avatar_config['glb_url'], 'Ch22_female_avatar.glb') !== false) {
+                // Fallback de seguridad para rutas antiguas hacia la biblioteca de medios
+                $avatar_config['glb_url'] = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+            }
+        }
+
         // Version & revision info
         $version    = '1.0.1';
         $revision   = 'Rev 2026.10.29-0850';

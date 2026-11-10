@@ -1368,7 +1368,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const containerGroup = new THREE.Group();
         containerGroup.name = 'glbAvatarContainer';
 
-        const glbUrl = config.glb_url;
+        // Sincronizar dinámicamente URL y metadatos desde el backend (settings.glbAvatars) usando glb_id
+        const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
+        let matchedMeta = null;
+        if (config.glb_id) {
+            matchedMeta = glbList.find(g => String(g.id) === String(config.glb_id));
+        }
+        if (!matchedMeta && config.glb_url) {
+            matchedMeta = glbList.find(g => g.file_url === config.glb_url);
+        }
+
+        let glbUrl = (matchedMeta && matchedMeta.file_url) ? matchedMeta.file_url : (config.glb_url || '');
+
+        // Redirección de seguridad si apunta a la ruta antigua local de Ch22_female_avatar.glb
+        if (glbUrl && glbUrl.indexOf('Ch22_female_avatar.glb') !== -1 && glbUrl.indexOf('/wp-content/uploads/') === -1) {
+            glbUrl = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+        }
+
         if (!glbUrl) {
             const fallbackMesh = createHumanAvatarModel(config);
             containerGroup.add(fallbackMesh);
@@ -1377,8 +1393,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const isFbx = (glbUrl || '').toLowerCase().split('?')[0].endsWith('.fbx');
-        const scaleFactor = parseFloat(config.scale || 1.0) || 1.0;
-        const offsetY = parseFloat(config.offset_y || 0.0) || 0.0;
+        const scaleFactor = parseFloat((matchedMeta && matchedMeta.scale) || config.scale || 1.0) || 1.0;
+        const offsetY = parseFloat((matchedMeta && matchedMeta.offset_y) || config.offset_y || 0.0) || 0.0;
 
         function applyModelScene(modelScene, baseAnimations = []) {
             let model;
@@ -5038,14 +5054,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (modelType === 'glb') {
                     currentConfig.avatar_type = 'glb';
                     currentConfig.glb_id      = card.dataset.id;
-                    currentConfig.glb_url     = card.dataset.url;
-                    currentConfig.category    = card.dataset.category || 'human';
-                    currentConfig.scale       = parseFloat(card.dataset.scale || '1.0');
-                    currentConfig.offset_y    = parseFloat(card.dataset.offsetY || '0.0');
-                    currentConfig.anim_idle   = card.dataset.animIdle || '';
-                    currentConfig.anim_walk   = card.dataset.animWalk || '';
-                    currentConfig.anim_kneel_down = card.dataset.animKneelDown || '';
-                    currentConfig.anim_kneel_idle = card.dataset.animKneelIdle || '';
+
+                    // Obtener configuración fresca del backend por glb_id
+                    const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
+                    const foundBackendItem = glbList.find(g => String(g.id) === String(card.dataset.id));
+
+                    let freshUrl = (foundBackendItem && foundBackendItem.file_url) ? foundBackendItem.file_url : card.dataset.url;
+                    if (freshUrl && freshUrl.indexOf('Ch22_female_avatar.glb') !== -1 && freshUrl.indexOf('/wp-content/uploads/') === -1) {
+                        freshUrl = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+                    }
+
+                    currentConfig.glb_url     = freshUrl;
+                    currentConfig.category    = (foundBackendItem && foundBackendItem.category) || card.dataset.category || 'human';
+                    currentConfig.scale       = parseFloat((foundBackendItem && foundBackendItem.scale) || card.dataset.scale || '1.0');
+                    currentConfig.offset_y    = parseFloat((foundBackendItem && foundBackendItem.offset_y) || card.dataset.offsetY || '0.0');
+                    currentConfig.anim_idle   = (foundBackendItem && foundBackendItem.anim_idle) || card.dataset.animIdle || '';
+                    currentConfig.anim_walk   = (foundBackendItem && foundBackendItem.anim_walk) || card.dataset.animWalk || '';
+                    currentConfig.anim_kneel_down = (foundBackendItem && foundBackendItem.anim_kneel_down) || card.dataset.animKneelDown || '';
+                    currentConfig.anim_kneel_idle = (foundBackendItem && foundBackendItem.anim_kneel_idle) || card.dataset.animKneelIdle || '';
                 }
 
                 syncCustomizerControls(currentConfig);
@@ -5248,14 +5274,27 @@ document.addEventListener('DOMContentLoaded', () => {
             incognito: 0
         }, settings.avatar || {});
 
+        const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
+
+        // Sincronizar dinámicamente con el backend el avatar cargado en el configurador
+        if (avatar.avatar_type === 'glb') {
+            const matchedCurrent = glbList.find(g => (avatar.glb_id && String(g.id) === String(avatar.glb_id)) || (avatar.glb_url && g.file_url === avatar.glb_url));
+            if (matchedCurrent) {
+                avatar.glb_id = matchedCurrent.id;
+                avatar.glb_url = matchedCurrent.file_url;
+                if (matchedCurrent.scale) avatar.scale = matchedCurrent.scale;
+                if (matchedCurrent.offset_y) avatar.offset_y = matchedCurrent.offset_y;
+            } else if (avatar.glb_url && avatar.glb_url.indexOf('Ch22_female_avatar.glb') !== -1 && avatar.glb_url.indexOf('/wp-content/uploads/') === -1) {
+                avatar.glb_url = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+            }
+        }
+
         const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
         const globalWalkStyles = Array.isArray(globalAnims.walk_styles) ? globalAnims.walk_styles : [
             { id: 'walk_1', name: 'Paso Normal' },
             { id: 'walk_2', name: 'Paso Alegre' },
             { id: 'walk_3', name: 'Paseo Relajado' }
         ];
-
-        const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
 
         const isGlbSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id || avatar.glb_url));
         const isPet = (avatar.avatar_type === 'pet' && !isGlbSelected);
