@@ -1071,6 +1071,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const glbModelCache = new Map();
     const activeAnimMixers = [];
 
+    // Helper para sanitizar materiales de modelos FBX/GLTF cuyas texturas no tengan imagen cargada
+    // (evita que WebGL descarte el renderizado o pinte la malla completamente invisible/negra)
+    function sanitizeModelMaterials(root) {
+        if (!root) return;
+        const textureSlots = [
+            'map', 'normalMap', 'bumpMap', 'specularMap', 'roughnessMap',
+            'metalnessMap', 'alphaMap', 'emissiveMap', 'lightMap', 'aoMap', 'displacementMap'
+        ];
+        root.traverse(child => {
+            if (child.isMesh || child.isSkinnedMesh) {
+                const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
+                mats.forEach(mat => {
+                    if (!mat) return;
+                    textureSlots.forEach(slot => {
+                        const tex = mat[slot];
+                        if (tex) {
+                            const img = tex.image;
+                            const isValid = img && (
+                                (typeof img.width === 'number' && img.width > 0) ||
+                                (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) ||
+                                (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement) ||
+                                (typeof HTMLVideoElement !== 'undefined' && img instanceof HTMLVideoElement)
+                            );
+                            if (!isValid) {
+                                mat[slot] = null;
+                                mat.needsUpdate = true;
+                            }
+                        }
+                    });
+                });
+            }
+        });
+    }
+
     // Helper para destruccion y limpieza profunda de geometrias, materiales y texturas
     function disposeThreeObject(obj) {
         if (!obj) return;
@@ -1366,6 +1400,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             });
+
+            // Sanitizar materiales si hay texturas incompletas/huérfanas
+            sanitizeModelMaterials(model);
 
             // Normalizar escala (Ajustar a 2 unidades de alto aprox.)
             const box = new THREE.Box3().setFromObject(model);

@@ -1093,6 +1093,33 @@ class BP_Admin_GLB {
                         }
                     });
 
+                    // Desacoplar texturas sin imagen para evitar que WebGL dibuje la malla transparente/negra
+                    var textureSlots = ['map', 'normalMap', 'bumpMap', 'specularMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'emissiveMap', 'lightMap', 'aoMap', 'displacementMap'];
+                    model.traverse(function(child) {
+                        if (child.isMesh || child.isSkinnedMesh) {
+                            var mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
+                            mats.forEach(function(mat) {
+                                if (!mat) return;
+                                textureSlots.forEach(function(slot) {
+                                    var tex = mat[slot];
+                                    if (tex) {
+                                        var img = tex.image;
+                                        var isValid = img && (
+                                            (typeof img.width === 'number' && img.width > 0) ||
+                                            (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) ||
+                                            (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement) ||
+                                            (typeof HTMLVideoElement !== 'undefined' && img instanceof HTMLVideoElement)
+                                        );
+                                        if (!isValid) {
+                                            mat[slot] = null;
+                                            mat.needsUpdate = true;
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    });
+
                     // Calcular dimensiones precisas
                     var rawBox = getAccurateBounds(model);
                     var rawSize = rawBox.getSize(new THREE.Vector3());
