@@ -15,6 +15,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // ELEMENTOS UI & MENÚ INVENTARIO TIPO VIDEOJUEGO
     // ----------------------------------------------------
+    let forestAvatarLoading = document.getElementById('bp-forest-avatar-loading');
+    if (!forestAvatarLoading) {
+        forestAvatarLoading = document.createElement('div');
+        forestAvatarLoading.id = 'bp-forest-avatar-loading';
+        forestAvatarLoading.className = 'bp-forest-loading-toast hidden bp-ui-element';
+        forestAvatarLoading.innerHTML = `
+            <div class="bp-forest-spinner"></div>
+            <div class="bp-forest-loading-title">⏳ CARGANDO AVATAR 3D...</div>
+            <div class="bp-forest-loading-sub" id="bp-forest-avatar-loading-progress">DESCARGANDO MODELO Y TEXTURAS</div>
+        `;
+        container.appendChild(forestAvatarLoading);
+    }
+
+    function showForestAvatarLoading(text = 'DESCARGANDO MODELO Y TEXTURAS') {
+        if (!forestAvatarLoading) return;
+        const progressEl = document.getElementById('bp-forest-avatar-loading-progress');
+        if (progressEl) progressEl.textContent = text;
+        forestAvatarLoading.classList.remove('hidden');
+    }
+
+    function hideForestAvatarLoading() {
+        if (!forestAvatarLoading) return;
+        forestAvatarLoading.classList.add('hidden');
+    }
+
     let tooltip = document.getElementById('bp-tooltip');
     if (!tooltip) {
         tooltip = document.createElement('div');
@@ -352,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             localPlayerAvatar.name = 'localPlayerAvatar';
             localPlayerAvatar.position.set(playerPosition.x, 0, playerPosition.z);
-            localPlayerAvatar.visible = (currentMode !== MODE_GROUND && (!avConfig.glb_url || glbModelCache.has(avConfig.glb_url)));
+            localPlayerAvatar.visible = (currentMode !== MODE_GROUND);
             scene.add(localPlayerAvatar);
         }
     }
@@ -1046,6 +1071,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const glbModelCache = new Map();
     const activeAnimMixers = [];
 
+    // Helper para sanitizar materiales de modelos FBX/GLTF cuyas texturas no tengan imagen cargada
+    // (evita que WebGL descarte el renderizado o pinte la malla completamente invisible/negra)
+    function sanitizeModelMaterials(root) {
+        if (!root) return;
+        const textureSlots = [
+            'map', 'normalMap', 'bumpMap', 'specularMap', 'roughnessMap',
+            'metalnessMap', 'alphaMap', 'emissiveMap', 'lightMap', 'aoMap', 'displacementMap'
+        ];
+        root.traverse(child => {
+            if (child.isMesh || child.isSkinnedMesh) {
+                const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
+                mats.forEach(mat => {
+                    if (!mat) return;
+                    textureSlots.forEach(slot => {
+                        const tex = mat[slot];
+                        if (tex) {
+                            const img = tex.image;
+                            const isValid = img && (
+                                (typeof img.width === 'number' && img.width > 0) ||
+                                (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) ||
+                                (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement) ||
+                                (typeof HTMLVideoElement !== 'undefined' && img instanceof HTMLVideoElement)
+                            );
+                            if (!isValid) {
+                                mat[slot] = null;
+                                mat.needsUpdate = true;
+                            }
+                        }
+                    });
+                });
+            }
+        });
+    }
+
     // Helper para destruccion y limpieza profunda de geometrias, materiales y texturas
     function disposeThreeObject(obj) {
         if (!obj) return;
@@ -1309,7 +1368,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const containerGroup = new THREE.Group();
         containerGroup.name = 'glbAvatarContainer';
 
-        const glbUrl = config.glb_url;
+        // Sincronizar dinámicamente URL y metadatos desde el backend (settings.glbAvatars) usando glb_id
+        const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
+        let matchedMeta = null;
+        if (config.glb_id) {
+            matchedMeta = glbList.find(g => String(g.id) === String(config.glb_id));
+        }
+        if (!matchedMeta && config.glb_url) {
+            matchedMeta = glbList.find(g => g.file_url === config.glb_url);
+        }
+
+        let glbUrl = (matchedMeta && matchedMeta.file_url) ? matchedMeta.file_url : (config.glb_url || '');
+
+        // Redirección de seguridad si apunta a la ruta antigua local de Ch22_female_avatar.glb
+        if (glbUrl && glbUrl.indexOf('Ch22_female_avatar.glb') !== -1 && glbUrl.indexOf('/wp-content/uploads/') === -1) {
+            glbUrl = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+        }
+
         if (!glbUrl) {
             const fallbackMesh = createHumanAvatarModel(config);
             containerGroup.add(fallbackMesh);
@@ -1318,8 +1393,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const isFbx = (glbUrl || '').toLowerCase().split('?')[0].endsWith('.fbx');
-        const scaleFactor = parseFloat(config.scale || 1.0) || 1.0;
-        const offsetY = parseFloat(config.offset_y || 0.0) || 0.0;
+        const scaleFactor = parseFloat((matchedMeta && matchedMeta.scale) || config.scale || 1.0) || 1.0;
+        const offsetY = parseFloat((matchedMeta && matchedMeta.offset_y) || config.offset_y || 0.0) || 0.0;
 
         function applyModelScene(modelScene, baseAnimations = []) {
             let model;
@@ -1342,23 +1417,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Normalizar escala (Ajustar a 2 unidades de alto aprox.)
-            const box = new THREE.Box3().setFromObject(model);
-            const size = box.getSize(new THREE.Vector3());
-            const center = box.getCenter(new THREE.Vector3());
+            // Sanitizar materiales si hay texturas incompletas/huérfanas
+            sanitizeModelMaterials(model);
 
-            const maxDim = Math.max(size.x, size.y, size.z);
-            let scale = maxDim > 0 ? (2 / maxDim) : 1;
+            // Calcular dimensiones precisas usando bounding boxes de geometrías
+            function getAccurateBounds(object) {
+                object.updateMatrixWorld(true);
+                const b = new THREE.Box3();
+                let hasValidGeom = false;
+                object.traverse(child => {
+                    if ((child.isMesh || child.isSkinnedMesh) && child.geometry) {
+                        const geom = child.geometry;
+                        if (!geom.boundingBox) geom.computeBoundingBox();
+                        if (geom.boundingBox) {
+                            const childBox = geom.boundingBox.clone();
+                            childBox.applyMatrix4(child.matrixWorld);
+                            b.union(childBox);
+                            hasValidGeom = true;
+                        }
+                    }
+                });
+                if (!hasValidGeom || b.isEmpty() || !isFinite(b.min.x)) {
+                    b.setFromObject(object);
+                }
+                return b;
+            }
+
+            // Normalizar escala (Ajustar a 1.8 - 2.0 unidades de alto)
+            const rawBox = getAccurateBounds(model);
+            const rawSize = rawBox.getSize(new THREE.Vector3());
+            const maxDim = Math.max(rawSize.x, rawSize.y, rawSize.z);
+
+            let scale = maxDim > 0 ? (1.85 / maxDim) : 1;
             if (config.scale && parseFloat(config.scale) !== 1.0) {
                 scale *= parseFloat(config.scale);
             }
             model.scale.setScalar(scale);
 
             // Centrar en la base (apoyar pies en suelo Y=0 + offset)
-            box.setFromObject(model);
-            box.getCenter(center);
-            model.position.sub(center);
-            model.position.y += (box.getSize(new THREE.Vector3()).y / 2) + offsetY;
+            const scaledBox = getAccurateBounds(model);
+            const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+            model.position.x -= scaledCenter.x;
+            model.position.z -= scaledCenter.z;
+            model.position.y -= scaledBox.min.y;
+            if (offsetY) {
+                model.position.y += offsetY;
+            }
+
+            // Aplicar tintado de materiales
+            applyGLBColors(model, config);
+
+            containerGroup.userData.applyColors = (cfg) => applyGLBColors(model, cfg);
+            containerGroup.userData.glbModel    = model;
+            containerGroup.userData.glbConfig   = config;
+            containerGroup.userData.isGLB       = true;
+            containerGroup.userData.isKneelingState = false;
+
+            // Añadir el modelo inmediatamente al contenedor para renderizado y auto-encuadre instantáneo
+            containerGroup.add(model);
+            if (typeof onLoadCallback === 'function') {
+                onLoadCallback(containerGroup);
+            }
 
             // Recopilar referencias de animaciones configuradas
             const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
@@ -1458,19 +1577,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             containerGroup.userData.isKneelingState = false;
 
                             activeAnimMixers.push(mixer);
-
-                            // Aplicar tintado de materiales
-                            applyGLBColors(model, config);
-
-                            containerGroup.userData.applyColors = (cfg) => applyGLBColors(model, cfg);
-                            containerGroup.userData.glbModel    = model;
-                            containerGroup.userData.glbConfig   = config;
-
-                            containerGroup.add(model);
-
-                            if (typeof onLoadCallback === 'function') {
-                                onLoadCallback(containerGroup);
-                            }
                             });
                         });
                     });
@@ -1482,11 +1588,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const cached = glbModelCache.get(glbUrl);
             applyModelScene(cached.scene, cached.animations);
         } else {
-            const placeholderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
-            const placeholderMaterial = new THREE.MeshBasicMaterial({ color: 0x10b981, wireframe: true });
-            const placeholderMesh = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
-            placeholderMesh.position.y = 0.4;
-            containerGroup.add(placeholderMesh);
+            // Indicador de carga holográfico arcade 3D
+            const placeholderGroup = new THREE.Group();
+            placeholderGroup.name = 'loadingPlaceholder';
+
+            const holoPedestal = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.4, 0.08, 16),
+                new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, metalness: 0.8, wireframe: true })
+            );
+            holoPedestal.position.y = 0.04;
+            placeholderGroup.add(holoPedestal);
+
+            const holoBeacon = new THREE.Mesh(
+                new THREE.OctahedronGeometry(0.25, 0),
+                new THREE.MeshStandardMaterial({ color: 0xffd600, roughness: 0.2, metalness: 0.9, wireframe: true })
+            );
+            holoBeacon.position.y = 0.9;
+            placeholderGroup.add(holoBeacon);
+
+            containerGroup.add(placeholderGroup);
+
+            // Mostrar aviso central en el bosque si es el avatar del jugador
+            const isLocalPlayerLoading = (config === settings.avatar || config.glb_url === (settings.avatar && settings.avatar.glb_url));
+            if (isLocalPlayerLoading && typeof showForestAvatarLoading === 'function') {
+                showForestAvatarLoading('DESCARGANDO MODELO 3D...');
+            }
 
             let versionedUrl = glbUrl;
             const cacheBuster = 't=' + (window.BP_Settings && window.BP_Settings.version ? window.BP_Settings.version : Date.now());
@@ -1496,18 +1622,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 versionedUrl += '&' + cacheBuster;
             }
 
+            const onProgress = (xhr) => {
+                if (xhr.lengthComputable && xhr.total > 0) {
+                    const percent = Math.min(100, Math.round((xhr.loaded / xhr.total) * 100));
+                    if (isLocalPlayerLoading && typeof showForestAvatarLoading === 'function') {
+                        showForestAvatarLoading(`DESCARGANDO MODELO 3D: ${percent}%`);
+                    }
+                }
+            };
+
             if (isFbx && fbxLoaderInstance) {
                 fbxLoaderInstance.load(
                     versionedUrl,
                     (fbxScene) => {
+                        if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
+                            hideForestAvatarLoading();
+                        }
                         glbModelCache.set(glbUrl, { scene: fbxScene, animations: fbxScene.animations || [] });
-                        containerGroup.remove(placeholderMesh);
+                        containerGroup.remove(placeholderGroup);
+                        disposeThreeObject(placeholderGroup);
                         applyModelScene(fbxScene, fbxScene.animations || []);
                     },
-                    undefined,
+                    onProgress,
                     (err) => {
                         console.warn('Error al cargar avatar FBX:', glbUrl, err);
-                        containerGroup.remove(placeholderMesh);
+                        if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
+                            hideForestAvatarLoading();
+                        }
+                        containerGroup.remove(placeholderGroup);
+                        disposeThreeObject(placeholderGroup);
                         const fallbackMesh = createHumanAvatarModel(config);
                         containerGroup.add(fallbackMesh);
                         if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
@@ -1517,14 +1660,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 gltfLoaderInstance.load(
                     versionedUrl,
                     (gltf) => {
+                        if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
+                            hideForestAvatarLoading();
+                        }
                         glbModelCache.set(glbUrl, { scene: gltf.scene, animations: gltf.animations || [] });
-                        containerGroup.remove(placeholderMesh);
+                        containerGroup.remove(placeholderGroup);
+                        disposeThreeObject(placeholderGroup);
                         applyModelScene(gltf.scene, gltf.animations || []);
                     },
-                    undefined,
+                    onProgress,
                     (err) => {
                         console.warn('Error al cargar avatar GLB:', glbUrl, err);
-                        containerGroup.remove(placeholderMesh);
+                        if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
+                            hideForestAvatarLoading();
+                        }
+                        containerGroup.remove(placeholderGroup);
+                        disposeThreeObject(placeholderGroup);
                         const fallbackMesh = createHumanAvatarModel(config);
                         containerGroup.add(fallbackMesh);
                         if (typeof onLoadCallback === 'function') onLoadCallback(containerGroup);
@@ -4347,7 +4498,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         arcadeContent.innerHTML = '<div style="text-align:center; padding:40px; font-family:\'Press Start 2P\', monospace; color:#34d399;">⌛ CARGANDO SELECCIÓN DE PERSONAJES...</div>';
 
-        const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+        const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
         const formData = new FormData();
         formData.append('action', 'bp_get_user_mascotas');
 
@@ -4383,6 +4534,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame;
+    let rebuildPreviewMesh = null;
+    let syncCustomizerControls = null;
 
     function initAvatarPreviewCanvas(avatarConfig) {
         const previewContainer = document.getElementById('bp-avatar-preview-container');
@@ -4501,7 +4654,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        function rebuildPreviewMesh(cfg) {
+        rebuildPreviewMesh = function(cfg) {
             const previewLoading = document.getElementById('bp-avatar-preview-loading');
             if (previewLoading) previewLoading.classList.remove('hidden');
 
@@ -4531,7 +4684,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     requestAnimationFrame(() => {
                         framePreviewAvatar(previewAvatarMesh);
                         if (typeof syncCustomizerControls === 'function') {
-                            syncCustomizerControls(currentConfig);
+                            syncCustomizerControls(cfg);
                         }
                     });
                 }
@@ -4542,7 +4695,7 @@ document.addEventListener('DOMContentLoaded', () => {
             requestAnimationFrame(() => {
                 framePreviewAvatar(previewAvatarMesh);
             });
-        }
+        };
 
         rebuildPreviewMesh(avatarConfig);
 
@@ -4622,7 +4775,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         animatePreview();
+    }
 
+    function setupArcadeCustomizerControls(avatarConfig) {
         // Attach Swatch & Form Listeners
         const currentConfig = Object.assign({
             avatar_type: 'human',
@@ -4670,7 +4825,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const petCollars = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'];
 
         // Sincronizador adaptativo de controles según canales y categoría del avatar
-        function syncCustomizerControls(cfg) {
+        syncCustomizerControls = function(cfg) {
             const isGlb = (cfg.avatar_type === 'glb' && (cfg.glb_id || cfg.glb_url));
             const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
             const glbItem = isGlb ? glbList.find(g => (cfg.glb_id && String(g.id) === String(cfg.glb_id)) || (cfg.glb_url && g.file_url === cfg.glb_url)) : null;
@@ -4927,14 +5082,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (modelType === 'glb') {
                     currentConfig.avatar_type = 'glb';
                     currentConfig.glb_id      = card.dataset.id;
-                    currentConfig.glb_url     = card.dataset.url;
-                    currentConfig.category    = card.dataset.category || 'human';
-                    currentConfig.scale       = parseFloat(card.dataset.scale || '1.0');
-                    currentConfig.offset_y    = parseFloat(card.dataset.offsetY || '0.0');
-                    currentConfig.anim_idle   = card.dataset.animIdle || '';
-                    currentConfig.anim_walk   = card.dataset.animWalk || '';
-                    currentConfig.anim_kneel_down = card.dataset.animKneelDown || '';
-                    currentConfig.anim_kneel_idle = card.dataset.animKneelIdle || '';
+
+                    // Obtener configuración fresca del backend por glb_id
+                    const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
+                    const foundBackendItem = glbList.find(g => String(g.id) === String(card.dataset.id));
+
+                    let freshUrl = (foundBackendItem && foundBackendItem.file_url) ? foundBackendItem.file_url : card.dataset.url;
+                    if (freshUrl && freshUrl.indexOf('Ch22_female_avatar.glb') !== -1 && freshUrl.indexOf('/wp-content/uploads/') === -1) {
+                        freshUrl = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+                    }
+
+                    currentConfig.glb_url     = freshUrl;
+                    currentConfig.category    = (foundBackendItem && foundBackendItem.category) || card.dataset.category || 'human';
+                    currentConfig.scale       = parseFloat((foundBackendItem && foundBackendItem.scale) || card.dataset.scale || '1.0');
+                    currentConfig.offset_y    = parseFloat((foundBackendItem && foundBackendItem.offset_y) || card.dataset.offsetY || '0.0');
+                    currentConfig.anim_idle   = (foundBackendItem && foundBackendItem.anim_idle) || card.dataset.animIdle || '';
+                    currentConfig.anim_walk   = (foundBackendItem && foundBackendItem.anim_walk) || card.dataset.animWalk || '';
+                    currentConfig.anim_kneel_down = (foundBackendItem && foundBackendItem.anim_kneel_down) || card.dataset.animKneelDown || '';
+                    currentConfig.anim_kneel_idle = (foundBackendItem && foundBackendItem.anim_kneel_idle) || card.dataset.animKneelIdle || '';
                 }
 
                 syncCustomizerControls(currentConfig);
@@ -5045,7 +5210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('incognito', currentConfig.incognito ? 1 : 0);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
-                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
                 fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())
@@ -5137,14 +5302,27 @@ document.addEventListener('DOMContentLoaded', () => {
             incognito: 0
         }, settings.avatar || {});
 
+        const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
+
+        // Sincronizar dinámicamente con el backend el avatar cargado en el configurador
+        if (avatar.avatar_type === 'glb') {
+            const matchedCurrent = glbList.find(g => (avatar.glb_id && String(g.id) === String(avatar.glb_id)) || (avatar.glb_url && g.file_url === avatar.glb_url));
+            if (matchedCurrent) {
+                avatar.glb_id = matchedCurrent.id;
+                avatar.glb_url = matchedCurrent.file_url;
+                if (matchedCurrent.scale) avatar.scale = matchedCurrent.scale;
+                if (matchedCurrent.offset_y) avatar.offset_y = matchedCurrent.offset_y;
+            } else if (avatar.glb_url && avatar.glb_url.indexOf('Ch22_female_avatar.glb') !== -1 && avatar.glb_url.indexOf('/wp-content/uploads/') === -1) {
+                avatar.glb_url = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+            }
+        }
+
         const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
         const globalWalkStyles = Array.isArray(globalAnims.walk_styles) ? globalAnims.walk_styles : [
             { id: 'walk_1', name: 'Paso Normal' },
             { id: 'walk_2', name: 'Paso Alegre' },
             { id: 'walk_3', name: 'Paseo Relajado' }
         ];
-
-        const glbList = Array.isArray(settings.glbAvatars) ? settings.glbAvatars : [];
 
         const isGlbSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id || avatar.glb_url));
         const isPet = (avatar.avatar_type === 'pet' && !isGlbSelected);
@@ -5351,9 +5529,12 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        // Setup Live Preview Scene
+        // Setup Live Preview Scene & Controls
         initAvatarPreviewCanvas(avatar);
-        syncCustomizerControls(avatar);
+        setupArcadeCustomizerControls(avatar);
+        if (typeof syncCustomizerControls === 'function') {
+            syncCustomizerControls(avatar);
+        }
     }
     function renderArcadePetsScreen(pets, editPet = null) {
         const arcadeContent = document.getElementById('bp-arcade-content');
@@ -5596,7 +5777,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formData = new FormData(arcadeForm);
                 formData.append('action', 'bp_ajax_save_mascota');
 
-                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
                 fetch(ajaxUrl, {
                     method: 'POST',
@@ -5663,7 +5844,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('mascota_id', petId);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
-                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
                 fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())
@@ -5684,7 +5865,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('mascota_id', petId);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
-                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
                 fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())
