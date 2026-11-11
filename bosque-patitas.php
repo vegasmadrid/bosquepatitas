@@ -19,7 +19,7 @@ define('BP_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once BP_PLUGIN_DIR . 'includes/class-cpt.php';
 require_once BP_PLUGIN_DIR . 'includes/class-settings.php';
 require_once BP_PLUGIN_DIR . 'includes/class-admin-mascotas.php';
-require_once BP_PLUGIN_DIR . 'includes/class-admin-glb.php';
+
 require_once BP_PLUGIN_DIR . 'includes/class-auth.php';
 require_once BP_PLUGIN_DIR . 'includes/class-profile.php';
 
@@ -40,13 +40,7 @@ class BosquePatitas {
         // Cargar OrbitControls de Three.js
         wp_register_script('three-orbitcontrols', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', array('threejs'), '128', true);
 
-        // Cargar GLTFLoader de Three.js
-        wp_register_script('three-gltfloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js', array('threejs'), '128', true);
 
-        // Cargar fflate y FBXLoader para compatibilidad con Mixamo FBX
-        wp_register_script('fflate', 'https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.js', array(), '0.7.4', true);
-        wp_register_script('three-fbxloader', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js', array('threejs', 'fflate'), '128', true);
-        wp_register_script('three-skeletonutils', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js', array('threejs'), '128', true);
 
         // Cargar Pusher JS SDK desde CDN
         wp_register_script('pusher-js', 'https://js.pusher.com/8.2.0/pusher.min.js', array(), '8.2.0', true);
@@ -55,7 +49,7 @@ class BosquePatitas {
         wp_register_script(
             'bp-main-3d',
             BP_PLUGIN_URL . 'assets/js/main-3d.js',
-            array('threejs', 'three-orbitcontrols', 'three-gltfloader', 'fflate', 'three-fbxloader', 'three-skeletonutils', 'pusher-js'),
+            array('threejs', 'three-orbitcontrols', 'pusher-js'),
             '1.0.0',
             true
         );
@@ -150,32 +144,7 @@ class BosquePatitas {
         $pusher_cluster      = get_option('bp_pusher_cluster', 'eu');
         $show_version_badge  = (get_option('bp_show_version_badge', '1') === '1');
 
-        // Retrieve Active GLB / FBX Avatars
-        $all_glb = get_option('bp_glb_avatars_list', array());
-        $active_glb = array();
-        if (is_array($all_glb)) {
-            foreach ($all_glb as $g) {
-                if (!empty($g['active']) && !empty($g['file_url'])) {
-                    if (!empty($g['detected_materials']) && is_string($g['detected_materials'])) {
-                        $decoded = json_decode($g['detected_materials'], true);
-                        $g['detected_materials'] = is_array($decoded) ? $decoded : array();
-                    }
-                    if (!empty($g['custom_layers']) && is_string($g['custom_layers'])) {
-                        $decoded_layers = json_decode($g['custom_layers'], true);
-                        $g['custom_layers'] = is_array($decoded_layers) ? $decoded_layers : array();
-                    } elseif (empty($g['custom_layers'])) {
-                        $g['custom_layers'] = array();
-                    }
-                    if (!empty($g['fbx_animations']) && is_string($g['fbx_animations'])) {
-                        $decoded_fbx = json_decode($g['fbx_animations'], true);
-                        $g['fbx_animations'] = is_array($decoded_fbx) ? $decoded_fbx : array();
-                    } elseif (empty($g['fbx_animations'])) {
-                        $g['fbx_animations'] = array();
-                    }
-                    $active_glb[] = $g;
-                }
-            }
-        }
+
 
         // Version & revision info
         $version    = '1.0.1';

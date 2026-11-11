@@ -1043,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (callback) callback(null);
         });
     }
-    const glbModelCache = new Map();
+    // const glbModelCache = new Map(); // Disabled GLB cache
     const activeAnimMixers = [];
 
     // Helper para destruccion y limpieza profunda de geometrias, materiales y texturas
