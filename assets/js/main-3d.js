@@ -1907,20 +1907,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Torso suave modelado con curvas orgánicas
         const torsoWidth = isFemale ? 0.138 : 0.150;
         const torsoDepth = isFemale ? 0.120 : 0.130;
-        const torsoHeight = 0.30;
+        const torsoHeight = 0.22;
         const torsoCapsuleGeo = createCapsuleGeometry(torsoWidth, torsoHeight, 14, 24);
         const torsoMesh = new THREE.Mesh(torsoCapsuleGeo, shirtMat);
         torsoMesh.scale.set(1.08, 1.0, isFemale ? 0.82 : 0.88);
-        torsoMesh.position.set(0, 0.20, 0);
+        torsoMesh.position.set(0, 0.24, 0);
         torsoGroup.add(torsoMesh);
-
-        // Dobladillo inferior de la camiseta (pliegue natural caído sobre los jeans)
-        const hemTorusGeo = new THREE.TorusGeometry(isFemale ? 0.132 : 0.144, 0.016, 12, 28);
-        const hemMesh = new THREE.Mesh(hemTorusGeo, shirtMat);
-        hemMesh.rotation.x = Math.PI / 2;
-        hemMesh.scale.set(1.08, 1.0, isFemale ? 0.82 : 0.88);
-        hemMesh.position.set(0, 0.06, 0);
-        torsoGroup.add(hemMesh);
 
         // Cuello acanalado de la camiseta (collar ring)
         const collarRingGeo = new THREE.TorusGeometry(0.068, 0.014, 12, 26);
@@ -1938,9 +1930,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // ──────────────────────────────────────────────────────────
         // 3. BRAZOS CON MANGAS DE CAMISETA Y MANOS CARTOON DETALLADAS
         // ──────────────────────────────────────────────────────────
-        const armSleeveRadius = isFemale ? 0.052 : 0.056;
-        const armForearmRadius = isFemale ? 0.038 : 0.042;
-        const armSpreadX = isFemale ? 0.17 : 0.185;
+        const armSleeveRadius = isFemale ? 0.050 : 0.054;
+        const armForearmRadius = isFemale ? 0.036 : 0.040;
+        const armSpreadX = isFemale ? 0.150 : 0.163;
 
         function createCartoonArm(isLeftArm) {
             const armSubGroup = new THREE.Group();
@@ -1952,36 +1944,46 @@ document.addEventListener('DOMContentLoaded', () => {
             armSubGroup.add(shoulderMesh);
 
             // Manga corta
-            const sleeveMesh = new THREE.Mesh(createCapsuleGeometry(armSleeveRadius, 0.12, 10, 18), shirtMat);
-            sleeveMesh.position.set(0, -0.06, 0);
+            const sleeveMesh = new THREE.Mesh(createCapsuleGeometry(armSleeveRadius, 0.075, 10, 18), shirtMat);
+            sleeveMesh.position.set(0, -0.045, 0);
             armSubGroup.add(sleeveMesh);
 
             // Dobladillo de la manga (cuff)
             const cuffTorus = new THREE.Mesh(new THREE.TorusGeometry(armSleeveRadius + 0.002, 0.009, 10, 20), shirtMat);
             cuffTorus.rotation.x = Math.PI / 2;
-            cuffTorus.position.set(0, -0.125, 0);
+            cuffTorus.position.set(0, -0.090, 0);
             armSubGroup.add(cuffTorus);
 
-            // Antebrazo de piel
-            const forearmMesh = new THREE.Mesh(createCapsuleGeometry(armForearmRadius, 0.18, 10, 18), skinMat);
-            forearmMesh.position.set(0, -0.22, 0);
+            // Antebrazo de piel (más largo para que la mano llegue bien a la altura del muslo)
+            const forearmMesh = new THREE.Mesh(createCapsuleGeometry(armForearmRadius, 0.26, 10, 18), skinMat);
+            forearmMesh.position.set(0, -0.225, 0);
             armSubGroup.add(forearmMesh);
 
             // Mano Cartoon con dedos y pulgar
             const handGroup = new THREE.Group();
-            const palmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.040, 16, 16), skinMat);
-            palmMesh.scale.set(1.0, 0.85, 0.72);
+            handGroup.name = 'handGroup';
+            const palmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.042, 16, 16), skinMat);
+            palmMesh.scale.set(1.0, 0.85, 0.80);
             handGroup.add(palmMesh);
 
+            // Dedos sugeridos (pequeños lóbulos redondeados en el borde frontal de la mano)
+            for (let f = -1; f <= 1; f++) {
+                const fingerMesh = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 10), skinMat);
+                fingerMesh.scale.set(0.85, 1.3, 0.85);
+                fingerMesh.position.set(f * 0.018, -0.030, 0.026);
+                handGroup.add(fingerMesh);
+            }
+
             // Pulgar
-            const thumbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.015, 10, 10), skinMat);
+            const thumbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 10), skinMat);
             thumbMesh.scale.set(0.9, 1.4, 0.9);
-            thumbMesh.position.set(armSign * 0.032, 0.008, 0.012);
+            thumbMesh.position.set(armSign * 0.034, 0.010, 0.014);
             thumbMesh.rotation.z = armSign * -0.35;
             handGroup.add(thumbMesh);
 
-            handGroup.position.set(0, -0.33, 0);
+            handGroup.position.set(0, -0.40, 0);
             armSubGroup.add(handGroup);
+            armSubGroup.userData.handGroup = handGroup;
 
             return armSubGroup;
         }
@@ -1989,15 +1991,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Brazo Izquierdo
         const leftArmGroup = createCartoonArm(true);
         leftArmGroup.name = 'leftArm';
-        leftArmGroup.position.set(-armSpreadX, 0.35, 0);
-        leftArmGroup.rotation.z = 0.11;
+        leftArmGroup.position.set(-armSpreadX, 0.34, 0);
+        leftArmGroup.rotation.z = 0.035;
+        leftArmGroup.rotation.x = 0.08;
         torsoGroup.add(leftArmGroup);
 
         // Brazo Derecho
         const rightArmGroup = createCartoonArm(false);
         rightArmGroup.name = 'rightArm';
-        rightArmGroup.position.set(armSpreadX, 0.35, 0);
-        rightArmGroup.rotation.z = -0.11;
+        rightArmGroup.position.set(armSpreadX, 0.34, 0);
+        rightArmGroup.rotation.z = -0.035;
+        rightArmGroup.rotation.x = 0.08;
 
         // ──────────────────────────────────────────────────────────
         // ACCESORIOS EN MANO DERECHA
@@ -2071,42 +2075,45 @@ document.addEventListener('DOMContentLoaded', () => {
             return potGroup;
         }
 
+        const rightHandGroup = rightArmGroup.userData.handGroup;
+
         if (accessory === 'flower' || accessory === 'flower_pot') {
             const potProp = createCuteFlowerPotProp();
-            potProp.scale.set(0.85, 0.85, 0.85);
-            potProp.position.set(0, -0.38, 0.06);
-            rightArmGroup.add(potProp);
+            potProp.scale.set(0.80, 0.80, 0.80);
+            potProp.position.set(0.012, -0.03, 0.045);
+            potProp.rotation.y = -0.3;
+            rightHandGroup.add(potProp);
         } else if (accessory === 'lantern') {
             const lanternMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
             const glowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
             const lanternBody = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.12, 12), lanternMat);
-            lanternBody.position.set(0, -0.38, 0.06);
+            lanternBody.position.set(0, 0.0, 0.05);
 
             const glowCore = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 10), glowMat);
-            glowCore.position.set(0, -0.38, 0.06);
+            glowCore.position.set(0, 0.0, 0.05);
 
             const lanternLight = new THREE.PointLight(0xffbb33, 0.9, 3.5);
-            lanternLight.position.set(0, -0.38, 0.06);
+            lanternLight.position.set(0, 0.0, 0.05);
 
-            rightArmGroup.add(lanternBody);
-            rightArmGroup.add(glowCore);
-            rightArmGroup.add(lanternLight);
+            rightHandGroup.add(lanternBody);
+            rightHandGroup.add(glowCore);
+            rightHandGroup.add(lanternLight);
         } else if (accessory === 'wand') {
             const wandMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.25, metalness: 0.85 });
             const wandMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.35, 10), wandMat);
-            wandMesh.position.set(0, -0.36, 0.08);
+            wandMesh.position.set(0, 0.02, 0.07);
             wandMesh.rotation.x = Math.PI / 4;
 
             const starMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
             const starMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.042), starMat);
-            starMesh.position.set(0, -0.24, 0.20);
+            starMesh.position.set(0, 0.16, 0.19);
 
             const starLight = new THREE.PointLight(0x67e8f9, 0.7, 2.5);
-            starLight.position.set(0, -0.24, 0.20);
+            starLight.position.set(0, 0.16, 0.19);
 
-            rightArmGroup.add(wandMesh);
-            rightArmGroup.add(starMesh);
-            rightArmGroup.add(starLight);
+            rightHandGroup.add(wandMesh);
+            rightHandGroup.add(starMesh);
+            rightHandGroup.add(starLight);
         }
 
         torsoGroup.add(rightArmGroup);
@@ -2272,9 +2279,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const faceTexture = new THREE.CanvasTexture(faceCanvas);
         faceTexture.needsUpdate = true;
-        const faceMat = new THREE.MeshBasicMaterial({ map: faceTexture, transparent: true });
-        const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.27), faceMat);
-        facePlane.position.set(0, 0.005, 0.155);
+        // Parche esférico (no un plano) que sigue la curvatura real de la cabeza,
+        // con material iluminado (no plano/sin sombra) para que no parezca una
+        // pegatina plana flotando delante de la cara.
+        const faceMat = new THREE.MeshBasicMaterial({
+            map: faceTexture,
+            transparent: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+        });
+        const facePatchPhi = 1.05;   // ancho angular del parche (horizontal)
+        const facePatchTheta = 1.05; // alto angular del parche (vertical)
+        const facePatchGeo = new THREE.SphereGeometry(
+            0.162, 32, 32,
+            Math.PI / 2 - facePatchPhi / 2, facePatchPhi,
+            Math.PI / 2 - facePatchTheta / 2, facePatchTheta
+        );
+        const facePlane = new THREE.Mesh(facePatchGeo, faceMat);
+        facePlane.position.set(0, 0.005, 0);
         headGroup.add(facePlane);
 
         // Cobertura del cráneo posterior (nuca)
@@ -2297,16 +2320,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 capMesh.position.set(0, 0.025, -0.015);
                 headGroup.add(capMesh);
 
-                // Flequillo barrido elegante
-                const bang1 = new THREE.Mesh(createCapsuleGeometry(0.034, 0.10, 8, 14), hairMat);
-                bang1.rotation.z = -0.45;
-                bang1.position.set(-0.065, 0.11, 0.12);
-                headGroup.add(bang1);
+                // Flequillo barrido elegante: mechones simétricos pegados a la curva
+                // frontal de la cabeza (no cruzan la cara en diagonal)
+                for (let side = -1; side <= 1; side += 2) {
+                    const bangMesh = new THREE.Mesh(new THREE.SphereGeometry(0.040, 12, 12), hairMat);
+                    bangMesh.scale.set(0.95, 0.85, 0.55);
+                    bangMesh.position.set(side * 0.070, 0.115, 0.118);
+                    bangMesh.rotation.z = side * 0.18;
+                    headGroup.add(bangMesh);
 
-                const bang2 = new THREE.Mesh(createCapsuleGeometry(0.030, 0.09, 8, 14), hairMat);
-                bang2.rotation.z = -0.25;
-                bang2.position.set(-0.02, 0.13, 0.125);
-                headGroup.add(bang2);
+                    const bangMesh2 = new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 10), hairMat);
+                    bangMesh2.scale.set(0.95, 0.85, 0.55);
+                    bangMesh2.position.set(side * 0.016, 0.138, 0.135);
+                    headGroup.add(bangMesh2);
+                }
+                // Mechón central para cerrar el flequillo sin dejar un hueco en medio
+                const bangCenter = new THREE.Mesh(new THREE.SphereGeometry(0.030, 10, 10), hairMat);
+                bangCenter.scale.set(0.95, 0.80, 0.55);
+                bangCenter.position.set(0, 0.145, 0.138);
+                headGroup.add(bangCenter);
 
                 // Mechones laterales largos que caen sobre los hombros
                 for (let side = -1; side <= 1; side += 2) {
