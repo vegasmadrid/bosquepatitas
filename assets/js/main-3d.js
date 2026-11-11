@@ -4498,7 +4498,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         arcadeContent.innerHTML = '<div style="text-align:center; padding:40px; font-family:\'Press Start 2P\', monospace; color:#34d399;">⌛ CARGANDO SELECCIÓN DE PERSONAJES...</div>';
 
-        const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+        const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
         const formData = new FormData();
         formData.append('action', 'bp_get_user_mascotas');
 
@@ -5210,7 +5210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('incognito', currentConfig.incognito ? 1 : 0);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
-                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
                 fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())
@@ -5777,7 +5777,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formData = new FormData(arcadeForm);
                 formData.append('action', 'bp_ajax_save_mascota');
 
-                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
                 fetch(ajaxUrl, {
                     method: 'POST',
@@ -5844,7 +5844,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('mascota_id', petId);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
-                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
                 fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())
@@ -5865,7 +5865,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('mascota_id', petId);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
-                const ajaxUrl = (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : '/wp-admin/admin-ajax.php');
+                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
                 fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())

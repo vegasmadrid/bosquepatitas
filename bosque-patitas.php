@@ -210,6 +210,7 @@ class BosquePatitas {
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
             'apiUrl'           => esc_url_raw(rest_url('wp/v2/tumbas')),
+            'ajaxUrl'          => admin_url('admin-ajax.php'),
             'restRoot'         => esc_url_raw(rest_url()),
             'nonce'            => wp_create_nonce('wp_rest'),
             'authNonce'        => wp_create_nonce('bp_auth_nonce'),
