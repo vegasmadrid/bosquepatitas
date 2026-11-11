@@ -100,6 +100,29 @@ class BP_Profile {
             $avatar_meta = $this->get_default_avatar_data();
         }
 
+        // Sincronizar dinámicamente con la configuración del backend para avatares GLB/FBX
+        if (isset($avatar_meta['avatar_type']) && $avatar_meta['avatar_type'] === 'glb') {
+            $all_glb = get_option('bp_glb_avatars_list', array());
+            if (is_array($all_glb)) {
+                $matched = null;
+                if (!empty($avatar_meta['glb_id'])) {
+                    foreach ($all_glb as $g) {
+                        if (!empty($g['active']) && isset($g['id']) && (string) $g['id'] === (string) $avatar_meta['glb_id']) {
+                            $matched = $g;
+                            break;
+                        }
+                    }
+                }
+                if ($matched) {
+                    $avatar_meta['glb_url']  = $matched['file_url'];
+                    if (isset($matched['scale'])) $avatar_meta['scale'] = $matched['scale'];
+                    if (isset($matched['offset_y'])) $avatar_meta['offset_y'] = $matched['offset_y'];
+                } elseif (!empty($avatar_meta['glb_url']) && strpos($avatar_meta['glb_url'], 'Ch22_female_avatar.glb') !== false) {
+                    $avatar_meta['glb_url'] = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+                }
+            }
+        }
+
         wp_send_json_success($avatar_meta);
     }
 
