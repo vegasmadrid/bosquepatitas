@@ -1199,10 +1199,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function create3DAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
-
-        if (avatarType === 'glb' || (config.glb_url && config.glb_url !== '')) {
-            return createGLBAvatarModel(config, onLoadCallback);
-        }
+        // GLB handling removed – only native human and pet avatars are supported now.
+        // if (avatarType === 'glb' || (config.glb_url && config.glb_url !== '')) {
+        //     return createGLBAvatarModel(config, onLoadCallback);
+        // }
 
         let mesh;
         if (avatarType === 'pet') {
