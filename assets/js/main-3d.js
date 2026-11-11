@@ -1420,23 +1420,64 @@ document.addEventListener('DOMContentLoaded', () => {
             // Sanitizar materiales si hay texturas incompletas/huérfanas
             sanitizeModelMaterials(model);
 
-            // Normalizar escala (Ajustar a 2 unidades de alto aprox.)
-            const box = new THREE.Box3().setFromObject(model);
-            const size = box.getSize(new THREE.Vector3());
-            const center = box.getCenter(new THREE.Vector3());
+            // Calcular dimensiones precisas usando bounding boxes de geometrías
+            function getAccurateBounds(object) {
+                object.updateMatrixWorld(true);
+                const b = new THREE.Box3();
+                let hasValidGeom = false;
+                object.traverse(child => {
+                    if ((child.isMesh || child.isSkinnedMesh) && child.geometry) {
+                        const geom = child.geometry;
+                        if (!geom.boundingBox) geom.computeBoundingBox();
+                        if (geom.boundingBox) {
+                            const childBox = geom.boundingBox.clone();
+                            childBox.applyMatrix4(child.matrixWorld);
+                            b.union(childBox);
+                            hasValidGeom = true;
+                        }
+                    }
+                });
+                if (!hasValidGeom || b.isEmpty() || !isFinite(b.min.x)) {
+                    b.setFromObject(object);
+                }
+                return b;
+            }
 
-            const maxDim = Math.max(size.x, size.y, size.z);
-            let scale = maxDim > 0 ? (2 / maxDim) : 1;
+            // Normalizar escala (Ajustar a 1.8 - 2.0 unidades de alto)
+            const rawBox = getAccurateBounds(model);
+            const rawSize = rawBox.getSize(new THREE.Vector3());
+            const maxDim = Math.max(rawSize.x, rawSize.y, rawSize.z);
+
+            let scale = maxDim > 0 ? (1.85 / maxDim) : 1;
             if (config.scale && parseFloat(config.scale) !== 1.0) {
                 scale *= parseFloat(config.scale);
             }
             model.scale.setScalar(scale);
 
             // Centrar en la base (apoyar pies en suelo Y=0 + offset)
-            box.setFromObject(model);
-            box.getCenter(center);
-            model.position.sub(center);
-            model.position.y += (box.getSize(new THREE.Vector3()).y / 2) + offsetY;
+            const scaledBox = getAccurateBounds(model);
+            const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+            model.position.x -= scaledCenter.x;
+            model.position.z -= scaledCenter.z;
+            model.position.y -= scaledBox.min.y;
+            if (offsetY) {
+                model.position.y += offsetY;
+            }
+
+            // Aplicar tintado de materiales
+            applyGLBColors(model, config);
+
+            containerGroup.userData.applyColors = (cfg) => applyGLBColors(model, cfg);
+            containerGroup.userData.glbModel    = model;
+            containerGroup.userData.glbConfig   = config;
+            containerGroup.userData.isGLB       = true;
+            containerGroup.userData.isKneelingState = false;
+
+            // Añadir el modelo inmediatamente al contenedor para renderizado y auto-encuadre instantáneo
+            containerGroup.add(model);
+            if (typeof onLoadCallback === 'function') {
+                onLoadCallback(containerGroup);
+            }
 
             // Recopilar referencias de animaciones configuradas
             const glbList = (typeof settings !== 'undefined' && Array.isArray(settings.glbAvatars)) ? settings.glbAvatars : [];
@@ -1536,19 +1577,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             containerGroup.userData.isKneelingState = false;
 
                             activeAnimMixers.push(mixer);
-
-                            // Aplicar tintado de materiales
-                            applyGLBColors(model, config);
-
-                            containerGroup.userData.applyColors = (cfg) => applyGLBColors(model, cfg);
-                            containerGroup.userData.glbModel    = model;
-                            containerGroup.userData.glbConfig   = config;
-
-                            containerGroup.add(model);
-
-                            if (typeof onLoadCallback === 'function') {
-                                onLoadCallback(containerGroup);
-                            }
                             });
                         });
                     });
