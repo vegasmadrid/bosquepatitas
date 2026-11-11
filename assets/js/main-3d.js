@@ -704,8 +704,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings.pusherKey) return;
 
         const simulatedData = [
-            { id: 'sim_elena', name: 'Elena', skin: '#f5c29b', shirt: '#ec4899', pants: '#1e293b', hair_style: 'classic', hair_color: '#f59e0b', accessory: 'flower', x: -6, z: 8 },
-            { id: 'sim_marcos', name: 'Marcos', skin: '#ffe0bd', shirt: '#3b82f6', pants: '#3b2314', hair_style: 'cap', hair_color: '#1e293b', accessory: 'lantern', x: 8, z: -10 }
+            { id: 'sim_elena', name: 'Elena', human_gender: 'female', skin: '#f5c29b', shirt: '#ec4899', pants: '#2563eb', hair_style: 'long', hair_color: '#f59e0b', accessory: 'flower', x: -6, z: 8 },
+            { id: 'sim_marcos', name: 'Marcos', human_gender: 'male', skin: '#ffe0bd', shirt: '#ffffff', pants: '#2563eb', hair_style: 'classic', hair_color: '#1e293b', accessory: 'flower', x: 8, z: -10 }
         ];
 
         simulatedData.forEach(sim => {
@@ -1691,28 +1691,63 @@ document.addEventListener('DOMContentLoaded', () => {
         return create3DAvatarModel(config, onLoadCallback);
     }
 
-    // 1. TUTOR HUMANO (MODELO PROCEDURAL ORGANICO 100% SUAVIZADO Y ESTILIZADO)
+    // 1. TUTOR HUMANO (MODELO PROCEDURAL CARTOON 3D PRO — ESTILO CHIBI PRO CON SOPORTE HOMBRE Y MUJER)
     function createHumanAvatarModel(config = {}) {
+        const gender = config.human_gender || config.gender || 'male';
+        const isFemale = (gender === 'female');
         const skinColor = config.skin || '#ffe0bd';
-        const shirtColor = config.shirt || '#10b981';
-        const pantsColor = config.pants || '#1e3a8a';
+        const shirtColor = config.shirt || (isFemale ? '#ec4899' : '#ffffff');
+        const pantsColor = config.pants || '#2563eb';
         const hairStyle = config.hair_style || 'classic';
-        const hairColor = config.hair_color || '#3b2314';
+        const hairColor = config.hair_color || (isFemale ? '#b45309' : '#3b2314');
         const accessory = config.accessory || 'none';
 
         const avatarGroup = new THREE.Group();
         avatarGroup.name = 'playmobilAvatar';
-        avatarGroup.userData = { isQuadruped: false };
+        avatarGroup.userData = { isQuadruped: false, human_gender: gender };
 
-        // Materiales MeshStandardMaterial suaves con roughness: 0.4 y metalness: 0.1
-        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.40, metalness: 0.08 });
-        const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.40, metalness: 0.10 });
-        const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.40, metalness: 0.10 });
-        const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.45, metalness: 0.05 });
-        const shoeSoleMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35, metalness: 0.05 });
-        const shoeBodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.40, metalness: 0.10 });
+        // Materiales PBR Cartoon suaves de alta calidad
+        const skinMat = new THREE.MeshStandardMaterial({
+            color: skinColor,
+            roughness: 0.50,
+            metalness: 0.04
+        });
+        const shirtMat = new THREE.MeshStandardMaterial({
+            color: shirtColor,
+            roughness: 0.55,
+            metalness: 0.06
+        });
+        const pantsMat = new THREE.MeshStandardMaterial({
+            color: pantsColor,
+            roughness: 0.55,
+            metalness: 0.05
+        });
+        const pantsCuffMat = new THREE.MeshStandardMaterial({
+            color: 0x93c5fd, // Dobladillo de jeans enrollados más claro
+            roughness: 0.60,
+            metalness: 0.04
+        });
+        const hairMat = new THREE.MeshStandardMaterial({
+            color: hairColor,
+            roughness: 0.50,
+            metalness: 0.05
+        });
+        const sneakerSoleMat = new THREE.MeshStandardMaterial({
+            color: 0xf8fafc,
+            roughness: 0.35,
+            metalness: 0.05
+        });
+        const sneakerBodyMat = new THREE.MeshStandardMaterial({
+            color: pantsColor, // Zapatillas a juego con los jeans
+            roughness: 0.45,
+            metalness: 0.08
+        });
+        const sneakerLacesMat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.30,
+            metalness: 0.02
+        });
 
-        // Helper para propagar sombras en todo el avatar
         function applyShadows(obj) {
             obj.traverse(child => {
                 if (child.isMesh) {
@@ -1722,153 +1757,326 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // 1. PIERNAS Y ZAPATILLAS DEPORTIVAS ORGANICAS
+        // ──────────────────────────────────────────────────────────
+        // BASE / PEDESTAL HOLOGRÁFICO SCI-FI (COMO EN LA IMAGEN)
+        // ──────────────────────────────────────────────────────────
+        const pedestalGroup = new THREE.Group();
+        pedestalGroup.name = 'pedestalGroup';
+
+        // Anillo biselado metálico inferior
+        const baseRingGeo = new THREE.CylinderGeometry(0.32, 0.34, 0.025, 36);
+        const baseRingMat = new THREE.MeshStandardMaterial({
+            color: 0x1e293b,
+            roughness: 0.30,
+            metalness: 0.85
+        });
+        const baseRing = new THREE.Mesh(baseRingGeo, baseRingMat);
+        baseRing.position.y = 0.0125;
+        pedestalGroup.add(baseRing);
+
+        // Plataforma superior reflectante
+        const platGeo = new THREE.CylinderGeometry(0.30, 0.32, 0.020, 36);
+        const platMat = new THREE.MeshStandardMaterial({
+            color: 0x0f172a,
+            roughness: 0.20,
+            metalness: 0.90
+        });
+        const platMesh = new THREE.Mesh(platGeo, platMat);
+        platMesh.position.y = 0.025;
+        pedestalGroup.add(platMesh);
+
+        // Anillo de luz Neón Cian brillante (glowing ring)
+        const neonTorusGeo = new THREE.TorusGeometry(0.305, 0.008, 12, 48);
+        const neonTorusMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.85
+        });
+        const neonRing = new THREE.Mesh(neonTorusGeo, neonTorusMat);
+        neonRing.rotation.x = Math.PI / 2;
+        neonRing.position.y = 0.032;
+        pedestalGroup.add(neonRing);
+
+        // Luz tenue ascendente del pedestal
+        const pedestalLight = new THREE.PointLight(0x38bdf8, 0.6, 1.2);
+        pedestalLight.position.set(0, 0.15, 0);
+        pedestalGroup.add(pedestalLight);
+
+        avatarGroup.add(pedestalGroup);
+
+        // ──────────────────────────────────────────────────────────
+        // 1. PIERNAS SUAVES ORGÁNICAS Y ZAPATILLAS DEPORTIVAS CHIBI
+        // ──────────────────────────────────────────────────────────
         const legGroup = new THREE.Group();
         legGroup.position.set(0, 0, 0);
 
-        // Articulación de la cadera suave
-        const hipJoint = new THREE.Mesh(new THREE.SphereGeometry(0.118, 16, 16), pantsMat);
-        hipJoint.position.set(0, 0.51, 0);
-        legGroup.add(hipJoint);
+        // Cadera redondeada suave que conecta las dos piernas de forma fluida
+        const hipBridgeGeo = createCapsuleGeometry(isFemale ? 0.12 : 0.125, 0.08, 10, 20);
+        const hipBridge = new THREE.Mesh(hipBridgeGeo, pantsMat);
+        hipBridge.scale.set(1.15, 0.95, 0.85);
+        hipBridge.position.set(0, 0.51, 0);
+        legGroup.add(hipBridge);
 
-        // Geometría de cápsula para piernas completamente redondeadas
-        const legCapsuleGeo = createCapsuleGeometry(0.058, 0.38, 10, 16);
+        // Función para crear pierna suave estilo dibujo animado / cartoon 3D
+        function createCartoonLeg(isLeftLeg) {
+            const legSubGroup = new THREE.Group();
 
-        function createOrganicSneaker() {
+            // Pierna en cápsula suave con grosor cartoon
+            const legCapsule = new THREE.Mesh(
+                createCapsuleGeometry(0.062, 0.36, 12, 20),
+                pantsMat
+            );
+            legCapsule.position.set(0, -0.20, 0);
+            legSubGroup.add(legCapsule);
+
+            // Dobladillo del pantalón enrollado (cuff) como en la imagen de referencia
+            const cuffTorusGeo = new THREE.TorusGeometry(0.065, 0.014, 10, 24);
+            const cuffMesh = new THREE.Mesh(cuffTorusGeo, pantsCuffMat);
+            cuffMesh.rotation.x = Math.PI / 2;
+            cuffMesh.position.set(0, -0.37, 0);
+            legSubGroup.add(cuffMesh);
+
+            // Tobillo visible (piel)
+            const ankleGeo = new THREE.CylinderGeometry(0.048, 0.048, 0.04, 16);
+            const ankleMesh = new THREE.Mesh(ankleGeo, skinMat);
+            ankleMesh.position.set(0, -0.39, 0);
+            legSubGroup.add(ankleMesh);
+
+            // Zapatilla Deportiva Pro Cartoon (como en la imagen de referencia)
             const sneakerGroup = new THREE.Group();
 
-            // Suela ovalada suave
-            const soleMesh = new THREE.Mesh(createCapsuleGeometry(0.055, 0.13, 8, 14), shoeSoleMat);
+            // Suela blanca gruesa
+            const soleGeo = createCapsuleGeometry(0.058, 0.14, 10, 16);
+            const soleMesh = new THREE.Mesh(soleGeo, sneakerSoleMat);
             soleMesh.rotation.x = Math.PI / 2;
-            soleMesh.scale.set(1.1, 1.0, 0.45);
-            soleMesh.position.set(0, -0.015, 0.025);
+            soleMesh.scale.set(1.12, 1.0, 0.40);
+            soleMesh.position.set(0, -0.018, 0.025);
             sneakerGroup.add(soleMesh);
 
-            // Empeine redondeado de zapatilla
-            const upperMesh = new THREE.Mesh(createCapsuleGeometry(0.052, 0.12, 8, 14), shoeBodyMat);
+            // Cuerpo azul de la zapatilla
+            const upperGeo = createCapsuleGeometry(0.055, 0.13, 10, 16);
+            const upperMesh = new THREE.Mesh(upperGeo, sneakerBodyMat);
             upperMesh.rotation.x = Math.PI / 2;
-            upperMesh.scale.set(1.05, 1.0, 0.65);
-            upperMesh.position.set(0, 0.018, 0.025);
+            upperMesh.scale.set(1.08, 1.0, 0.65);
+            upperMesh.position.set(0, 0.015, 0.025);
             sneakerGroup.add(upperMesh);
 
-            // Puntera frontal suave
-            const toeCap = new THREE.Mesh(new THREE.SphereGeometry(0.052, 12, 12), shoeSoleMat);
-            toeCap.scale.set(1.05, 0.65, 0.9);
-            toeCap.position.set(0, 0.008, 0.085);
+            // Puntera redondeada blanca característica (toe cap)
+            const toeCapGeo = new THREE.SphereGeometry(0.052, 14, 14);
+            const toeCap = new THREE.Mesh(toeCapGeo, sneakerSoleMat);
+            toeCap.scale.set(1.10, 0.60, 0.85);
+            toeCap.position.set(0, 0.006, 0.082);
             sneakerGroup.add(toeCap);
 
-            return sneakerGroup;
+            // Cordones blancos detallados sobre el empeine
+            for (let l = 0; l < 3; l++) {
+                const laceGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.052, 8);
+                const laceMesh = new THREE.Mesh(laceGeo, sneakerLacesMat);
+                laceMesh.rotation.z = Math.PI / 2;
+                laceMesh.position.set(0, 0.038 + (l * 0.008), 0.020 + (l * 0.024));
+                sneakerGroup.add(laceMesh);
+            }
+
+            sneakerGroup.position.set(0, -0.44, 0);
+            legSubGroup.add(sneakerGroup);
+
+            return legSubGroup;
         }
 
         // Pierna Izquierda
-        const leftLegGroup = new THREE.Group();
+        const leftLegGroup = createCartoonLeg(true);
         leftLegGroup.name = 'leftLeg';
-        leftLegGroup.position.set(-0.088, 0.48, 0);
-
-        const leftLegMesh = new THREE.Mesh(legCapsuleGeo, pantsMat);
-        leftLegMesh.position.set(0, -0.21, 0);
-        leftLegGroup.add(leftLegMesh);
-
-        const leftSneaker = createOrganicSneaker();
-        leftSneaker.position.set(0, -0.45, 0);
-        leftLegGroup.add(leftSneaker);
-
+        leftLegGroup.position.set(isFemale ? -0.082 : -0.088, 0.48, 0);
         legGroup.add(leftLegGroup);
 
         // Pierna Derecha
-        const rightLegGroup = new THREE.Group();
+        const rightLegGroup = createCartoonLeg(false);
         rightLegGroup.name = 'rightLeg';
-        rightLegGroup.position.set(0.088, 0.48, 0);
-
-        const rightLegMesh = new THREE.Mesh(legCapsuleGeo, pantsMat);
-        rightLegMesh.position.set(0, -0.21, 0);
-        rightLegGroup.add(rightLegMesh);
-
-        const rightSneaker = createOrganicSneaker();
-        rightSneaker.position.set(0, -0.45, 0);
-        rightLegGroup.add(rightSneaker);
-
+        rightLegGroup.position.set(isFemale ? 0.082 : 0.088, 0.48, 0);
         legGroup.add(rightLegGroup);
+
         avatarGroup.add(legGroup);
 
-        // 2. TORSO Y BRAZOS ORGANICOS (Pivote torso en Y = 0.54)
+        // ──────────────────────────────────────────────────────────
+        // 2. TORSO ORGÁNICO CON CAMISETA ESTILO CARTOON 3D
+        // ──────────────────────────────────────────────────────────
         const torsoGroup = new THREE.Group();
         torsoGroup.name = 'torsoGroup';
         torsoGroup.position.set(0, 0.54, 0);
 
-        // Torso de Cápsula suave y estilizado
-        const torsoCapsuleGeo = createCapsuleGeometry(0.145, 0.28, 12, 20);
+        // Torso suave modelado con curvas orgánicas
+        const torsoWidth = isFemale ? 0.138 : 0.150;
+        const torsoDepth = isFemale ? 0.120 : 0.130;
+        const torsoHeight = 0.30;
+        const torsoCapsuleGeo = createCapsuleGeometry(torsoWidth, torsoHeight, 14, 24);
         const torsoMesh = new THREE.Mesh(torsoCapsuleGeo, shirtMat);
-        torsoMesh.scale.set(1.12, 1.0, 0.85);
+        torsoMesh.scale.set(1.08, 1.0, isFemale ? 0.82 : 0.88);
         torsoMesh.position.set(0, 0.20, 0);
         torsoGroup.add(torsoMesh);
 
-        // Detalle de cuello redondeado
-        const collarRing = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.014, 12, 24), shirtMat);
+        // Dobladillo inferior de la camiseta (pliegue natural caído sobre los jeans)
+        const hemTorusGeo = new THREE.TorusGeometry(isFemale ? 0.132 : 0.144, 0.016, 12, 28);
+        const hemMesh = new THREE.Mesh(hemTorusGeo, shirtMat);
+        hemMesh.rotation.x = Math.PI / 2;
+        hemMesh.scale.set(1.08, 1.0, isFemale ? 0.82 : 0.88);
+        hemMesh.position.set(0, 0.06, 0);
+        torsoGroup.add(hemMesh);
+
+        // Cuello acanalado de la camiseta (collar ring)
+        const collarRingGeo = new THREE.TorusGeometry(0.068, 0.014, 12, 26);
+        const collarRing = new THREE.Mesh(collarRingGeo, shirtMat);
         collarRing.rotation.x = Math.PI / 2;
         collarRing.position.set(0, 0.38, 0);
         torsoGroup.add(collarRing);
 
-        // Cilindro definido para el cuello entre el torso y la cabeza
-        const neckCylinderGeo = new THREE.CylinderGeometry(0.052, 0.058, 0.10, 18);
+        // Cuello de piel orgánico
+        const neckCylinderGeo = new THREE.CylinderGeometry(0.050, 0.056, 0.10, 20);
         const neckMesh = new THREE.Mesh(neckCylinderGeo, skinMat);
-        neckMesh.position.set(0, 0.44, 0);
+        neckMesh.position.set(0, 0.43, 0);
         torsoGroup.add(neckMesh);
 
-        // 3. BRAZOS CON MANGAS INTEGRADAS Y POSTURA REPOSADA NATURAL (-7° A -10° EN Z)
-        const sleeveCapsuleGeo = createCapsuleGeometry(0.052, 0.15, 10, 16);
-        const forearmCapsuleGeo = createCapsuleGeometry(0.040, 0.18, 10, 16);
+        // ──────────────────────────────────────────────────────────
+        // 3. BRAZOS CON MANGAS DE CAMISETA Y MANOS CARTOON DETALLADAS
+        // ──────────────────────────────────────────────────────────
+        const armSleeveRadius = isFemale ? 0.052 : 0.056;
+        const armForearmRadius = isFemale ? 0.038 : 0.042;
+        const armSpreadX = isFemale ? 0.17 : 0.185;
 
-        // Arm Izquierdo (Inclinado suavemente hacia afuera +7.5°)
-        const leftArmGroup = new THREE.Group();
+        function createCartoonArm(isLeftArm) {
+            const armSubGroup = new THREE.Group();
+            const armSign = isLeftArm ? -1 : 1;
+
+            // Hombro esférico suave
+            const shoulderMesh = new THREE.Mesh(new THREE.SphereGeometry(armSleeveRadius + 0.004, 14, 14), shirtMat);
+            shoulderMesh.position.set(0, 0.0, 0);
+            armSubGroup.add(shoulderMesh);
+
+            // Manga corta
+            const sleeveMesh = new THREE.Mesh(createCapsuleGeometry(armSleeveRadius, 0.12, 10, 18), shirtMat);
+            sleeveMesh.position.set(0, -0.06, 0);
+            armSubGroup.add(sleeveMesh);
+
+            // Dobladillo de la manga (cuff)
+            const cuffTorus = new THREE.Mesh(new THREE.TorusGeometry(armSleeveRadius + 0.002, 0.009, 10, 20), shirtMat);
+            cuffTorus.rotation.x = Math.PI / 2;
+            cuffTorus.position.set(0, -0.125, 0);
+            armSubGroup.add(cuffTorus);
+
+            // Antebrazo de piel
+            const forearmMesh = new THREE.Mesh(createCapsuleGeometry(armForearmRadius, 0.18, 10, 18), skinMat);
+            forearmMesh.position.set(0, -0.22, 0);
+            armSubGroup.add(forearmMesh);
+
+            // Mano Cartoon con dedos y pulgar
+            const handGroup = new THREE.Group();
+            const palmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.040, 16, 16), skinMat);
+            palmMesh.scale.set(1.0, 0.85, 0.72);
+            handGroup.add(palmMesh);
+
+            // Pulgar
+            const thumbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.015, 10, 10), skinMat);
+            thumbMesh.scale.set(0.9, 1.4, 0.9);
+            thumbMesh.position.set(armSign * 0.032, 0.008, 0.012);
+            thumbMesh.rotation.z = armSign * -0.35;
+            handGroup.add(thumbMesh);
+
+            handGroup.position.set(0, -0.33, 0);
+            armSubGroup.add(handGroup);
+
+            return armSubGroup;
+        }
+
+        // Brazo Izquierdo
+        const leftArmGroup = createCartoonArm(true);
         leftArmGroup.name = 'leftArm';
-        leftArmGroup.position.set(-0.18, 0.36, 0);
-        leftArmGroup.rotation.z = 0.13; // ~7.5 grados hacia fuera
-
-        const leftSleeve = new THREE.Mesh(sleeveCapsuleGeo, shirtMat);
-        leftSleeve.position.set(0, -0.07, 0);
-        leftArmGroup.add(leftSleeve);
-
-        const leftSleeveCuff = new THREE.Mesh(new THREE.TorusGeometry(0.051, 0.008, 10, 20), shirtMat);
-        leftSleeveCuff.rotation.x = Math.PI / 2;
-        leftSleeveCuff.position.set(0, -0.145, 0);
-        leftArmGroup.add(leftSleeveCuff);
-
-        const leftForearm = new THREE.Mesh(forearmCapsuleGeo, skinMat);
-        leftForearm.position.set(0, -0.23, 0);
-        leftArmGroup.add(leftForearm);
-
-        const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.042, 14, 14), skinMat);
-        leftHand.position.set(0, -0.34, 0);
-        leftArmGroup.add(leftHand);
-
+        leftArmGroup.position.set(-armSpreadX, 0.35, 0);
+        leftArmGroup.rotation.z = 0.11;
         torsoGroup.add(leftArmGroup);
 
-        // Arm Derecho (Inclinado suavemente hacia afuera -7.5°)
-        const rightArmGroup = new THREE.Group();
+        // Brazo Derecho
+        const rightArmGroup = createCartoonArm(false);
         rightArmGroup.name = 'rightArm';
-        rightArmGroup.position.set(0.18, 0.36, 0);
-        rightArmGroup.rotation.z = -0.13; // ~-7.5 grados hacia fuera
+        rightArmGroup.position.set(armSpreadX, 0.35, 0);
+        rightArmGroup.rotation.z = -0.11;
 
-        const rightSleeve = new THREE.Mesh(sleeveCapsuleGeo, shirtMat);
-        rightSleeve.position.set(0, -0.07, 0);
-        rightArmGroup.add(rightSleeve);
+        // ──────────────────────────────────────────────────────────
+        // ACCESORIOS EN MANO DERECHA
+        // (Flor en maceta colorida idéntica a la imagen de referencia)
+        // ──────────────────────────────────────────────────────────
+        function createCuteFlowerPotProp() {
+            const potGroup = new THREE.Group();
 
-        const rightSleeveCuff = new THREE.Mesh(new THREE.TorusGeometry(0.051, 0.008, 10, 20), shirtMat);
-        rightSleeveCuff.rotation.x = Math.PI / 2;
-        rightSleeveCuff.position.set(0, -0.145, 0);
-        rightArmGroup.add(rightSleeveCuff);
+            // Maceta de terracota
+            const potMat = new THREE.MeshStandardMaterial({
+                color: 0xc26d42,
+                roughness: 0.65,
+                metalness: 0.05
+            });
+            const potBody = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.040, 0.09, 18), potMat);
+            potBody.position.y = 0.045;
+            potGroup.add(potBody);
 
-        const rightForearm = new THREE.Mesh(forearmCapsuleGeo, skinMat);
-        rightForearm.position.set(0, -0.23, 0);
-        rightArmGroup.add(rightForearm);
+            const potRim = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.058, 0.024, 18), potMat);
+            potRim.position.y = 0.085;
+            potGroup.add(potRim);
 
-        const rightHand = new THREE.Mesh(new THREE.SphereGeometry(0.042, 14, 14), skinMat);
-        rightHand.position.set(0, -0.34, 0);
-        rightArmGroup.add(rightHand);
+            // Tierra oscura fértil
+            const soilMat = new THREE.MeshStandardMaterial({ color: 0x3d271d, roughness: 0.9 });
+            const soilMesh = new THREE.Mesh(new THREE.CircleGeometry(0.054, 16), soilMat);
+            soilMesh.rotation.x = -Math.PI / 2;
+            soilMesh.position.y = 0.092;
+            potGroup.add(soilMesh);
 
-        // Accesorios
-        if (accessory === 'lantern') {
+            // Tallo verde brillante
+            const stemMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.5 });
+            const stemMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.12, 10), stemMat);
+            stemMesh.position.set(0, 0.15, 0);
+            potGroup.add(stemMesh);
+
+            // Hojas verdes redondeadas
+            const leafGeo = new THREE.SphereGeometry(0.022, 10, 10);
+            leafGeo.scale(1.8, 0.3, 0.8);
+            const leaf1 = new THREE.Mesh(leafGeo, stemMat);
+            leaf1.position.set(0.030, 0.13, 0);
+            leaf1.rotation.z = 0.35;
+            potGroup.add(leaf1);
+
+            const leaf2 = new THREE.Mesh(leafGeo, stemMat);
+            leaf2.position.set(-0.030, 0.14, 0);
+            leaf2.rotation.z = -0.35;
+            potGroup.add(leaf2);
+
+            // Pétalos coloridos como en la imagen de referencia (rosa, azul, amarillo, morado, naranja)
+            const petalColors = [0xf43f5e, 0x38bdf8, 0xfacc15, 0xa855f7, 0xfb923c];
+            for (let p = 0; p < 5; p++) {
+                const angle = (p * Math.PI * 2) / 5;
+                const petalMat = new THREE.MeshStandardMaterial({
+                    color: petalColors[p],
+                    roughness: 0.40,
+                    metalness: 0.02
+                });
+                const petalMesh = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), petalMat);
+                petalMesh.scale.set(0.85, 1.25, 0.65);
+                petalMesh.position.set(Math.sin(angle) * 0.038, 0.22 + Math.cos(angle) * 0.038, 0.005);
+                potGroup.add(petalMesh);
+            }
+
+            // Centro botón amarillo de la flor
+            const centerMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.35 });
+            const centerMesh = new THREE.Mesh(new THREE.SphereGeometry(0.024, 14, 14), centerMat);
+            centerMesh.scale.set(1.0, 1.0, 0.6);
+            centerMesh.position.set(0, 0.22, 0.012);
+            potGroup.add(centerMesh);
+
+            return potGroup;
+        }
+
+        if (accessory === 'flower' || accessory === 'flower_pot') {
+            const potProp = createCuteFlowerPotProp();
+            potProp.scale.set(0.85, 0.85, 0.85);
+            potProp.position.set(0, -0.38, 0.06);
+            rightArmGroup.add(potProp);
+        } else if (accessory === 'lantern') {
             const lanternMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
             const glowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
             const lanternBody = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.12, 12), lanternMat);
@@ -1883,11 +2091,6 @@ document.addEventListener('DOMContentLoaded', () => {
             rightArmGroup.add(lanternBody);
             rightArmGroup.add(glowCore);
             rightArmGroup.add(lanternLight);
-        } else if (accessory === 'flower') {
-            const flowerProp = createFlower3D(false);
-            flowerProp.scale.set(0.65, 0.65, 0.65);
-            flowerProp.position.set(0, -0.38, 0.05);
-            rightArmGroup.add(flowerProp);
         } else if (accessory === 'wand') {
             const wandMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.25, metalness: 0.85 });
             const wandMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.35, 10), wandMat);
@@ -1908,174 +2111,425 @@ document.addEventListener('DOMContentLoaded', () => {
 
         torsoGroup.add(rightArmGroup);
 
-        // 4. CABEZA, ROSTRO Y NUCA
+        // ──────────────────────────────────────────────────────────
+        // 4. CABEZA, ROSTRO CARTOON EXPRESIVO HD Y OREJAS
+        // ──────────────────────────────────────────────────────────
         const headGroup = new THREE.Group();
         headGroup.name = 'headGroup';
-        headGroup.position.set(0, 0.56, 0);
+        headGroup.position.set(0, 0.55, 0);
 
-        const headGeo = new THREE.SphereGeometry(0.138, 28, 28);
-        headGeo.scale(1.0, 1.08, 1.02);
+        // Cabeza estilo Chibi: proporcionada, suave y redondeada
+        const headGeo = new THREE.SphereGeometry(0.155, 36, 36);
+        headGeo.scale(1.02, 1.05, 1.02);
         const headMesh = new THREE.Mesh(headGeo, skinMat);
         headGroup.add(headMesh);
 
-        // Orejas
-        const earGeo = new THREE.SphereGeometry(0.028, 12, 12);
+        // Orejas redondeadas
+        const earGeo = new THREE.SphereGeometry(0.032, 14, 14);
         const leftEar = new THREE.Mesh(earGeo, skinMat);
-        leftEar.position.set(-0.136, 0, -0.01);
+        leftEar.scale.set(0.65, 1.0, 0.85);
+        leftEar.position.set(-0.150, 0.0, -0.012);
         const rightEar = new THREE.Mesh(earGeo, skinMat);
-        rightEar.position.set(0.136, 0, -0.01);
+        rightEar.scale.set(0.65, 1.0, 0.85);
+        rightEar.position.set(0.150, 0.0, -0.012);
         headGroup.add(leftEar);
         headGroup.add(rightEar);
 
-        // Nariz de cápsula suave
-        const noseMesh = new THREE.Mesh(createCapsuleGeometry(0.012, 0.02, 6, 10), skinMat);
-        noseMesh.rotation.x = 0.3;
-        noseMesh.position.set(0, -0.01, 0.142);
+        // Naricita botón suave en 3D
+        const noseMesh = new THREE.Mesh(new THREE.SphereGeometry(0.016, 12, 12), skinMat);
+        noseMesh.scale.set(1.0, 0.8, 0.85);
+        noseMesh.position.set(0, -0.016, 0.154);
         headGroup.add(noseMesh);
 
-        // Textura facial HD expresiva
+        // Textura facial HD Cartoon (Ojos grandes con brillo, coloretes sonrosados y sonrisa)
         const faceCanvas = document.createElement('canvas');
-        faceCanvas.width = 512;
-        faceCanvas.height = 512;
-        const faceCtx = faceCanvas.getContext('2d');
+        faceCanvas.width = 1024;
+        faceCanvas.height = 1024;
+        const fCtx = faceCanvas.getContext('2d');
 
-        function drawEye(cx, cy) {
-            faceCtx.fillStyle = '#1e293b';
-            faceCtx.beginPath();
-            faceCtx.ellipse(cx, cy, 22, 28, 0, 0, Math.PI * 2);
-            faceCtx.fill();
+        function drawProCartoonEye(cx, cy, isLeft) {
+            // Fondo blanco del ojo
+            fCtx.fillStyle = '#ffffff';
+            fCtx.beginPath();
+            fCtx.ellipse(cx, cy, 48, 54, 0, 0, Math.PI * 2);
+            fCtx.fill();
 
-            faceCtx.fillStyle = '#0f172a';
-            faceCtx.beginPath();
-            faceCtx.ellipse(cx, cy + 2, 16, 20, 0, 0, Math.PI * 2);
-            faceCtx.fill();
+            // Sombra suave en parte superior del globo ocular
+            fCtx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+            fCtx.beginPath();
+            fCtx.ellipse(cx, cy - 14, 46, 26, 0, 0, Math.PI);
+            fCtx.fill();
 
-            faceCtx.fillStyle = '#ffffff';
-            faceCtx.beginPath();
-            faceCtx.arc(cx - 7, cy - 8, 7, 0, Math.PI * 2);
-            faceCtx.fill();
+            // Iris con degradado cálido profundo
+            const irisGrad = fCtx.createRadialGradient(cx, cy + 4, 6, cx, cy + 4, 38);
+            irisGrad.addColorStop(0, '#422006');
+            irisGrad.addColorStop(0.65, '#291304');
+            irisGrad.addColorStop(1, '#1c0c02');
+            fCtx.fillStyle = irisGrad;
+            fCtx.beginPath();
+            fCtx.ellipse(cx, cy + 2, 34, 38, 0, 0, Math.PI * 2);
+            fCtx.fill();
 
-            faceCtx.beginPath();
-            faceCtx.arc(cx + 6, cy + 8, 3.5, 0, Math.PI * 2);
-            faceCtx.fill();
+            // Pupila negra azabache
+            fCtx.fillStyle = '#0a0a0a';
+            fCtx.beginPath();
+            fCtx.ellipse(cx, cy + 3, 20, 22, 0, 0, Math.PI * 2);
+            fCtx.fill();
+
+            // Brillo principal superior (destello blanco característico de la imagen)
+            fCtx.fillStyle = '#ffffff';
+            fCtx.beginPath();
+            fCtx.ellipse(cx - 11, cy - 12, 13, 15, -0.25, 0, Math.PI * 2);
+            fCtx.fill();
+
+            // Brillo secundario inferior
+            fCtx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            fCtx.beginPath();
+            fCtx.arc(cx + 10, cy + 14, 6.5, 0, Math.PI * 2);
+            fCtx.fill();
+
+            // Contorno superior del ojo
+            fCtx.strokeStyle = '#1e1b18';
+            fCtx.lineWidth = isFemale ? 9 : 7;
+            fCtx.lineCap = 'round';
+            fCtx.beginPath();
+            fCtx.ellipse(cx, cy, 48, 54, 0, Math.PI + 0.20, Math.PI * 2 - 0.20);
+            fCtx.stroke();
+
+            // Pestañas sutiles y elegantes para mujer
+            if (isFemale) {
+                const dir = isLeft ? -1 : 1;
+                fCtx.strokeStyle = '#1e1b18';
+                fCtx.lineWidth = 5;
+                fCtx.beginPath();
+                fCtx.moveTo(cx + dir * 42, cy - 24);
+                fCtx.quadraticCurveTo(cx + dir * 55, cy - 35, cx + dir * 60, cy - 40);
+                fCtx.stroke();
+
+                fCtx.beginPath();
+                fCtx.moveTo(cx + dir * 30, cy - 44);
+                fCtx.lineTo(cx + dir * 36, cy - 56);
+                fCtx.stroke();
+            }
         }
 
-        drawEye(180, 220);
-        drawEye(332, 220);
+        // Cejas expresivas
+        function drawProEyebrow(cx, cy, isLeft) {
+            fCtx.strokeStyle = hairColor;
+            fCtx.lineWidth = isFemale ? 14 : 18;
+            fCtx.lineCap = 'round';
+            fCtx.beginPath();
+            if (isLeft) {
+                fCtx.moveTo(cx - 42, cy + 10);
+                fCtx.quadraticCurveTo(cx - 5, cy - 14, cx + 42, cy + 4);
+            } else {
+                fCtx.moveTo(cx - 42, cy + 4);
+                fCtx.quadraticCurveTo(cx + 5, cy - 14, cx + 42, cy + 10);
+            }
+            fCtx.stroke();
+        }
 
-        faceCtx.strokeStyle = hairColor;
-        faceCtx.lineWidth = 12;
-        faceCtx.lineCap = 'round';
+        // Posiciones de los ojos y cejas en el canvas 1024x1024
+        drawProCartoonEye(360, 440, true);
+        drawProCartoonEye(664, 440, false);
+        drawProEyebrow(360, 350, true);
+        drawProEyebrow(664, 350, false);
 
-        faceCtx.beginPath();
-        faceCtx.moveTo(150, 175);
-        faceCtx.quadraticCurveTo(180, 160, 210, 172);
-        faceCtx.stroke();
+        // Coloretes / Mejillas sonrosadas (blush como en la imagen de referencia)
+        const cheekGradL = fCtx.createRadialGradient(285, 520, 4, 285, 520, 52);
+        cheekGradL.addColorStop(0, 'rgba(244, 63, 94, 0.45)');
+        cheekGradL.addColorStop(0.6, 'rgba(244, 63, 94, 0.25)');
+        cheekGradL.addColorStop(1, 'rgba(244, 63, 94, 0.0)');
+        fCtx.fillStyle = cheekGradL;
+        fCtx.beginPath();
+        fCtx.arc(285, 520, 52, 0, Math.PI * 2);
+        fCtx.fill();
 
-        faceCtx.beginPath();
-        faceCtx.moveTo(302, 172);
-        faceCtx.quadraticCurveTo(332, 160, 362, 175);
-        faceCtx.stroke();
+        const cheekGradR = fCtx.createRadialGradient(739, 520, 4, 739, 520, 52);
+        cheekGradR.addColorStop(0, 'rgba(244, 63, 94, 0.45)');
+        cheekGradR.addColorStop(0.6, 'rgba(244, 63, 94, 0.25)');
+        cheekGradR.addColorStop(1, 'rgba(244, 63, 94, 0.0)');
+        fCtx.fillStyle = cheekGradR;
+        fCtx.beginPath();
+        fCtx.arc(739, 520, 52, 0, Math.PI * 2);
+        fCtx.fill();
 
-        faceCtx.strokeStyle = '#334155';
-        faceCtx.lineWidth = 10;
-        faceCtx.beginPath();
-        faceCtx.arc(256, 285, 55, 0.22 * Math.PI, 0.78 * Math.PI, false);
-        faceCtx.stroke();
+        // Sonrisa dulce y amigable
+        fCtx.strokeStyle = '#6b301a';
+        fCtx.lineWidth = 11;
+        fCtx.lineCap = 'round';
+        fCtx.beginPath();
+        fCtx.arc(512, 530, 64, 0.18 * Math.PI, 0.82 * Math.PI, false);
+        fCtx.stroke();
+
+        // Labio suave si es mujer
+        if (isFemale) {
+            fCtx.fillStyle = 'rgba(244, 63, 94, 0.40)';
+            fCtx.beginPath();
+            fCtx.ellipse(512, 558, 28, 10, 0, 0, Math.PI * 2);
+            fCtx.fill();
+        }
 
         const faceTexture = new THREE.CanvasTexture(faceCanvas);
         faceTexture.needsUpdate = true;
         const faceMat = new THREE.MeshBasicMaterial({ map: faceTexture, transparent: true });
-        const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.24), faceMat);
-        facePlane.position.set(0, 0.005, 0.141);
+        const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.27), faceMat);
+        facePlane.position.set(0, 0.005, 0.155);
         headGroup.add(facePlane);
 
-        // Cobertura de la nuca y cráneo posterior (Exclusivamente en la mitad trasera Z <= 0)
-        const backNapeGeo = new THREE.SphereGeometry(0.144, 24, 20, Math.PI, Math.PI, 0, Math.PI * 0.65);
-        backNapeGeo.scale(1.01, 1.15, 1.05);
+        // Cobertura del cráneo posterior (nuca)
+        const backNapeGeo = new THREE.SphereGeometry(0.160, 26, 22, Math.PI, Math.PI, 0, Math.PI * 0.68);
+        backNapeGeo.scale(1.02, 1.10, 1.04);
         const backNapeHair = new THREE.Mesh(backNapeGeo, hairMat);
-        backNapeHair.position.set(0, -0.01, -0.005);
+        backNapeHair.position.set(0, -0.008, -0.005);
         headGroup.add(backNapeHair);
 
-        // 5. PEINADOS MULTICAPA SIN INTERFERIR CON LA CARA
-        if (hairStyle === 'classic') {
-            const hairCapGeo = new THREE.SphereGeometry(0.144, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.46);
-            hairCapGeo.scale(1.01, 1.05, 1.02);
-            const hairCap = new THREE.Mesh(hairCapGeo, hairMat);
-            hairCap.position.set(0, 0.035, -0.025);
-            headGroup.add(hairCap);
+        // ──────────────────────────────────────────────────────────
+        // 5. PEINADOS Y SOMBREROS PRO (HOMBRE & MUJER)
+        // ──────────────────────────────────────────────────────────
+        if (isFemale) {
+            // ── PEINADOS FEMENINOS ──
+            if (hairStyle === 'classic' || hairStyle === 'long') {
+                // Melena larga con mechones frontales y flequillo lateral
+                const capGeo = new THREE.SphereGeometry(0.162, 28, 24, 0, Math.PI * 2, 0, Math.PI * 0.52);
+                capGeo.scale(1.02, 1.06, 1.03);
+                const capMesh = new THREE.Mesh(capGeo, hairMat);
+                capMesh.position.set(0, 0.025, -0.015);
+                headGroup.add(capMesh);
 
-            const bangLeft = new THREE.Mesh(createCapsuleGeometry(0.028, 0.07, 8, 12), hairMat);
-            bangLeft.rotation.z = -0.4;
-            bangLeft.position.set(-0.065, 0.11, 0.11);
+                // Flequillo barrido elegante
+                const bang1 = new THREE.Mesh(createCapsuleGeometry(0.034, 0.10, 8, 14), hairMat);
+                bang1.rotation.z = -0.45;
+                bang1.position.set(-0.065, 0.11, 0.12);
+                headGroup.add(bang1);
 
-            const bangRight = new THREE.Mesh(createCapsuleGeometry(0.028, 0.07, 8, 12), hairMat);
-            bangRight.rotation.z = 0.4;
-            bangRight.position.set(0.065, 0.11, 0.11);
+                const bang2 = new THREE.Mesh(createCapsuleGeometry(0.030, 0.09, 8, 14), hairMat);
+                bang2.rotation.z = -0.25;
+                bang2.position.set(-0.02, 0.13, 0.125);
+                headGroup.add(bang2);
 
-            const bangCenter = new THREE.Mesh(createCapsuleGeometry(0.025, 0.06, 8, 12), hairMat);
-            bangCenter.rotation.x = -0.15;
-            bangCenter.position.set(0, 0.13, 0.12);
+                // Mechones laterales largos que caen sobre los hombros
+                for (let side = -1; side <= 1; side += 2) {
+                    const strandGroup = new THREE.Group();
+                    const s1 = new THREE.Mesh(createCapsuleGeometry(0.032, 0.22, 10, 16), hairMat);
+                    s1.position.set(0, -0.12, 0);
+                    strandGroup.add(s1);
 
-            headGroup.add(bangLeft);
-            headGroup.add(bangRight);
-            headGroup.add(bangCenter);
-        } else if (hairStyle === 'spiky') {
-            const baseHair = new THREE.Mesh(new THREE.SphereGeometry(0.145, 20, 20, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat);
-            baseHair.position.set(0, 0.02, -0.01);
-            headGroup.add(baseHair);
+                    const s2 = new THREE.Mesh(createCapsuleGeometry(0.026, 0.16, 8, 12), hairMat);
+                    s2.position.set(0, -0.24, 0.02);
+                    strandGroup.add(s2);
 
-            for (let i = -4; i <= 4; i++) {
-                const spike = new THREE.Mesh(createCapsuleGeometry(0.024, 0.10, 6, 10), hairMat);
-                spike.position.set(i * 0.032, 0.15 + (4 - Math.abs(i)) * 0.008, (3 - Math.abs(i)) * 0.012);
-                spike.rotation.z = -i * 0.12;
-                spike.rotation.x = -0.15;
-                headGroup.add(spike);
+                    strandGroup.position.set(side * 0.135, 0.0, 0.01);
+                    strandGroup.rotation.z = side * 0.08;
+                    headGroup.add(strandGroup);
+                }
+
+                // Volumen de cabello trasero
+                const backVolume = new THREE.Mesh(createCapsuleGeometry(0.075, 0.26, 12, 18), hairMat);
+                backVolume.position.set(0, -0.10, -0.11);
+                headGroup.add(backVolume);
+
+            } else if (hairStyle === 'ponytail') {
+                // Coleta alta femenina con coletero
+                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.50);
+                const capMesh = new THREE.Mesh(capGeo, hairMat);
+                capMesh.position.set(0, 0.02, -0.01);
+                headGroup.add(capMesh);
+
+                // Coletero
+                const tieMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.35 });
+                const tieMesh = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.010, 8, 16), tieMat);
+                tieMesh.position.set(0, 0.12, -0.13);
+                tieMesh.rotation.x = 0.4;
+                headGroup.add(tieMesh);
+
+                // Coleta con caída ondulada
+                const ponyMesh = new THREE.Mesh(createCapsuleGeometry(0.042, 0.28, 10, 16), hairMat);
+                ponyMesh.position.set(0, -0.04, -0.18);
+                ponyMesh.rotation.x = 0.25;
+                headGroup.add(ponyMesh);
+
+            } else if (hairStyle === 'cap') {
+                // Boina francesa elegante
+                const beretMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.45, metalness: 0.08 });
+                const beretMesh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.45), beretMat);
+                beretMesh.scale.set(1.12, 0.70, 1.08);
+                beretMesh.position.set(0.02, 0.09, 0.01);
+                beretMesh.rotation.z = 0.16;
+                headGroup.add(beretMesh);
+
+                // Mechones frontales bajo la boina
+                for (let side = -1; side <= 1; side += 2) {
+                    const strand = new THREE.Mesh(createCapsuleGeometry(0.028, 0.16, 8, 12), hairMat);
+                    strand.position.set(side * 0.12, -0.06, 0.03);
+                    strand.rotation.z = side * 0.12;
+                    headGroup.add(strand);
+                }
+
+            } else if (hairStyle === 'crown') {
+                // Tiara real con gemas
+                const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.15, metalness: 0.90 });
+                const gemMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.10, metalness: 0.70 });
+
+                const tiaraRing = new THREE.Mesh(new THREE.TorusGeometry(0.150, 0.010, 8, 28, Math.PI), goldMat);
+                tiaraRing.rotation.y = Math.PI / 2;
+                tiaraRing.rotation.x = -0.15;
+                tiaraRing.position.set(0, 0.08, 0.01);
+                headGroup.add(tiaraRing);
+
+                for (let i = -2; i <= 2; i++) {
+                    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.018, 0), i === 0 ? gemMat : goldMat);
+                    const ang = (Math.PI / 2) + (i * 0.26);
+                    gem.position.set(Math.cos(ang) * 0.154, 0.10 + (2 - Math.abs(i)) * 0.016, Math.sin(ang) * 0.154);
+                    headGroup.add(gem);
+                }
+
+                // Pelo que acompaña la tiara
+                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.50);
+                const capMesh = new THREE.Mesh(capGeo, hairMat);
+                capMesh.position.set(0, 0.02, -0.01);
+                headGroup.add(capMesh);
+
+            } else if (hairStyle === 'hat') {
+                // Sombrero de copa estilizado femenino
+                const hatMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.40, metalness: 0.12 });
+                const ribbonMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.25, metalness: 0.20 });
+
+                const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.016, 32), hatMat);
+                brim.position.set(0, 0.12, 0);
+                headGroup.add(brim);
+
+                const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.146, 0.146, 0.030, 28), ribbonMat);
+                ribbon.position.set(0, 0.146, 0);
+                headGroup.add(ribbon);
+
+                const topHat = new THREE.Mesh(new THREE.CylinderGeometry(0.140, 0.145, 0.16, 28), hatMat);
+                topHat.position.set(0, 0.23, 0);
+                headGroup.add(topHat);
+
+                // Mechones que salen del sombrero
+                for (let side = -1; side <= 1; side += 2) {
+                    const strand = new THREE.Mesh(createCapsuleGeometry(0.028, 0.18, 8, 12), hairMat);
+                    strand.position.set(side * 0.12, -0.05, 0.02);
+                    strand.rotation.z = side * 0.10;
+                    headGroup.add(strand);
+                }
             }
-        } else if (hairStyle === 'cap') {
-            const capMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.38, metalness: 0.1 });
-            const capDome = new THREE.Mesh(new THREE.SphereGeometry(0.146, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.56), capMat);
-            capDome.position.set(0, 0.02, 0);
+        } else {
+            // ── PEINADOS MASCULINOS ──
+            if (hairStyle === 'classic' || hairStyle === 'hat') {
+                // Sombrero de copa elegante idéntico a la imagen de referencia ("DESPUÉS / MEJORADO")
+                // Pelo sutil en las patillas y nuca visible bajo el sombrero
+                const sideburnL = new THREE.Mesh(createCapsuleGeometry(0.022, 0.06, 6, 10), hairMat);
+                sideburnL.position.set(-0.146, 0.04, 0.04);
+                headGroup.add(sideburnL);
 
-            const visor = new THREE.Mesh(createCapsuleGeometry(0.06, 0.14, 8, 12), capMat);
-            visor.scale.set(1.4, 0.2, 1.0);
-            visor.position.set(0, 0.03, 0.18);
-            visor.rotation.x = 0.18;
+                const sideburnR = new THREE.Mesh(createCapsuleGeometry(0.022, 0.06, 6, 10), hairMat);
+                sideburnR.position.set(0.146, 0.04, 0.04);
+                headGroup.add(sideburnR);
 
-            const capButton = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 10), capMat);
-            capButton.position.set(0, 0.165, 0);
+                // Peinado frontal que asoma bajo el sombrero
+                const bangLeft = new THREE.Mesh(createCapsuleGeometry(0.026, 0.06, 8, 12), hairMat);
+                bangLeft.rotation.z = -0.35;
+                bangLeft.position.set(-0.06, 0.10, 0.13);
+                headGroup.add(bangLeft);
 
-            headGroup.add(capDome);
-            headGroup.add(visor);
-            headGroup.add(capButton);
-        } else if (hairStyle === 'crown') {
-            const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.20, metalness: 0.85 });
-            const crownCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.10, 0.10, 16, 1, true), goldMat);
-            crownCyl.position.set(0, 0.15, 0);
+                const bangRight = new THREE.Mesh(createCapsuleGeometry(0.026, 0.06, 8, 12), hairMat);
+                bangRight.rotation.z = 0.35;
+                bangRight.position.set(0.06, 0.10, 0.13);
+                headGroup.add(bangRight);
 
-            for (let a = 0; a < 8; a++) {
-                const ang = (a * Math.PI * 2) / 8;
-                const pt = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.06, 6), goldMat);
-                pt.position.set(Math.sin(ang) * 0.11, 0.21, Math.cos(ang) * 0.11);
-                headGroup.add(pt);
+                // Sombrero de copa como en la imagen de referencia
+                const hatMat = new THREE.MeshStandardMaterial({
+                    color: 0x1e293b,
+                    roughness: 0.45,
+                    metalness: 0.10
+                });
+                const ribbonMat = new THREE.MeshStandardMaterial({
+                    color: 0xf97316, // Cinta naranja brillante exactamente como la foto
+                    roughness: 0.30,
+                    metalness: 0.15
+                });
+
+                // Ala ancha curvada del sombrero
+                const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.250, 0.020, 36), hatMat);
+                brim.position.set(0, 0.125, 0);
+                headGroup.add(brim);
+
+                // Cinta naranja vibrante
+                const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.152, 0.152, 0.034, 32), ribbonMat);
+                ribbon.position.set(0, 0.152, 0);
+                headGroup.add(ribbon);
+
+                // Copa alta redondeada
+                const topHat = new THREE.Mesh(new THREE.CylinderGeometry(0.146, 0.150, 0.165, 32), hatMat);
+                topHat.position.set(0, 0.240, 0);
+                headGroup.add(topHat);
+
+                // Tapa superior del sombrero con borde suave
+                const hatTopCap = new THREE.Mesh(new THREE.CylinderGeometry(0.144, 0.144, 0.012, 32), hatMat);
+                hatTopCap.position.set(0, 0.322, 0);
+                headGroup.add(hatTopCap);
+            } else if (hairStyle === 'spiky') {
+                // Pelo corto moderno con tupé / pinchos estilizados
+                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.54);
+                const capMesh = new THREE.Mesh(capGeo, hairMat);
+                capMesh.position.set(0, 0.02, -0.01);
+                headGroup.add(capMesh);
+
+                for (let i = -4; i <= 4; i++) {
+                    const spikeHeight = 0.08 + (4 - Math.abs(i)) * 0.014;
+                    const spike = new THREE.Mesh(createCapsuleGeometry(0.022, spikeHeight, 8, 12), hairMat);
+                    spike.position.set(
+                        i * 0.030,
+                        0.16 + (4 - Math.abs(i)) * 0.010,
+                        (3 - Math.abs(i)) * 0.014 + 0.015
+                    );
+                    spike.rotation.z = -i * 0.10;
+                    spike.rotation.x = -0.18;
+                    headGroup.add(spike);
+                }
+
+            } else if (hairStyle === 'cap') {
+                // Gorra moderna con visera
+                const capMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.40, metalness: 0.08 });
+                const capDome = new THREE.Mesh(new THREE.SphereGeometry(0.164, 26, 22, 0, Math.PI * 2, 0, Math.PI * 0.54), capMat);
+                capDome.position.set(0, 0.018, 0);
+                headGroup.add(capDome);
+
+                const visorGeo = createCapsuleGeometry(0.07, 0.16, 10, 16);
+                const visor = new THREE.Mesh(visorGeo, capMat);
+                visor.scale.set(1.5, 0.18, 1.0);
+                visor.position.set(0, 0.025, 0.20);
+                visor.rotation.x = 0.20;
+                headGroup.add(visor);
+
+                const capButton = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), capMat);
+                capButton.position.set(0, 0.185, 0);
+                headGroup.add(capButton);
+
+            } else if (hairStyle === 'crown') {
+                // Corona real dorada
+                const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.15, metalness: 0.90 });
+                const gemMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.10, metalness: 0.70 });
+
+                const crownBase = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.125, 0.06, 24, 1, true), goldMat);
+                crownBase.position.set(0, 0.14, 0);
+                headGroup.add(crownBase);
+
+                for (let a = 0; a < 8; a++) {
+                    const ang = (a * Math.PI * 2) / 8;
+                    const pt = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.07, 8), goldMat);
+                    pt.position.set(Math.sin(ang) * 0.135, 0.20, Math.cos(ang) * 0.135);
+                    headGroup.add(pt);
+
+                    if (a % 2 === 0) {
+                        const gem = new THREE.Mesh(new THREE.SphereGeometry(0.010, 8, 8), gemMat);
+                        gem.position.set(Math.sin(ang) * 0.135, 0.16, Math.cos(ang) * 0.135);
+                        headGroup.add(gem);
+                    }
+                }
             }
-            headGroup.add(crownCyl);
-        } else if (hairStyle === 'hat') {
-            const hatMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.1 });
-            const ribbonMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.2 });
-
-            const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.02, 24), hatMat);
-            brim.position.set(0, 0.11, 0);
-
-            const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.138, 0.138, 0.03, 24), ribbonMat);
-            ribbon.position.set(0, 0.135, 0);
-
-            const topHat = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.15, 24), hatMat);
-            topHat.position.set(0, 0.21, 0);
-
-            headGroup.add(brim);
-            headGroup.add(ribbon);
-            headGroup.add(topHat);
         }
 
         torsoGroup.add(headGroup);
@@ -2084,6 +2538,7 @@ document.addEventListener('DOMContentLoaded', () => {
         applyShadows(avatarGroup);
         return avatarGroup;
     }
+
 
     // 2. MASCOTA PERRO
     function createDogAvatarModel(config = {}) {
@@ -4781,6 +5236,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Attach Swatch & Form Listeners
         const currentConfig = Object.assign({
             avatar_type: 'human',
+            human_gender: 'male',
+            gender: 'male',
             pet_species: 'dog',
             glb_id: '',
             glb_url: '',
@@ -5049,6 +5506,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (modelType === 'classic-human') {
                     currentConfig.avatar_type = 'human';
                     currentConfig.category    = 'human';
+                    if (card.dataset.gender) {
+                        currentConfig.human_gender = card.dataset.gender;
+                        currentConfig.gender = card.dataset.gender;
+                    }
                     currentConfig.glb_id      = '';
                     currentConfig.glb_url     = '';
                     currentConfig.anim_idle   = '';
@@ -5153,6 +5614,29 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        const btnGenderMale = document.getElementById('bp-btn-gender-male');
+        const btnGenderFemale = document.getElementById('bp-btn-gender-female');
+        if (btnGenderMale && btnGenderFemale) {
+            btnGenderMale.addEventListener('click', () => {
+                currentConfig.human_gender = 'male';
+                currentConfig.gender = 'male';
+                btnGenderMale.classList.remove('bp-arcade-btn-green');
+                btnGenderMale.classList.add('bp-arcade-btn-yellow');
+                btnGenderFemale.classList.remove('bp-arcade-btn-yellow');
+                btnGenderFemale.classList.add('bp-arcade-btn-green');
+                rebuildPreviewMesh(currentConfig);
+            });
+            btnGenderFemale.addEventListener('click', () => {
+                currentConfig.human_gender = 'female';
+                currentConfig.gender = 'female';
+                btnGenderFemale.classList.remove('bp-arcade-btn-green');
+                btnGenderFemale.classList.add('bp-arcade-btn-yellow');
+                btnGenderMale.classList.remove('bp-arcade-btn-yellow');
+                btnGenderMale.classList.add('bp-arcade-btn-green');
+                rebuildPreviewMesh(currentConfig);
+            });
+        }
+
         // Eventos para selección y previsualización en vivo de los 3 estilos de caminata
         document.querySelectorAll('.bp-walk-style-btn').forEach(wsBtn => {
             wsBtn.addEventListener('click', () => {
@@ -5190,6 +5674,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('action', 'bp_ajax_save_avatar');
                 formData.append('avatar_type', currentConfig.avatar_type || 'human');
                 formData.append('category', currentConfig.category || 'human');
+                formData.append('human_gender', currentConfig.human_gender || 'male');
+                formData.append('gender', currentConfig.human_gender || 'male');
                 formData.append('pet_species', currentConfig.pet_species || 'dog');
                 formData.append('glb_id', currentConfig.glb_id || '');
                 formData.append('glb_url', currentConfig.glb_url || '');
@@ -5288,6 +5774,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const avatar = Object.assign({
             avatar_type: 'human',
+            human_gender: 'male',
+            gender: 'male',
             pet_species: 'dog',
             glb_id: '',
             glb_url: '',
@@ -5330,6 +5818,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const isCatSelected = isPet && avatar.pet_species === 'cat';
         const isRabbitSelected = isPet && avatar.pet_species === 'rabbit';
         const isClassicHumanSelected = !isPet && !isGlbSelected;
+        const currentGender = avatar.human_gender || avatar.gender || 'male';
+        const isMaleSelected = isClassicHumanSelected && (currentGender === 'male');
+        const isFemaleSelected = isClassicHumanSelected && (currentGender === 'female');
         const isClassicPetSelected = isPet;
 
         arcadeContent.innerHTML = `
@@ -5342,11 +5833,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div>
                         <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">SELECCIONA TU AVATAR 3D:</label>
                         <div class="bp-glb-grid" style="margin-bottom:20px; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));">
-                            <!-- Classic Procedural Human Card -->
-                            <div class="bp-glb-card bp-model-card ${isClassicHumanSelected ? 'active' : ''}" data-model-type="classic-human">
-                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍</div>
-                                <div class="bp-glb-title">Tutor Humano</div>
-                                ${isClassicHumanSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                            <!-- Classic Procedural Human Male Card -->
+                            <div class="bp-glb-card bp-model-card ${isMaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="male">
+                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍‍♂️</div>
+                                <div class="bp-glb-title">Tutor Hombre</div>
+                                ${isMaleSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                            </div>
+                            <!-- Classic Procedural Human Female Card -->
+                            <div class="bp-glb-card bp-model-card ${isFemaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="female">
+                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍‍♀️</div>
+                                <div class="bp-glb-title">Tutora Mujer</div>
+                                ${isFemaleSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
                             </div>
                             <!-- Classic Dog Card -->
                             <div class="bp-glb-card bp-model-card ${isDogSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="dog">
@@ -5392,6 +5889,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         <!-- HUMAN CUSTOMIZATION (TUTOR CLÁSICO O TUTOR GLB) -->
                         <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
+                            <!-- GENDER TOGGLE -->
+                            <div id="bp-block-gender" style="margin-bottom:16px;">
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">GÉNERO DEL TUTOR HUMANO</label>
+                                <div style="display:flex; gap:10px;">
+                                    <button type="button" id="bp-btn-gender-male" class="bp-arcade-btn ${currentGender === 'male' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👨 Tutor Hombre</button>
+                                    <button type="button" id="bp-btn-gender-female" class="bp-arcade-btn ${currentGender === 'female' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👩 Tutora Mujer</button>
+                                </div>
+                            </div>
                             <!-- SKIN COLOR -->
                             <div id="bp-block-skin" style="margin-bottom:16px;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL / CUERPO</label>
@@ -5426,11 +5931,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div id="bp-block-hair-style" style="margin-bottom:16px;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
                                 <select id="bp-select-hair-style" class="bp-arcade-input">
-                                    <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>💇 Clásico del Bosque</option>
-                                    <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky 90s</option>
-                                    <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra Rápida</option>
-                                    <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona Real</option>
-                                    <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero Elegante</option>
+                                    <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>🎩 Sombrero de Copa Elegante (Foto Pro)</option>
+                                    <option value="long" ${avatar.hair_style === 'long' ? 'selected' : ''}>💇 Melena con Flequillo (Mujer)</option>
+                                    <option value="ponytail" ${avatar.hair_style === 'ponytail' ? 'selected' : ''}>🎀 Coleta Alta Chic (Mujer)</option>
+                                    <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky Moderno</option>
+                                    <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra / Boina Chic</option>
+                                    <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona / Tiara Real</option>
+                                    <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero de Copa</option>
                                 </select>
                             </div>
 
@@ -5474,7 +5981,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <select id="bp-select-accessory" class="bp-arcade-input">
                                 <option value="none" ${avatar.accessory === 'none' ? 'selected' : ''}>🚫 Ninguno</option>
                                 <option value="lantern" ${avatar.accessory === 'lantern' ? 'selected' : ''}>🏮 Linterna Brillante</option>
-                                <option value="flower" ${avatar.accessory === 'flower' ? 'selected' : ''}>🌸 Flor del Bosque</option>
+                                <option value="flower" ${avatar.accessory === 'flower' || avatar.accessory === 'flower_pot' ? 'selected' : ''}>🌸 Flor en Maceta (Foto Pro)</option>
                                 <option value="wand" ${avatar.accessory === 'wand' ? 'selected' : ''}>🪄 Varita Mágica de Estrellas</option>
                             </select>
                         </div>

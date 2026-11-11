@@ -153,6 +153,7 @@ class BP_Profile {
         $skin        = isset($_POST['skin']) ? sanitize_text_field($_POST['skin']) : '#ffe0bd';
         $shirt       = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
         $pants       = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
+        $human_gender = isset($_POST['human_gender']) ? sanitize_text_field($_POST['human_gender']) : (isset($_POST['gender']) ? sanitize_text_field($_POST['gender']) : 'male');
         $hair_style  = isset($_POST['hair_style']) ? sanitize_text_field($_POST['hair_style']) : 'classic';
         $hair_color  = isset($_POST['hair_color']) ? sanitize_text_field($_POST['hair_color']) : '#3b2314';
         $accessory   = isset($_POST['accessory']) ? sanitize_text_field($_POST['accessory']) : 'none';
@@ -181,6 +182,8 @@ class BP_Profile {
             'skin'         => $skin,
             'shirt'        => $shirt,
             'pants'        => $pants,
+            'human_gender' => $human_gender,
+            'gender'       => $human_gender,
             'hair_style'   => $hair_style,
             'hair_color'   => $hair_color,
             'accessory'    => $accessory,
@@ -213,6 +216,8 @@ class BP_Profile {
             'skin'         => '#ffe0bd',
             'shirt'        => '#10b981',
             'pants'        => '#1e3a8a',
+            'human_gender' => 'male',
+            'gender'       => 'male',
             'hair_style'   => 'classic',
             'hair_color'   => '#3b2314',
             'accessory'    => 'none',

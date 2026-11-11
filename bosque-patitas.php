@@ -102,6 +102,8 @@ class BosquePatitas {
             'skin'            => '#ffe0bd',
             'shirt'           => '#10b981',
             'pants'           => '#1e3a8a',
+            'human_gender'    => 'male',
+            'gender'          => 'male',
             'hair_style'      => 'classic',
             'hair_color'      => '#3b2314',
             'accessory'       => 'none',
