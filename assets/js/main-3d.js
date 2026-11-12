@@ -1003,8 +1003,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!clip || !model) return clip;
         const cloned = clip.clone();
         const boneNames = new Set();
+        // Índice por nombre de hueso normalizado (sin prefijo "mixamorig"/"mixamorig2"/"mixamorigN...")
+        // para poder re-dirigir animaciones cuyo esqueleto fue re-exportado con un prefijo distinto
+        // al del modelo (p.ej. clips "mixamorigHips" sobre un modelo con huesos "mixamorig2Hips").
+        const boneByNormalized = new Map();
         model.traverse(child => {
-            if (child.name) boneNames.add(child.name);
+            if (!child.name) return;
+            boneNames.add(child.name);
+            const norm = child.name.toLowerCase().replace(/^mixamorig\d*/, '');
+            if (norm && !boneByNormalized.has(norm)) {
+                boneByNormalized.set(norm, child.name);
+            }
         });
 
         // Detectar si el clip es una animación de desplazamiento/caminata para anular root motion
@@ -1023,12 +1032,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (boneNames.has(stripped)) {
                     mappedNode = stripped;
                 } else {
+                    let found = null;
                     for (let bName of boneNames) {
                         if (bName.toLowerCase() === stripped.toLowerCase() || bName.toLowerCase() === rawNode.toLowerCase()) {
-                            mappedNode = bName;
+                            found = bName;
                             break;
                         }
                     }
+                    if (!found) {
+                        const normRaw = stripped.toLowerCase().replace(/^mixamorig\d*/, '');
+                        if (normRaw && boneByNormalized.has(normRaw)) {
+                            found = boneByNormalized.get(normRaw);
+                        }
+                    }
+                    if (found) mappedNode = found;
                 }
             }
             track.name = mappedNode + prop;
@@ -1199,6 +1216,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Modelo GLB fijo de la Tutora Mujer (sustituye al avatar femenino procedural)
     const FEMALE_HUMAN_GLB_URL = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+    // Animaciones dedicadas de la Tutora Mujer (reposo + dos estilos de caminata)
+    const FEMALE_ANIM_IDLE_URL = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Reposo.fbx';
+    const FEMALE_WALK_STYLE_URLS = {
+        walk_1: 'https://bosquepatitas.com/wp-content/uploads/2026/11/Caminar_normal.fbx',
+        walk_2: 'https://bosquepatitas.com/wp-content/uploads/2026/11/Caminar_flow.fbx'
+    };
 
     function create3DAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
@@ -1212,7 +1235,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 avatar_type: 'glb',
                 category: 'human',
                 glb_id: config.glb_id || 'builtin_female_glb',
-                glb_url: FEMALE_HUMAN_GLB_URL
+                glb_url: FEMALE_HUMAN_GLB_URL,
+                anim_idle: config.anim_idle || FEMALE_ANIM_IDLE_URL
             }), onLoadCallback);
         }
 
@@ -1506,6 +1530,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (globalAnims && Array.isArray(globalAnims.walk_styles)) {
                 const foundWs = globalAnims.walk_styles.find(w => w.id === selectedWalkStyle);
                 if (foundWs && foundWs.url) walkStyleUrl = foundWs.url;
+            }
+            // Si no hay un estilo de caminata configurado desde el admin (back end sin datos
+            // todavía), usar las animaciones de caminar propias de la Tutora Mujer como respaldo,
+            // para que el selector "ESTILOS DE CAMINATA" del configurador también funcione con ella.
+            if (!walkStyleUrl && glbUrl === FEMALE_HUMAN_GLB_URL) {
+                walkStyleUrl = FEMALE_WALK_STYLE_URLS[selectedWalkStyle] || FEMALE_WALK_STYLE_URLS.walk_1;
             }
 
             let animIdleRef      = config.anim_idle || glbMeta.anim_idle || (globalAnims ? globalAnims.anim_idle : '') || '';
