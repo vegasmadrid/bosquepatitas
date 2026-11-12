@@ -1197,12 +1197,26 @@ document.addEventListener('DOMContentLoaded', () => {
         return clonedScene;
     }
 
+    // Modelo GLB fijo de la Tutora Mujer (sustituye al avatar femenino procedural)
+    const FEMALE_HUMAN_GLB_URL = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+
     function create3DAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
-        // GLB handling removed – only native human and pet avatars are supported now.
+        // GLB handling removed – only native human and pet avatars are supported now,
+        // salvo la tutora mujer, que usa el modelo GLB dedicado de abajo.
         // if (avatarType === 'glb' || (config.glb_url && config.glb_url !== '')) {
         //     return createGLBAvatarModel(config, onLoadCallback);
         // }
+
+        const genderVal = config.human_gender || config.gender || 'male';
+        if (avatarType !== 'pet' && genderVal === 'female') {
+            return createGLBAvatarModel(Object.assign({}, config, {
+                avatar_type: 'glb',
+                category: 'human',
+                glb_id: config.glb_id || 'builtin_female_glb',
+                glb_url: FEMALE_HUMAN_GLB_URL
+            }), onLoadCallback);
+        }
 
         let mesh;
         if (avatarType === 'pet') {
