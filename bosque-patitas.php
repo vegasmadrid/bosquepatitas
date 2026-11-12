@@ -169,9 +169,10 @@ class BosquePatitas {
                 $avatar_config['glb_url']  = $matched_backend_model['file_url'];
                 if (isset($matched_backend_model['scale'])) $avatar_config['scale'] = $matched_backend_model['scale'];
                 if (isset($matched_backend_model['offset_y'])) $avatar_config['offset_y'] = $matched_backend_model['offset_y'];
-            } elseif (!empty($avatar_config['glb_url']) && strpos($avatar_config['glb_url'], 'Ch22_female_avatar.glb') !== false) {
-                // Fallback de seguridad para rutas antiguas hacia la biblioteca de medios
-                $avatar_config['glb_url'] = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+            } elseif (!empty($avatar_config['glb_url']) && preg_match('/ch22_female_avatar\.glb|mujer\.glb/i', $avatar_config['glb_url'])) {
+                // Fallback de seguridad para rutas antiguas (nombre de archivo anterior o
+                // biblioteca de medios): usar siempre el modelo fijo del propio plugin.
+                $avatar_config['glb_url'] = BP_PLUGIN_URL . 'assets/models/Mujer.glb';
             }
         }
 
@@ -185,6 +186,7 @@ class BosquePatitas {
 
         // Pasar variables de WP a JavaScript
         wp_localize_script('bp-main-3d', 'BP_Settings', array(
+            'pluginUrl'        => esc_url_raw(BP_PLUGIN_URL),
             'apiUrl'           => esc_url_raw(rest_url('wp/v2/tumbas')),
             'ajaxUrl'          => admin_url('admin-ajax.php'),
             'restRoot'         => esc_url_raw(rest_url()),

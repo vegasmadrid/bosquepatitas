@@ -1214,13 +1214,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return clonedScene;
     }
 
+    // Modelos y animaciones 3D fijos, empaquetados con el propio plugin en assets/models/
+    // (no dependen de la biblioteca de medios de WordPress ni del catálogo configurable
+    // desde el backend: solo tenemos un par de avatares fijos).
+    const BP_MODELS_BASE_URL = ((typeof settings !== 'undefined' && settings.pluginUrl) ? settings.pluginUrl : '/wp-content/plugins/bosque-patitas/').replace(/\/+$/, '') + '/assets/models/';
+
     // Modelo GLB fijo de la Tutora Mujer (sustituye al avatar femenino procedural)
-    const FEMALE_HUMAN_GLB_URL = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+    const FEMALE_HUMAN_GLB_URL = BP_MODELS_BASE_URL + 'Mujer.glb';
     // Animaciones dedicadas de la Tutora Mujer (reposo + dos estilos de caminata)
-    const FEMALE_ANIM_IDLE_URL = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Reposo.fbx';
+    const FEMALE_ANIM_IDLE_URL = BP_MODELS_BASE_URL + 'Reposo.fbx';
     const FEMALE_WALK_STYLE_URLS = {
-        walk_1: 'https://bosquepatitas.com/wp-content/uploads/2026/11/Caminar_normal.fbx',
-        walk_2: 'https://bosquepatitas.com/wp-content/uploads/2026/11/Caminar_flow.fbx'
+        walk_1: BP_MODELS_BASE_URL + 'Caminar_normal.fbx',
+        walk_2: BP_MODELS_BASE_URL + 'Caminar_flow.fbx'
     };
 
     function create3DAvatarModel(config = {}, onLoadCallback = null) {
@@ -1420,9 +1425,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let glbUrl = (matchedMeta && matchedMeta.file_url) ? matchedMeta.file_url : (config.glb_url || '');
 
-        // Redirección de seguridad si apunta a la ruta antigua local de Ch22_female_avatar.glb
-        if (glbUrl && glbUrl.indexOf('Ch22_female_avatar.glb') !== -1 && glbUrl.indexOf('/wp-content/uploads/') === -1) {
-            glbUrl = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+        // Redirección de seguridad si apunta a una ruta antigua/obsoleta del modelo de la
+        // Tutora Mujer (nombre de archivo anterior o subida vía biblioteca de medios de
+        // WordPress): usar siempre el modelo fijo empaquetado en assets/models/.
+        if (glbUrl && glbUrl !== FEMALE_HUMAN_GLB_URL && /ch22_female_avatar\.glb|mujer\.glb/i.test(glbUrl)) {
+            glbUrl = FEMALE_HUMAN_GLB_URL;
         }
 
         if (!glbUrl) {
@@ -5627,8 +5634,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const foundBackendItem = glbList.find(g => String(g.id) === String(card.dataset.id));
 
                     let freshUrl = (foundBackendItem && foundBackendItem.file_url) ? foundBackendItem.file_url : card.dataset.url;
-                    if (freshUrl && freshUrl.indexOf('Ch22_female_avatar.glb') !== -1 && freshUrl.indexOf('/wp-content/uploads/') === -1) {
-                        freshUrl = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+                    if (freshUrl && freshUrl !== FEMALE_HUMAN_GLB_URL && /ch22_female_avatar\.glb|mujer\.glb/i.test(freshUrl)) {
+                        freshUrl = FEMALE_HUMAN_GLB_URL;
                     }
 
                     currentConfig.glb_url     = freshUrl;
@@ -5878,8 +5885,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 avatar.glb_url = matchedCurrent.file_url;
                 if (matchedCurrent.scale) avatar.scale = matchedCurrent.scale;
                 if (matchedCurrent.offset_y) avatar.offset_y = matchedCurrent.offset_y;
-            } else if (avatar.glb_url && avatar.glb_url.indexOf('Ch22_female_avatar.glb') !== -1 && avatar.glb_url.indexOf('/wp-content/uploads/') === -1) {
-                avatar.glb_url = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+            } else if (avatar.glb_url && avatar.glb_url !== FEMALE_HUMAN_GLB_URL && /ch22_female_avatar\.glb|mujer\.glb/i.test(avatar.glb_url)) {
+                avatar.glb_url = FEMALE_HUMAN_GLB_URL;
             }
         }
 
