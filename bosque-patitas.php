@@ -111,7 +111,6 @@ class BosquePatitas {
             'gender'          => 'male',
             'hair_style'      => 'classic',
             'hair_color'      => '#3b2314',
-            'accessory'       => 'none',
             'incognito'       => 0
         );
 

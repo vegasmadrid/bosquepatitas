@@ -67,9 +67,8 @@ class BP_Admin_GLB {
         $defaults = array(
             'anim_idle'        => '',
             'walk_styles'      => array(
-                array('id' => 'walk_1', 'name' => 'Paso Normal', 'url' => ''),
-                array('id' => 'walk_2', 'name' => 'Paso Alegre', 'url' => ''),
-                array('id' => 'walk_3', 'name' => 'Paseo Relajado', 'url' => '')
+                array('id' => 'walk_1', 'name' => 'Normal', 'url' => ''),
+                array('id' => 'walk_2', 'name' => 'Con Flow', 'url' => '')
             ),
             'anim_kneel_down'  => '',
             'anim_kneel_idle'  => '',
@@ -81,8 +80,10 @@ class BP_Admin_GLB {
         }
 
         $merged = array_merge($defaults, $saved);
-        if (!isset($merged['walk_styles']) || !is_array($merged['walk_styles']) || count($merged['walk_styles']) < 3) {
+        if (!isset($merged['walk_styles']) || !is_array($merged['walk_styles']) || count($merged['walk_styles']) < 2) {
             $merged['walk_styles'] = $defaults['walk_styles'];
+        } elseif (count($merged['walk_styles']) > 2) {
+            $merged['walk_styles'] = array_slice($merged['walk_styles'], 0, 2);
         }
         return $merged;
     }
@@ -99,13 +100,15 @@ class BP_Admin_GLB {
         $anim_kneel_idle = isset($_POST['global_anim_kneel_idle']) ? esc_url_raw($_POST['global_anim_kneel_idle']) : '';
         $anim_dance      = isset($_POST['global_anim_dance']) ? esc_url_raw($_POST['global_anim_dance']) : '';
 
+        $walk_style_default_names = array(1 => 'Normal', 2 => 'Con Flow');
         $walk_styles = array();
-        for ($i = 1; $i <= 3; $i++) {
-            $w_name = isset($_POST["global_walk_{$i}_name"]) ? sanitize_text_field($_POST["global_walk_{$i}_name"]) : "Estilo {$i}";
+        for ($i = 1; $i <= 2; $i++) {
+            $default_name = $walk_style_default_names[$i];
+            $w_name = isset($_POST["global_walk_{$i}_name"]) ? sanitize_text_field($_POST["global_walk_{$i}_name"]) : $default_name;
             $w_url  = isset($_POST["global_walk_{$i}_url"]) ? esc_url_raw($_POST["global_walk_{$i}_url"]) : '';
             $walk_styles[] = array(
                 'id'   => "walk_{$i}",
-                'name' => $w_name ?: "Estilo {$i}",
+                'name' => $w_name ?: $default_name,
                 'url'  => $w_url
             );
         }
@@ -322,22 +325,25 @@ class BP_Admin_GLB {
 
                     </div>
 
-                    <!-- 3 ESTILOS DE CAMINATA -->
+                    <!-- 2 ESTILOS DE CAMINATA (Normal / Con Flow) -->
                     <div style="background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:14px; margin-top:16px;">
                         <h3 style="margin:0 0 10px 0; font-size:14px; color:#1e293b;">
-                            🚶‍♂️ Los 3 Estilos de Caminata (Disponibles para elegir en el personalizador del avatar)
+                            🚶‍♂️ Los 2 Estilos de Caminata (Disponibles para elegir en el personalizador del avatar)
                         </h3>
                         <p style="margin:0 0 12px 0; font-size:12px; color:#64748b;">
-                            Define el nombre y sube el archivo FBX de cada uno de los 3 estilos para que el usuario pueda alternar entre ellos en vivo.
+                            Define el nombre y sube el archivo FBX de cada uno de los 2 estilos para que el usuario pueda alternar entre ellos en vivo. Si se dejan vacíos, la Tutora Mujer usa por defecto sus propias animaciones "Normal" y "Con Flow" incluidas en el plugin.
                         </p>
 
                         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
-                            <?php for ($w = 1; $w <= 3; $w++):
-                                $style_data = $global_anims['walk_styles'][$w - 1] ?? array('name' => "Estilo {$w}", 'url' => '');
+                            <?php
+                            $walk_style_default_names = array(1 => 'Normal', 2 => 'Con Flow');
+                            for ($w = 1; $w <= 2; $w++):
+                                $default_name = $walk_style_default_names[$w];
+                                $style_data = $global_anims['walk_styles'][$w - 1] ?? array('name' => $default_name, 'url' => '');
                             ?>
                                 <div style="background:#f1f5f9; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
                                     <label><strong>Estilo <?php echo $w; ?> - Nombre Visible:</strong></label>
-                                    <input type="text" name="global_walk_<?php echo $w; ?>_name" value="<?php echo esc_attr($style_data['name'] ?? "Estilo {$w}"); ?>" class="widefat" style="margin-top:4px; margin-bottom:8px;" placeholder="Ej: Paso Alegre, Paseo Relajado...">
+                                    <input type="text" name="global_walk_<?php echo $w; ?>_name" value="<?php echo esc_attr($style_data['name'] ?? $default_name); ?>" class="widefat" style="margin-top:4px; margin-bottom:8px;" placeholder="Ej: Normal, Con Flow...">
 
                                     <label><strong>Archivo Animación FBX:</strong></label>
                                     <div style="display:flex; gap:6px; margin-top:4px;">

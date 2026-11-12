@@ -704,8 +704,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings.pusherKey) return;
 
         const simulatedData = [
-            { id: 'sim_elena', name: 'Elena', human_gender: 'female', skin: '#f5c29b', shirt: '#ec4899', pants: '#2563eb', hair_style: 'long', hair_color: '#f59e0b', accessory: 'flower', x: -6, z: 8 },
-            { id: 'sim_marcos', name: 'Marcos', human_gender: 'male', skin: '#ffe0bd', shirt: '#ffffff', pants: '#2563eb', hair_style: 'classic', hair_color: '#1e293b', accessory: 'flower', x: 8, z: -10 }
+            { id: 'sim_elena', name: 'Elena', human_gender: 'female', skin: '#f5c29b', shirt: '#ec4899', pants: '#2563eb', hair_style: 'long', hair_color: '#f59e0b', x: -6, z: 8 },
+            { id: 'sim_marcos', name: 'Marcos', human_gender: 'male', skin: '#ffe0bd', shirt: '#ffffff', pants: '#2563eb', hair_style: 'classic', hair_color: '#1e293b', x: 8, z: -10 }
         ];
 
         simulatedData.forEach(sim => {
@@ -1056,10 +1056,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const isRootOrHips = /hip|root|pelvis/i.test(mappedNode);
             if (isRootOrHips && prop === '.position' && track.values && track.values.length >= 3) {
                 const firstX = track.values[0];
+                const firstY = track.values[1];
                 const firstZ = track.values[2];
+
+                // Reanclar la altura (Y) de la cadera a la pose de reposo real de ESTE modelo.
+                // El clip viene de un esqueleto Mixamo estándar con sus propias proporciones; su
+                // altura de cadera absoluta no coincide necesariamente con la de este rig en
+                // concreto (huesos "mixamorigN"), lo que sin corregir hunde o levanta los pies
+                // respecto al suelo. Conservamos el movimiento relativo (respiración, balanceo al
+                // andar) pero desplazamos todo el canal Y para que arranque en la altura de cadera
+                // real del modelo en su pose de reposo (bind pose, antes de animar).
+                let yOffset = 0;
+                const boneObj = (model && typeof model.getObjectByName === 'function') ? model.getObjectByName(mappedNode) : null;
+                if (boneObj) {
+                    yOffset = boneObj.position.y - firstY;
+                }
+
                 for (let i = 0; i < track.values.length; i += 3) {
-                    track.values[i] = firstX;     // Bloquear desplazamiento en X
-                    track.values[i + 2] = firstZ; // Bloquear desplazamiento en Z
+                    track.values[i] = firstX;           // Bloquear desplazamiento en X
+                    track.values[i + 1] += yOffset;     // Reanclar altura Y a la pose de reposo del modelo
+                    track.values[i + 2] = firstZ;        // Bloquear desplazamiento en Z
                 }
             }
         });
@@ -1753,7 +1769,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const pantsColor = config.pants || '#2563eb';
         const hairStyle = config.hair_style || 'classic';
         const hairColor = config.hair_color || (isFemale ? '#b45309' : '#3b2314');
-        const accessory = config.accessory || 'none';
 
         const avatarGroup = new THREE.Group();
         avatarGroup.name = 'playmobilAvatar';
@@ -2055,119 +2070,6 @@ document.addEventListener('DOMContentLoaded', () => {
         rightArmGroup.position.set(armSpreadX, 0.34, 0);
         rightArmGroup.rotation.z = -0.035;
         rightArmGroup.rotation.x = 0.08;
-
-        // ──────────────────────────────────────────────────────────
-        // ACCESORIOS EN MANO DERECHA
-        // (Flor en maceta colorida idéntica a la imagen de referencia)
-        // ──────────────────────────────────────────────────────────
-        function createCuteFlowerPotProp() {
-            const potGroup = new THREE.Group();
-
-            // Maceta de terracota
-            const potMat = new THREE.MeshStandardMaterial({
-                color: 0xc26d42,
-                roughness: 0.65,
-                metalness: 0.05
-            });
-            const potBody = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.040, 0.09, 18), potMat);
-            potBody.position.y = 0.045;
-            potGroup.add(potBody);
-
-            const potRim = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.058, 0.024, 18), potMat);
-            potRim.position.y = 0.085;
-            potGroup.add(potRim);
-
-            // Tierra oscura fértil
-            const soilMat = new THREE.MeshStandardMaterial({ color: 0x3d271d, roughness: 0.9 });
-            const soilMesh = new THREE.Mesh(new THREE.CircleGeometry(0.054, 16), soilMat);
-            soilMesh.rotation.x = -Math.PI / 2;
-            soilMesh.position.y = 0.092;
-            potGroup.add(soilMesh);
-
-            // Tallo verde brillante
-            const stemMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.5 });
-            const stemMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.12, 10), stemMat);
-            stemMesh.position.set(0, 0.15, 0);
-            potGroup.add(stemMesh);
-
-            // Hojas verdes redondeadas
-            const leafGeo = new THREE.SphereGeometry(0.022, 10, 10);
-            leafGeo.scale(1.8, 0.3, 0.8);
-            const leaf1 = new THREE.Mesh(leafGeo, stemMat);
-            leaf1.position.set(0.030, 0.13, 0);
-            leaf1.rotation.z = 0.35;
-            potGroup.add(leaf1);
-
-            const leaf2 = new THREE.Mesh(leafGeo, stemMat);
-            leaf2.position.set(-0.030, 0.14, 0);
-            leaf2.rotation.z = -0.35;
-            potGroup.add(leaf2);
-
-            // Pétalos coloridos como en la imagen de referencia (rosa, azul, amarillo, morado, naranja)
-            const petalColors = [0xf43f5e, 0x38bdf8, 0xfacc15, 0xa855f7, 0xfb923c];
-            for (let p = 0; p < 5; p++) {
-                const angle = (p * Math.PI * 2) / 5;
-                const petalMat = new THREE.MeshStandardMaterial({
-                    color: petalColors[p],
-                    roughness: 0.40,
-                    metalness: 0.02
-                });
-                const petalMesh = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), petalMat);
-                petalMesh.scale.set(0.85, 1.25, 0.65);
-                petalMesh.position.set(Math.sin(angle) * 0.038, 0.22 + Math.cos(angle) * 0.038, 0.005);
-                potGroup.add(petalMesh);
-            }
-
-            // Centro botón amarillo de la flor
-            const centerMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.35 });
-            const centerMesh = new THREE.Mesh(new THREE.SphereGeometry(0.024, 14, 14), centerMat);
-            centerMesh.scale.set(1.0, 1.0, 0.6);
-            centerMesh.position.set(0, 0.22, 0.012);
-            potGroup.add(centerMesh);
-
-            return potGroup;
-        }
-
-        const rightHandGroup = rightArmGroup.userData.handGroup;
-
-        if (accessory === 'flower' || accessory === 'flower_pot') {
-            const potProp = createCuteFlowerPotProp();
-            potProp.scale.set(0.80, 0.80, 0.80);
-            potProp.position.set(0.012, -0.03, 0.045);
-            potProp.rotation.y = -0.3;
-            rightHandGroup.add(potProp);
-        } else if (accessory === 'lantern') {
-            const lanternMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
-            const glowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-            const lanternBody = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.12, 12), lanternMat);
-            lanternBody.position.set(0, 0.0, 0.05);
-
-            const glowCore = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 10), glowMat);
-            glowCore.position.set(0, 0.0, 0.05);
-
-            const lanternLight = new THREE.PointLight(0xffbb33, 0.9, 3.5);
-            lanternLight.position.set(0, 0.0, 0.05);
-
-            rightHandGroup.add(lanternBody);
-            rightHandGroup.add(glowCore);
-            rightHandGroup.add(lanternLight);
-        } else if (accessory === 'wand') {
-            const wandMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.25, metalness: 0.85 });
-            const wandMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.35, 10), wandMat);
-            wandMesh.position.set(0, 0.02, 0.07);
-            wandMesh.rotation.x = Math.PI / 4;
-
-            const starMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
-            const starMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.042), starMat);
-            starMesh.position.set(0, 0.16, 0.19);
-
-            const starLight = new THREE.PointLight(0x67e8f9, 0.7, 2.5);
-            starLight.position.set(0, 0.16, 0.19);
-
-            rightHandGroup.add(wandMesh);
-            rightHandGroup.add(starMesh);
-            rightHandGroup.add(starLight);
-        }
 
         torsoGroup.add(rightArmGroup);
 
@@ -5338,7 +5240,6 @@ document.addEventListener('DOMContentLoaded', () => {
             pants: '#1e3a8a',
             hair_style: 'classic',
             hair_color: '#3b2314',
-            accessory: 'none',
             incognito: 0
         }, avatarConfig);
 
@@ -5691,13 +5592,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        const selectAcc = document.getElementById('bp-select-accessory');
-        if (selectAcc) {
-            selectAcc.addEventListener('change', () => {
-                currentConfig.accessory = selectAcc.value;
-                rebuildPreviewMesh(currentConfig);
-            });
-        }
 
         const btnGenderMale = document.getElementById('bp-btn-gender-male');
         const btnGenderFemale = document.getElementById('bp-btn-gender-female');
@@ -5775,7 +5669,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('pants', currentConfig.pants);
                 formData.append('hair_style', currentConfig.hair_style);
                 formData.append('hair_color', currentConfig.hair_color);
-                formData.append('accessory', currentConfig.accessory);
                 formData.append('walk_style', currentConfig.walk_style || 'walk_1');
                 formData.append('layer_colors', JSON.stringify(currentConfig.layer_colors || {}));
                 formData.append('incognito', currentConfig.incognito ? 1 : 0);
@@ -5869,7 +5762,6 @@ document.addEventListener('DOMContentLoaded', () => {
             pants: '#1e3a8a',
             hair_style: 'classic',
             hair_color: '#3b2314',
-            accessory: 'none',
             layer_colors: {},
             walk_style: 'walk_1',
             incognito: 0
@@ -5891,10 +5783,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
-        const globalWalkStyles = Array.isArray(globalAnims.walk_styles) ? globalAnims.walk_styles : [
-            { id: 'walk_1', name: 'Paso Normal' },
-            { id: 'walk_2', name: 'Paso Alegre' },
-            { id: 'walk_3', name: 'Paseo Relajado' }
+        const globalWalkStyles = (Array.isArray(globalAnims.walk_styles) && globalAnims.walk_styles.length > 0) ? globalAnims.walk_styles : [
+            { id: 'walk_1', name: 'Normal' },
+            { id: 'walk_2', name: 'Con Flow' }
         ];
 
         const isGlbSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id || avatar.glb_url));
@@ -6012,8 +5903,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             </div>
 
-                            <!-- HAIR STYLE (SOLO PROCEDURAL CLÁSICO) -->
-                            <div id="bp-block-hair-style" style="margin-bottom:16px;">
+                            <!-- HAIR STYLE (SOLO PROCEDURAL CLÁSICO: la Tutora Mujer usa un modelo 3D
+                                 fijo con el pelo integrado, sin peinados ni sombreros intercambiables) -->
+                            <div id="bp-block-hair-style" style="margin-bottom:16px; display:${currentGender === 'female' ? 'none' : 'block'};">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
                                 <select id="bp-select-hair-style" class="bp-arcade-input">
                                     <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>🎩 Sombrero de Copa Elegante (Foto Pro)</option>
@@ -6060,19 +5952,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
-                        <!-- ACCESSORY -->
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">ACCESORIO</label>
-                            <select id="bp-select-accessory" class="bp-arcade-input">
-                                <option value="none" ${avatar.accessory === 'none' ? 'selected' : ''}>🚫 Ninguno</option>
-                                <option value="lantern" ${avatar.accessory === 'lantern' ? 'selected' : ''}>🏮 Linterna Brillante</option>
-                                <option value="flower" ${avatar.accessory === 'flower' || avatar.accessory === 'flower_pot' ? 'selected' : ''}>🌸 Flor en Maceta (Foto Pro)</option>
-                                <option value="wand" ${avatar.accessory === 'wand' ? 'selected' : ''}>🪄 Varita Mágica de Estrellas</option>
-                            </select>
-                        </div>
-
-                        <!-- 3 ESTILOS DE CAMINATA -->
-                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3);">
+                        <!-- ESTILOS DE CAMINATA (solo aplica a la Tutora Mujer, único avatar con
+                             animaciones de caminar propias por ahora) -->
+                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3); display:${isFemaleSelected ? 'block' : 'none'};">
                             <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">
                                 🚶 ESTILO DE CAMINATA (Haz clic para probar en vivo):
                             </label>
