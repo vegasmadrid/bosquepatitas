@@ -1066,10 +1066,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 // respecto al suelo. Conservamos el movimiento relativo (respiración, balanceo al
                 // andar) pero desplazamos todo el canal Y para que arranque en la altura de cadera
                 // real del modelo en su pose de reposo (bind pose, antes de animar).
+                //
+                // Este desfase se calcula UNA SOLA VEZ por modelo (a partir del primer clip que
+                // se prepara, que siempre es el de reposo/idle, cuyo primer fotograma sí es la
+                // pose de pie) y se reutiliza para el resto de animaciones. Si se recalculase por
+                // separado para cada clip asumiendo que su primer fotograma es "de pie", clips que
+                // arrancan ya en otra pose (arrodillarse, bailar...) quedarían mal reanclados
+                // (el personaje flotaría o se hundiría respecto al suelo real).
                 let yOffset = 0;
-                const boneObj = (model && typeof model.getObjectByName === 'function') ? model.getObjectByName(mappedNode) : null;
-                if (boneObj) {
-                    yOffset = boneObj.position.y - firstY;
+                if (model.userData && typeof model.userData.__hipYReanchorOffset === 'number') {
+                    yOffset = model.userData.__hipYReanchorOffset;
+                } else {
+                    const boneObj = (model && typeof model.getObjectByName === 'function') ? model.getObjectByName(mappedNode) : null;
+                    if (boneObj) {
+                        yOffset = boneObj.position.y - firstY;
+                        if (model.userData) model.userData.__hipYReanchorOffset = yOffset;
+                    }
                 }
 
                 for (let i = 0; i < track.values.length; i += 3) {
@@ -1244,6 +1256,11 @@ document.addEventListener('DOMContentLoaded', () => {
         walk_1: BP_MODELS_BASE_URL + 'Caminar_normal.fbx',
         walk_2: BP_MODELS_BASE_URL + 'Caminar_flow.fbx'
     };
+    // Animaciones de arrodillarse frente a las tumbas, reposo arrodillado y
+    // baile (gesto), compartidas también por ambos tutores humanos.
+    const HUMAN_ANIM_KNEEL_DOWN_URL = BP_MODELS_BASE_URL + 'Arrodillarse.fbx';
+    const HUMAN_ANIM_KNEEL_IDLE_URL = BP_MODELS_BASE_URL + 'Arrodillado.fbx';
+    const HUMAN_ANIM_DANCE_URL = BP_MODELS_BASE_URL + 'Bailar.fbx';
 
     function create3DAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
@@ -1260,7 +1277,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 category: 'human',
                 glb_id: config.glb_id || (isFemale ? 'builtin_female_glb' : 'builtin_male_glb'),
                 glb_url: isFemale ? FEMALE_HUMAN_GLB_URL : MALE_HUMAN_GLB_URL,
-                anim_idle: config.anim_idle || HUMAN_ANIM_IDLE_URL
+                anim_idle: config.anim_idle || HUMAN_ANIM_IDLE_URL,
+                anim_kneel_down: config.anim_kneel_down || HUMAN_ANIM_KNEEL_DOWN_URL,
+                anim_kneel_idle: config.anim_kneel_idle || HUMAN_ANIM_KNEEL_IDLE_URL,
+                anim_dance: config.anim_dance || HUMAN_ANIM_DANCE_URL
             }), onLoadCallback);
         }
 
