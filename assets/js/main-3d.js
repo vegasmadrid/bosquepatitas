@@ -1068,7 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (callback) callback(null);
         });
     }
-    // const glbModelCache = new Map(); // Disabled GLB cache
+    const glbModelCache = new Map();
     const activeAnimMixers = [];
 
     // Helper para sanitizar materiales de modelos FBX/GLTF cuyas texturas no tengan imagen cargada
@@ -1202,12 +1202,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function create3DAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
-        // GLB handling removed – only native human and pet avatars are supported now,
-        // salvo la tutora mujer, que usa el modelo GLB dedicado de abajo.
-        // if (avatarType === 'glb' || (config.glb_url && config.glb_url !== '')) {
-        //     return createGLBAvatarModel(config, onLoadCallback);
-        // }
-
+        // Nota: el catálogo genérico de avatares GLB configurables desde el admin
+        // (avatar_type === 'glb' elegido libremente) sigue sin estar conectado aquí.
+        // La única excepción es la tutora mujer, que siempre usa el modelo GLB
+        // dedicado de abajo en vez del cuerpo procedural.
         const genderVal = config.human_gender || config.gender || 'male';
         if (avatarType !== 'pet' && genderVal === 'female') {
             return createGLBAvatarModel(Object.assign({}, config, {
@@ -1324,17 +1322,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     // 2. Si no hay capas personalizadas activas, solo aplicar si hay selección explícita
                     const category = config.category || glbMeta.category || 'human';
-                    const testStr = `${meshName} ${matName}`.toLowerCase();
 
-                    if (config.skin && /skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(testStr)) {
-                        matchedColor = config.skin;
-                    } else if (config.shirt && /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i.test(testStr)) {
-                        matchedColor = config.shirt;
-                    } else if (config.pants && /pant|trousers|leg|pierna|bottom|jean|short/i.test(testStr) && category !== 'pet') {
-                        matchedColor = config.pants;
-                    } else if (config.hair_color && /hair|pelo|cabello/i.test(testStr) && category !== 'pet') {
-                        matchedColor = config.hair_color;
+                    function matchColorForStr(str) {
+                        if (config.skin && /skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(str)) return config.skin;
+                        if (config.shirt && /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i.test(str)) return config.shirt;
+                        if (config.pants && /pant|trousers|leg|pierna|bottom|jean|short/i.test(str) && category !== 'pet') return config.pants;
+                        if (config.hair_color && /hair|pelo|cabello/i.test(str) && category !== 'pet') return config.hair_color;
+                        return null;
                     }
+
+                    // Priorizar el nombre de la sub-malla a solas: en modelos donde varias
+                    // partes (camiseta, pantalón, zapatillas...) comparten un mismo material
+                    // genérico (p.ej. "Ch22_body"), probar primero solo el meshName evita que
+                    // una palabra del material compartido (como "body") secuestre la detección
+                    // de categoría de una sub-malla que en realidad es otra cosa.
+                    matchedColor = matchColorForStr(meshName.toLowerCase()) || matchColorForStr(`${meshName} ${matName}`.toLowerCase());
                 }
 
                 if (matchedColor) {
