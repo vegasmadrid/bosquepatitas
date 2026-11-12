@@ -704,8 +704,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings.pusherKey) return;
 
         const simulatedData = [
-            { id: 'sim_elena', name: 'Elena', human_gender: 'female', skin: '#f5c29b', shirt: '#ec4899', pants: '#2563eb', hair_style: 'long', hair_color: '#f59e0b', x: -6, z: 8 },
-            { id: 'sim_marcos', name: 'Marcos', human_gender: 'male', skin: '#ffe0bd', shirt: '#ffffff', pants: '#2563eb', hair_style: 'classic', hair_color: '#1e293b', x: 8, z: -10 }
+            { id: 'sim_elena', name: 'Elena', human_gender: 'female', skin: '#f5c29b', shirt: '#ec4899', pants: '#2563eb', hair_color: '#f59e0b', x: -6, z: 8 },
+            { id: 'sim_marcos', name: 'Marcos', human_gender: 'male', skin: '#ffe0bd', shirt: '#ffffff', pants: '#2563eb', hair_color: '#1e293b', x: 8, z: -10 }
         ];
 
         simulatedData.forEach(sim => {
@@ -1774,7 +1774,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const skinColor = config.skin || '#ffe0bd';
         const shirtColor = config.shirt || (isFemale ? '#ec4899' : '#ffffff');
         const pantsColor = config.pants || '#2563eb';
-        const hairStyle = config.hair_style || 'classic';
         const hairColor = config.hair_color || (isFemale ? '#b45309' : '#3b2314');
 
         const avatarGroup = new THREE.Group();
@@ -2270,261 +2269,14 @@ document.addEventListener('DOMContentLoaded', () => {
         headGroup.add(backNapeHair);
 
         // ──────────────────────────────────────────────────────────
-        // 5. PEINADOS Y SOMBREROS PRO (HOMBRE & MUJER)
+        // 5. CABELLO BÁSICO (sin peinados/sombreros configurables: este
+        // modelo procedural solo se usa como respaldo si el GLB no carga)
         // ──────────────────────────────────────────────────────────
-        if (isFemale) {
-            // ── PEINADOS FEMENINOS ──
-            if (hairStyle === 'classic' || hairStyle === 'long') {
-                // Melena larga con mechones frontales y flequillo lateral
-                const capGeo = new THREE.SphereGeometry(0.162, 28, 24, 0, Math.PI * 2, 0, Math.PI * 0.52);
-                capGeo.scale(1.02, 1.06, 1.03);
-                const capMesh = new THREE.Mesh(capGeo, hairMat);
-                capMesh.position.set(0, 0.025, -0.015);
-                headGroup.add(capMesh);
-
-                // Flequillo barrido elegante: mechones simétricos pegados a la curva
-                // frontal de la cabeza (no cruzan la cara en diagonal)
-                for (let side = -1; side <= 1; side += 2) {
-                    const bangMesh = new THREE.Mesh(new THREE.SphereGeometry(0.040, 12, 12), hairMat);
-                    bangMesh.scale.set(0.95, 0.85, 0.55);
-                    bangMesh.position.set(side * 0.070, 0.115, 0.118);
-                    bangMesh.rotation.z = side * 0.18;
-                    headGroup.add(bangMesh);
-
-                    const bangMesh2 = new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 10), hairMat);
-                    bangMesh2.scale.set(0.95, 0.85, 0.55);
-                    bangMesh2.position.set(side * 0.016, 0.138, 0.135);
-                    headGroup.add(bangMesh2);
-                }
-                // Mechón central para cerrar el flequillo sin dejar un hueco en medio
-                const bangCenter = new THREE.Mesh(new THREE.SphereGeometry(0.030, 10, 10), hairMat);
-                bangCenter.scale.set(0.95, 0.80, 0.55);
-                bangCenter.position.set(0, 0.145, 0.138);
-                headGroup.add(bangCenter);
-
-                // Mechones laterales largos que caen sobre los hombros
-                for (let side = -1; side <= 1; side += 2) {
-                    const strandGroup = new THREE.Group();
-                    const s1 = new THREE.Mesh(createCapsuleGeometry(0.032, 0.22, 10, 16), hairMat);
-                    s1.position.set(0, -0.12, 0);
-                    strandGroup.add(s1);
-
-                    const s2 = new THREE.Mesh(createCapsuleGeometry(0.026, 0.16, 8, 12), hairMat);
-                    s2.position.set(0, -0.24, 0.02);
-                    strandGroup.add(s2);
-
-                    strandGroup.position.set(side * 0.135, 0.0, 0.01);
-                    strandGroup.rotation.z = side * 0.08;
-                    headGroup.add(strandGroup);
-                }
-
-                // Volumen de cabello trasero
-                const backVolume = new THREE.Mesh(createCapsuleGeometry(0.075, 0.26, 12, 18), hairMat);
-                backVolume.position.set(0, -0.10, -0.11);
-                headGroup.add(backVolume);
-
-            } else if (hairStyle === 'ponytail') {
-                // Coleta alta femenina con coletero
-                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.50);
-                const capMesh = new THREE.Mesh(capGeo, hairMat);
-                capMesh.position.set(0, 0.02, -0.01);
-                headGroup.add(capMesh);
-
-                // Coletero
-                const tieMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.35 });
-                const tieMesh = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.010, 8, 16), tieMat);
-                tieMesh.position.set(0, 0.12, -0.13);
-                tieMesh.rotation.x = 0.4;
-                headGroup.add(tieMesh);
-
-                // Coleta con caída ondulada
-                const ponyMesh = new THREE.Mesh(createCapsuleGeometry(0.042, 0.28, 10, 16), hairMat);
-                ponyMesh.position.set(0, -0.04, -0.18);
-                ponyMesh.rotation.x = 0.25;
-                headGroup.add(ponyMesh);
-
-            } else if (hairStyle === 'cap') {
-                // Boina francesa elegante
-                const beretMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.45, metalness: 0.08 });
-                const beretMesh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.45), beretMat);
-                beretMesh.scale.set(1.12, 0.70, 1.08);
-                beretMesh.position.set(0.02, 0.09, 0.01);
-                beretMesh.rotation.z = 0.16;
-                headGroup.add(beretMesh);
-
-                // Mechones frontales bajo la boina
-                for (let side = -1; side <= 1; side += 2) {
-                    const strand = new THREE.Mesh(createCapsuleGeometry(0.028, 0.16, 8, 12), hairMat);
-                    strand.position.set(side * 0.12, -0.06, 0.03);
-                    strand.rotation.z = side * 0.12;
-                    headGroup.add(strand);
-                }
-
-            } else if (hairStyle === 'crown') {
-                // Tiara real con gemas
-                const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.15, metalness: 0.90 });
-                const gemMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.10, metalness: 0.70 });
-
-                const tiaraRing = new THREE.Mesh(new THREE.TorusGeometry(0.150, 0.010, 8, 28, Math.PI), goldMat);
-                tiaraRing.rotation.y = Math.PI / 2;
-                tiaraRing.rotation.x = -0.15;
-                tiaraRing.position.set(0, 0.08, 0.01);
-                headGroup.add(tiaraRing);
-
-                for (let i = -2; i <= 2; i++) {
-                    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.018, 0), i === 0 ? gemMat : goldMat);
-                    const ang = (Math.PI / 2) + (i * 0.26);
-                    gem.position.set(Math.cos(ang) * 0.154, 0.10 + (2 - Math.abs(i)) * 0.016, Math.sin(ang) * 0.154);
-                    headGroup.add(gem);
-                }
-
-                // Pelo que acompaña la tiara
-                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.50);
-                const capMesh = new THREE.Mesh(capGeo, hairMat);
-                capMesh.position.set(0, 0.02, -0.01);
-                headGroup.add(capMesh);
-
-            } else if (hairStyle === 'hat') {
-                // Sombrero de copa estilizado femenino
-                const hatMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.40, metalness: 0.12 });
-                const ribbonMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.25, metalness: 0.20 });
-
-                const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.016, 32), hatMat);
-                brim.position.set(0, 0.12, 0);
-                headGroup.add(brim);
-
-                const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.146, 0.146, 0.030, 28), ribbonMat);
-                ribbon.position.set(0, 0.146, 0);
-                headGroup.add(ribbon);
-
-                const topHat = new THREE.Mesh(new THREE.CylinderGeometry(0.140, 0.145, 0.16, 28), hatMat);
-                topHat.position.set(0, 0.23, 0);
-                headGroup.add(topHat);
-
-                // Mechones que salen del sombrero
-                for (let side = -1; side <= 1; side += 2) {
-                    const strand = new THREE.Mesh(createCapsuleGeometry(0.028, 0.18, 8, 12), hairMat);
-                    strand.position.set(side * 0.12, -0.05, 0.02);
-                    strand.rotation.z = side * 0.10;
-                    headGroup.add(strand);
-                }
-            }
-        } else {
-            // ── PEINADOS MASCULINOS ──
-            if (hairStyle === 'classic' || hairStyle === 'hat') {
-                // Sombrero de copa elegante idéntico a la imagen de referencia ("DESPUÉS / MEJORADO")
-                // Pelo sutil en las patillas y nuca visible bajo el sombrero
-                const sideburnL = new THREE.Mesh(createCapsuleGeometry(0.022, 0.06, 6, 10), hairMat);
-                sideburnL.position.set(-0.146, 0.04, 0.04);
-                headGroup.add(sideburnL);
-
-                const sideburnR = new THREE.Mesh(createCapsuleGeometry(0.022, 0.06, 6, 10), hairMat);
-                sideburnR.position.set(0.146, 0.04, 0.04);
-                headGroup.add(sideburnR);
-
-                // Peinado frontal que asoma bajo el sombrero
-                const bangLeft = new THREE.Mesh(createCapsuleGeometry(0.026, 0.06, 8, 12), hairMat);
-                bangLeft.rotation.z = -0.35;
-                bangLeft.position.set(-0.06, 0.10, 0.13);
-                headGroup.add(bangLeft);
-
-                const bangRight = new THREE.Mesh(createCapsuleGeometry(0.026, 0.06, 8, 12), hairMat);
-                bangRight.rotation.z = 0.35;
-                bangRight.position.set(0.06, 0.10, 0.13);
-                headGroup.add(bangRight);
-
-                // Sombrero de copa como en la imagen de referencia
-                const hatMat = new THREE.MeshStandardMaterial({
-                    color: 0x1e293b,
-                    roughness: 0.45,
-                    metalness: 0.10
-                });
-                const ribbonMat = new THREE.MeshStandardMaterial({
-                    color: 0xf97316, // Cinta naranja brillante exactamente como la foto
-                    roughness: 0.30,
-                    metalness: 0.15
-                });
-
-                // Ala ancha curvada del sombrero
-                const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.250, 0.020, 36), hatMat);
-                brim.position.set(0, 0.125, 0);
-                headGroup.add(brim);
-
-                // Cinta naranja vibrante
-                const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.152, 0.152, 0.034, 32), ribbonMat);
-                ribbon.position.set(0, 0.152, 0);
-                headGroup.add(ribbon);
-
-                // Copa alta redondeada
-                const topHat = new THREE.Mesh(new THREE.CylinderGeometry(0.146, 0.150, 0.165, 32), hatMat);
-                topHat.position.set(0, 0.240, 0);
-                headGroup.add(topHat);
-
-                // Tapa superior del sombrero con borde suave
-                const hatTopCap = new THREE.Mesh(new THREE.CylinderGeometry(0.144, 0.144, 0.012, 32), hatMat);
-                hatTopCap.position.set(0, 0.322, 0);
-                headGroup.add(hatTopCap);
-            } else if (hairStyle === 'spiky') {
-                // Pelo corto moderno con tupé / pinchos estilizados
-                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.54);
-                const capMesh = new THREE.Mesh(capGeo, hairMat);
-                capMesh.position.set(0, 0.02, -0.01);
-                headGroup.add(capMesh);
-
-                for (let i = -4; i <= 4; i++) {
-                    const spikeHeight = 0.08 + (4 - Math.abs(i)) * 0.014;
-                    const spike = new THREE.Mesh(createCapsuleGeometry(0.022, spikeHeight, 8, 12), hairMat);
-                    spike.position.set(
-                        i * 0.030,
-                        0.16 + (4 - Math.abs(i)) * 0.010,
-                        (3 - Math.abs(i)) * 0.014 + 0.015
-                    );
-                    spike.rotation.z = -i * 0.10;
-                    spike.rotation.x = -0.18;
-                    headGroup.add(spike);
-                }
-
-            } else if (hairStyle === 'cap') {
-                // Gorra moderna con visera
-                const capMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.40, metalness: 0.08 });
-                const capDome = new THREE.Mesh(new THREE.SphereGeometry(0.164, 26, 22, 0, Math.PI * 2, 0, Math.PI * 0.54), capMat);
-                capDome.position.set(0, 0.018, 0);
-                headGroup.add(capDome);
-
-                const visorGeo = createCapsuleGeometry(0.07, 0.16, 10, 16);
-                const visor = new THREE.Mesh(visorGeo, capMat);
-                visor.scale.set(1.5, 0.18, 1.0);
-                visor.position.set(0, 0.025, 0.20);
-                visor.rotation.x = 0.20;
-                headGroup.add(visor);
-
-                const capButton = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), capMat);
-                capButton.position.set(0, 0.185, 0);
-                headGroup.add(capButton);
-
-            } else if (hairStyle === 'crown') {
-                // Corona real dorada
-                const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.15, metalness: 0.90 });
-                const gemMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.10, metalness: 0.70 });
-
-                const crownBase = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.125, 0.06, 24, 1, true), goldMat);
-                crownBase.position.set(0, 0.14, 0);
-                headGroup.add(crownBase);
-
-                for (let a = 0; a < 8; a++) {
-                    const ang = (a * Math.PI * 2) / 8;
-                    const pt = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.07, 8), goldMat);
-                    pt.position.set(Math.sin(ang) * 0.135, 0.20, Math.cos(ang) * 0.135);
-                    headGroup.add(pt);
-
-                    if (a % 2 === 0) {
-                        const gem = new THREE.Mesh(new THREE.SphereGeometry(0.010, 8, 8), gemMat);
-                        gem.position.set(Math.sin(ang) * 0.135, 0.16, Math.cos(ang) * 0.135);
-                        headGroup.add(gem);
-                    }
-                }
-            }
-        }
+        const capGeo = new THREE.SphereGeometry(0.162, 28, 24, 0, Math.PI * 2, 0, Math.PI * 0.52);
+        capGeo.scale(1.02, 1.06, 1.03);
+        const capMesh = new THREE.Mesh(capGeo, hairMat);
+        capMesh.position.set(0, 0.025, -0.015);
+        headGroup.add(capMesh);
 
         torsoGroup.add(headGroup);
         avatarGroup.add(torsoGroup);
@@ -5245,7 +4997,6 @@ document.addEventListener('DOMContentLoaded', () => {
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
-            hair_style: 'classic',
             hair_color: '#3b2314',
             incognito: 0
         }, avatarConfig);
@@ -5288,7 +5039,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const blockSkin = document.getElementById('bp-block-skin');
             const blockShirt = document.getElementById('bp-block-shirt');
             const blockPants = document.getElementById('bp-block-pants');
-            const blockHairStyle = document.getElementById('bp-block-hair-style');
             const blockHairColor = document.getElementById('bp-block-hair-color');
 
             const blockFur = document.getElementById('bp-block-fur');
@@ -5312,7 +5062,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (blockSkin) blockSkin.style.display = 'block';
                     if (blockShirt) blockShirt.style.display = 'block';
                     if (blockPants) blockPants.style.display = 'block';
-                    if (blockHairStyle) blockHairStyle.style.display = 'block';
                     if (blockHairColor) blockHairColor.style.display = 'block';
 
                     updateSwatchActive('bp-swatches-skin', cfg.skin);
@@ -5591,15 +5340,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        const selectHair = document.getElementById('bp-select-hair-style');
-        if (selectHair) {
-            selectHair.addEventListener('change', () => {
-                currentConfig.hair_style = selectHair.value;
-                rebuildPreviewMesh(currentConfig);
-            });
-        }
-
-
         const btnGenderMale = document.getElementById('bp-btn-gender-male');
         const btnGenderFemale = document.getElementById('bp-btn-gender-female');
         if (btnGenderMale && btnGenderFemale) {
@@ -5674,7 +5414,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('skin', currentConfig.skin);
                 formData.append('shirt', currentConfig.shirt);
                 formData.append('pants', currentConfig.pants);
-                formData.append('hair_style', currentConfig.hair_style);
                 formData.append('hair_color', currentConfig.hair_color);
                 formData.append('walk_style', currentConfig.walk_style || 'walk_1');
                 formData.append('layer_colors', JSON.stringify(currentConfig.layer_colors || {}));
@@ -5767,7 +5506,6 @@ document.addEventListener('DOMContentLoaded', () => {
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
-            hair_style: 'classic',
             hair_color: '#3b2314',
             layer_colors: {},
             walk_style: 'walk_1',
@@ -5819,13 +5557,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             <!-- Classic Procedural Human Male Card -->
                             <div class="bp-glb-card bp-model-card ${isMaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="male">
                                 <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍‍♂️</div>
-                                <div class="bp-glb-title">Tutor Hombre</div>
+                                <div class="bp-glb-title">Hombre</div>
                                 ${isMaleSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
                             </div>
                             <!-- Classic Procedural Human Female Card -->
                             <div class="bp-glb-card bp-model-card ${isFemaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="female">
                                 <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍‍♀️</div>
-                                <div class="bp-glb-title">Tutora Mujer</div>
+                                <div class="bp-glb-title">Mujer</div>
                                 ${isFemaleSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
                             </div>
                             <!-- Classic Dog Card -->
@@ -5876,8 +5614,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div id="bp-block-gender" style="margin-bottom:16px;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">GÉNERO DEL TUTOR HUMANO</label>
                                 <div style="display:flex; gap:10px;">
-                                    <button type="button" id="bp-btn-gender-male" class="bp-arcade-btn ${currentGender === 'male' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👨 Tutor Hombre</button>
-                                    <button type="button" id="bp-btn-gender-female" class="bp-arcade-btn ${currentGender === 'female' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👩 Tutora Mujer</button>
+                                    <button type="button" id="bp-btn-gender-male" class="bp-arcade-btn ${currentGender === 'male' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👨 Hombre</button>
+                                    <button type="button" id="bp-btn-gender-female" class="bp-arcade-btn ${currentGender === 'female' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👩 Mujer</button>
                                 </div>
                             </div>
                             <!-- SKIN COLOR -->
@@ -5910,27 +5648,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             </div>
 
-                            <!-- HAIR STYLE: oculto para ambos tutores. El Tutor Hombre y la Tutora
-                                 Mujer son ahora modelos 3D fijos con el pelo integrado en el
-                                 propio modelo, sin peinados ni sombreros intercambiables
-                                 (createHumanAvatarModel, el único que usaba este selector, solo
-                                 se usa ya como respaldo si faltase el .glb correspondiente). -->
-                            <div id="bp-block-hair-style" style="margin-bottom:16px; display:none;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
-                                <select id="bp-select-hair-style" class="bp-arcade-input">
-                                    <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>🎩 Sombrero de Copa Elegante (Foto Pro)</option>
-                                    <option value="long" ${avatar.hair_style === 'long' ? 'selected' : ''}>💇 Melena con Flequillo (Mujer)</option>
-                                    <option value="ponytail" ${avatar.hair_style === 'ponytail' ? 'selected' : ''}>🎀 Coleta Alta Chic (Mujer)</option>
-                                    <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky Moderno</option>
-                                    <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra / Boina Chic</option>
-                                    <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona / Tiara Real</option>
-                                    <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero de Copa</option>
-                                </select>
-                            </div>
-
                             <!-- HAIR COLOR -->
                             <div id="bp-block-hair-color" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO / CABELLO</label>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. COLOR DE PELO / CABELLO</label>
                                 <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
                                     ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
                                         <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>

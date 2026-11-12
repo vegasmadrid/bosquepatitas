@@ -154,7 +154,6 @@ class BP_Profile {
         $shirt       = isset($_POST['shirt']) ? sanitize_text_field($_POST['shirt']) : '#10b981';
         $pants       = isset($_POST['pants']) ? sanitize_text_field($_POST['pants']) : '#1e3a8a';
         $human_gender = isset($_POST['human_gender']) ? sanitize_text_field($_POST['human_gender']) : (isset($_POST['gender']) ? sanitize_text_field($_POST['gender']) : 'male');
-        $hair_style  = isset($_POST['hair_style']) ? sanitize_text_field($_POST['hair_style']) : 'classic';
         $hair_color  = isset($_POST['hair_color']) ? sanitize_text_field($_POST['hair_color']) : '#3b2314';
         $layer_colors_raw = isset($_POST['layer_colors']) ? wp_unslash($_POST['layer_colors']) : '{}';
         $layer_colors = json_decode($layer_colors_raw, true);
@@ -183,7 +182,6 @@ class BP_Profile {
             'pants'        => $pants,
             'human_gender' => $human_gender,
             'gender'       => $human_gender,
-            'hair_style'   => $hair_style,
             'hair_color'   => $hair_color,
             'layer_colors' => $sanitized_layers,
             'incognito'    => $incognito
@@ -216,7 +214,6 @@ class BP_Profile {
             'pants'        => '#1e3a8a',
             'human_gender' => 'male',
             'gender'       => 'male',
-            'hair_style'   => 'classic',
             'hair_color'   => '#3b2314',
             'layer_colors' => array(),
             'incognito'    => 0
