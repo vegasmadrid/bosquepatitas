@@ -109,7 +109,6 @@ class BosquePatitas {
             'pants'           => '#1e3a8a',
             'human_gender'    => 'male',
             'gender'          => 'male',
-            'hair_style'      => 'classic',
             'hair_color'      => '#3b2314',
             'incognito'       => 0
         );

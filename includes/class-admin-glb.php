@@ -331,7 +331,7 @@ class BP_Admin_GLB {
                             🚶‍♂️ Los 2 Estilos de Caminata (Disponibles para elegir en el personalizador del avatar)
                         </h3>
                         <p style="margin:0 0 12px 0; font-size:12px; color:#64748b;">
-                            Define el nombre y sube el archivo FBX de cada uno de los 2 estilos para que el usuario pueda alternar entre ellos en vivo. Si se dejan vacíos, la Tutora Mujer usa por defecto sus propias animaciones "Normal" y "Con Flow" incluidas en el plugin.
+                            Define el nombre y sube el archivo FBX de cada uno de los 2 estilos para que el usuario pueda alternar entre ellos en vivo. Si se dejan vacíos, la Mujer usa por defecto sus propias animaciones "Normal" y "Con Flow" incluidas en el plugin.
                         </p>
 
                         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
