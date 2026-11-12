@@ -1235,11 +1235,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // desde el backend: solo tenemos un par de avatares fijos).
     const BP_MODELS_BASE_URL = ((typeof settings !== 'undefined' && settings.pluginUrl) ? settings.pluginUrl : '/wp-content/plugins/bosque-patitas/').replace(/\/+$/, '') + '/assets/models/';
 
-    // Modelo GLB fijo de la Tutora Mujer (sustituye al avatar femenino procedural)
+    // Modelos GLB fijos del Tutor Hombre y la Tutora Mujer (sustituyen al cuerpo procedural)
     const FEMALE_HUMAN_GLB_URL = BP_MODELS_BASE_URL + 'Mujer.glb';
-    // Animaciones dedicadas de la Tutora Mujer (reposo + dos estilos de caminata)
-    const FEMALE_ANIM_IDLE_URL = BP_MODELS_BASE_URL + 'Reposo.fbx';
-    const FEMALE_WALK_STYLE_URLS = {
+    const MALE_HUMAN_GLB_URL = BP_MODELS_BASE_URL + 'Hombre.glb';
+    // Animaciones compartidas por ambos tutores humanos (reposo + dos estilos de caminata)
+    const HUMAN_ANIM_IDLE_URL = BP_MODELS_BASE_URL + 'Reposo.fbx';
+    const HUMAN_WALK_STYLE_URLS = {
         walk_1: BP_MODELS_BASE_URL + 'Caminar_normal.fbx',
         walk_2: BP_MODELS_BASE_URL + 'Caminar_flow.fbx'
     };
@@ -1248,16 +1249,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const avatarType = config.avatar_type || 'human';
         // Nota: el catálogo genérico de avatares GLB configurables desde el admin
         // (avatar_type === 'glb' elegido libremente) sigue sin estar conectado aquí.
-        // La única excepción es la tutora mujer, que siempre usa el modelo GLB
-        // dedicado de abajo en vez del cuerpo procedural.
+        // El Tutor Hombre y la Tutora Mujer siempre usan sus modelos GLB fijos de
+        // abajo en vez del cuerpo procedural (createHumanAvatarModel queda solo
+        // como respaldo si algún día falta el archivo .glb correspondiente).
         const genderVal = config.human_gender || config.gender || 'male';
-        if (avatarType !== 'pet' && genderVal === 'female') {
+        if (avatarType !== 'pet') {
+            const isFemale = (genderVal === 'female');
             return createGLBAvatarModel(Object.assign({}, config, {
                 avatar_type: 'glb',
                 category: 'human',
-                glb_id: config.glb_id || 'builtin_female_glb',
-                glb_url: FEMALE_HUMAN_GLB_URL,
-                anim_idle: config.anim_idle || FEMALE_ANIM_IDLE_URL
+                glb_id: config.glb_id || (isFemale ? 'builtin_female_glb' : 'builtin_male_glb'),
+                glb_url: isFemale ? FEMALE_HUMAN_GLB_URL : MALE_HUMAN_GLB_URL,
+                anim_idle: config.anim_idle || HUMAN_ANIM_IDLE_URL
             }), onLoadCallback);
         }
 
@@ -1370,18 +1373,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     function matchColorForStr(str) {
                         if (config.skin && /skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(str)) return config.skin;
-                        if (config.shirt && /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i.test(str)) return config.shirt;
+                        if (config.shirt && /shirt|camis|torso|top|cloth|chest|jacket|suit|blazer|chaqueta|americana|saco|sweater|ropa|collar/i.test(str)) return config.shirt;
                         if (config.pants && /pant|trousers|leg|pierna|bottom|jean|short/i.test(str) && category !== 'pet') return config.pants;
                         if (config.hair_color && /hair|pelo|cabello/i.test(str) && category !== 'pet') return config.hair_color;
                         return null;
                     }
 
-                    // Priorizar el nombre de la sub-malla a solas: en modelos donde varias
-                    // partes (camiseta, pantalón, zapatillas...) comparten un mismo material
-                    // genérico (p.ej. "Ch22_body"), probar primero solo el meshName evita que
-                    // una palabra del material compartido (como "body") secuestre la detección
-                    // de categoría de una sub-malla que en realidad es otra cosa.
-                    matchedColor = matchColorForStr(meshName.toLowerCase()) || matchColorForStr(`${meshName} ${matName}`.toLowerCase());
+                    // Emparejar SOLO por el nombre de la sub-malla (meshName), nunca por el
+                    // nombre del material. En varios modelos (Ch22_*, Ch33_*) todas las
+                    // sub-mallas -camiseta, pantalón, zapatos, cinturón...- comparten un único
+                    // material genérico (p.ej. "Ch33_body"), así que emparejar también contra el
+                    // material haría que esa palabra compartida ("body") secuestrase la categoría
+                    // de sub-mallas que en realidad son otra cosa (cinturón, chaqueta, zapatos).
+                    // Una sub-malla cuyo propio nombre no encaja en ninguna categoría se deja con
+                    // su color/textura original en vez de adivinar por el material compartido.
+                    matchedColor = matchColorForStr(meshName.toLowerCase());
                 }
 
                 if (matchedColor) {
@@ -1555,10 +1561,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (foundWs && foundWs.url) walkStyleUrl = foundWs.url;
             }
             // Si no hay un estilo de caminata configurado desde el admin (back end sin datos
-            // todavía), usar las animaciones de caminar propias de la Tutora Mujer como respaldo,
-            // para que el selector "ESTILOS DE CAMINATA" del configurador también funcione con ella.
-            if (!walkStyleUrl && glbUrl === FEMALE_HUMAN_GLB_URL) {
-                walkStyleUrl = FEMALE_WALK_STYLE_URLS[selectedWalkStyle] || FEMALE_WALK_STYLE_URLS.walk_1;
+            // todavía), usar las animaciones de caminar compartidas por los tutores humanos
+            // como respaldo, para que el selector "ESTILOS DE CAMINATA" del configurador
+            // funcione tanto con el Tutor Hombre como con la Tutora Mujer.
+            if (!walkStyleUrl && (glbUrl === FEMALE_HUMAN_GLB_URL || glbUrl === MALE_HUMAN_GLB_URL)) {
+                walkStyleUrl = HUMAN_WALK_STYLE_URLS[selectedWalkStyle] || HUMAN_WALK_STYLE_URLS.walk_1;
             }
 
             let animIdleRef      = config.anim_idle || glbMeta.anim_idle || (globalAnims ? globalAnims.anim_idle : '') || '';
@@ -5903,9 +5910,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             </div>
 
-                            <!-- HAIR STYLE (SOLO PROCEDURAL CLÁSICO: la Tutora Mujer usa un modelo 3D
-                                 fijo con el pelo integrado, sin peinados ni sombreros intercambiables) -->
-                            <div id="bp-block-hair-style" style="margin-bottom:16px; display:${currentGender === 'female' ? 'none' : 'block'};">
+                            <!-- HAIR STYLE: oculto para ambos tutores. El Tutor Hombre y la Tutora
+                                 Mujer son ahora modelos 3D fijos con el pelo integrado en el
+                                 propio modelo, sin peinados ni sombreros intercambiables
+                                 (createHumanAvatarModel, el único que usaba este selector, solo
+                                 se usa ya como respaldo si faltase el .glb correspondiente). -->
+                            <div id="bp-block-hair-style" style="margin-bottom:16px; display:none;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
                                 <select id="bp-select-hair-style" class="bp-arcade-input">
                                     <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>🎩 Sombrero de Copa Elegante (Foto Pro)</option>
@@ -5952,9 +5962,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
-                        <!-- ESTILOS DE CAMINATA (solo aplica a la Tutora Mujer, único avatar con
-                             animaciones de caminar propias por ahora) -->
-                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3); display:${isFemaleSelected ? 'block' : 'none'};">
+                        <!-- ESTILOS DE CAMINATA (Tutor Hombre y Tutora Mujer: ambos son modelos
+                             3D fijos que comparten las mismas animaciones de caminar) -->
+                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3); display:${isClassicHumanSelected ? 'block' : 'none'};">
                             <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">
                                 🚶 ESTILO DE CAMINATA (Haz clic para probar en vivo):
                             </label>
