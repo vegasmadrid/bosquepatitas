@@ -24,20 +24,27 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="bp-forest-spinner"></div>
             <div class="bp-forest-loading-title">⏳ CARGANDO AVATAR 3D...</div>
             <div class="bp-forest-loading-sub" id="bp-forest-avatar-loading-progress">DESCARGANDO MODELO Y TEXTURAS</div>
+            <div class="bp-loading-bar-track">
+                <div class="bp-loading-bar-fill" id="bp-forest-avatar-loading-bar-fill" style="width:0%;"></div>
+            </div>
         `;
         container.appendChild(forestAvatarLoading);
     }
 
-    function showForestAvatarLoading(text = 'DESCARGANDO MODELO Y TEXTURAS') {
+    function showForestAvatarLoading(text = 'DESCARGANDO MODELO Y TEXTURAS', percent = null) {
         if (!forestAvatarLoading) return;
         const progressEl = document.getElementById('bp-forest-avatar-loading-progress');
         if (progressEl) progressEl.textContent = text;
+        const barFill = document.getElementById('bp-forest-avatar-loading-bar-fill');
+        if (barFill) barFill.style.width = (percent === null ? 0 : Math.max(0, Math.min(100, percent))) + '%';
         forestAvatarLoading.classList.remove('hidden');
     }
 
     function hideForestAvatarLoading() {
         if (!forestAvatarLoading) return;
         forestAvatarLoading.classList.add('hidden');
+        const barFill = document.getElementById('bp-forest-avatar-loading-bar-fill');
+        if (barFill) barFill.style.width = '0%';
     }
 
     let tooltip = document.getElementById('bp-tooltip');
@@ -1451,6 +1458,56 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.isArray(layers) ? layers.filter(l => (l.enabled == 1 || l.enabled === true || l.enabled === '1')) : [];
     }
 
+    // Indicador de carga simple y suave para cuando un avatar GLB se está descargando:
+    // un resplandor circular en el suelo (textura con degradado radial, sin bordes
+    // poligonales visibles) con una animación de pulso propia, en vez de las formas
+    // de alambre (pedestal + octaedro) que se veían antes mientras cargaba.
+    function createLoadingPlaceholder() {
+        const group = new THREE.Group();
+        group.name = 'loadingPlaceholder';
+
+        const size = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        grad.addColorStop(0, 'rgba(16, 185, 129, 0.55)');
+        grad.addColorStop(0.55, 'rgba(16, 185, 129, 0.22)');
+        grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, size);
+        const glowTexture = new THREE.CanvasTexture(canvas);
+
+        const glowMat = new THREE.MeshBasicMaterial({
+            map: glowTexture,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.75), glowMat);
+        glowMesh.rotation.x = -Math.PI / 2;
+        glowMesh.position.y = 0.02;
+        group.add(glowMesh);
+
+        let stopped = false;
+        const start = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        function pulse() {
+            if (stopped) return;
+            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            const t = (now - start) / 450;
+            const wave = 0.5 + 0.5 * Math.sin(t);
+            const scale = 0.85 + 0.3 * wave;
+            glowMesh.scale.set(scale, scale, 1);
+            glowMat.opacity = 0.45 + 0.4 * wave;
+            requestAnimationFrame(pulse);
+        }
+        requestAnimationFrame(pulse);
+
+        group.userData.stopPulse = () => { stopped = true; };
+        return group;
+    }
+
     function createGLBAvatarModel(config = {}, onLoadCallback = null) {
         const containerGroup = new THREE.Group();
         containerGroup.name = 'glbAvatarContainer';
@@ -1684,30 +1741,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const cached = glbModelCache.get(glbUrl);
             applyModelScene(cached.scene, cached.animations);
         } else {
-            // Indicador de carga holográfico arcade 3D
-            const placeholderGroup = new THREE.Group();
-            placeholderGroup.name = 'loadingPlaceholder';
-
-            const holoPedestal = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.35, 0.4, 0.08, 16),
-                new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, metalness: 0.8, wireframe: true })
-            );
-            holoPedestal.position.y = 0.04;
-            placeholderGroup.add(holoPedestal);
-
-            const holoBeacon = new THREE.Mesh(
-                new THREE.OctahedronGeometry(0.25, 0),
-                new THREE.MeshStandardMaterial({ color: 0xffd600, roughness: 0.2, metalness: 0.9, wireframe: true })
-            );
-            holoBeacon.position.y = 0.9;
-            placeholderGroup.add(holoBeacon);
-
+            // Indicador de carga: un resplandor suave en el suelo (sin geometría
+            // poligonal visible) mientras se descarga el modelo real.
+            const placeholderGroup = createLoadingPlaceholder();
             containerGroup.add(placeholderGroup);
 
             // Mostrar aviso central en el bosque si es el avatar del jugador
             const isLocalPlayerLoading = (config === settings.avatar || config.glb_url === (settings.avatar && settings.avatar.glb_url));
             if (isLocalPlayerLoading && typeof showForestAvatarLoading === 'function') {
-                showForestAvatarLoading('DESCARGANDO MODELO 3D...');
+                showForestAvatarLoading('DESCARGANDO MODELO 3D...', 0);
             }
 
             let versionedUrl = glbUrl;
@@ -1722,7 +1764,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (xhr.lengthComputable && xhr.total > 0) {
                     const percent = Math.min(100, Math.round((xhr.loaded / xhr.total) * 100));
                     if (isLocalPlayerLoading && typeof showForestAvatarLoading === 'function') {
-                        showForestAvatarLoading(`DESCARGANDO MODELO 3D: ${percent}%`);
+                        showForestAvatarLoading(`DESCARGANDO MODELO 3D: ${percent}%`, percent);
+                    }
+                    if (typeof config.onProgress === 'function') {
+                        config.onProgress(percent);
                     }
                 }
             };
@@ -1735,6 +1780,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             hideForestAvatarLoading();
                         }
                         glbModelCache.set(glbUrl, { scene: fbxScene, animations: fbxScene.animations || [] });
+                        if (placeholderGroup.userData.stopPulse) placeholderGroup.userData.stopPulse();
                         containerGroup.remove(placeholderGroup);
                         disposeThreeObject(placeholderGroup);
                         applyModelScene(fbxScene, fbxScene.animations || []);
@@ -1745,6 +1791,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
                             hideForestAvatarLoading();
                         }
+                        if (placeholderGroup.userData.stopPulse) placeholderGroup.userData.stopPulse();
                         containerGroup.remove(placeholderGroup);
                         disposeThreeObject(placeholderGroup);
                         const fallbackMesh = createHumanAvatarModel(config);
@@ -1760,6 +1807,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             hideForestAvatarLoading();
                         }
                         glbModelCache.set(glbUrl, { scene: gltf.scene, animations: gltf.animations || [] });
+                        if (placeholderGroup.userData.stopPulse) placeholderGroup.userData.stopPulse();
                         containerGroup.remove(placeholderGroup);
                         disposeThreeObject(placeholderGroup);
                         applyModelScene(gltf.scene, gltf.animations || []);
@@ -1770,6 +1818,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
                             hideForestAvatarLoading();
                         }
+                        if (placeholderGroup.userData.stopPulse) placeholderGroup.userData.stopPulse();
                         containerGroup.remove(placeholderGroup);
                         disposeThreeObject(placeholderGroup);
                         const fallbackMesh = createHumanAvatarModel(config);
@@ -4877,14 +4926,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         rebuildPreviewMesh = function(cfg) {
             const previewLoading = document.getElementById('bp-avatar-preview-loading');
+            const previewLoadingText = document.getElementById('bp-avatar-preview-loading-text');
+            const previewLoadingBarFill = document.getElementById('bp-avatar-preview-loading-bar-fill');
             if (previewLoading) previewLoading.classList.remove('hidden');
+            if (previewLoadingText) previewLoadingText.textContent = 'CARGANDO PERSONAJE...';
+            if (previewLoadingBarFill) previewLoadingBarFill.style.width = '0%';
 
             if (previewAvatarMesh) {
                 disposeThreeObject(previewAvatarMesh);
                 previewScene.remove(previewAvatarMesh);
                 previewAvatarMesh = null;
             }
-            previewAvatarMesh = create3DAvatarModel(cfg, (loadedMesh) => {
+            const cfgWithProgress = Object.assign({}, cfg, {
+                onProgress: (percent) => {
+                    if (previewLoadingText) previewLoadingText.textContent = `CARGANDO PERSONAJE... ${percent}%`;
+                    if (previewLoadingBarFill) previewLoadingBarFill.style.width = percent + '%';
+                }
+            });
+            previewAvatarMesh = create3DAvatarModel(cfgWithProgress, (loadedMesh) => {
                 if (previewLoading) previewLoading.classList.add('hidden');
                 if (loadedMesh) {
                     loadedMesh.position.set(0, 0, 0);
@@ -5743,7 +5802,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;">
                             <div id="bp-avatar-preview-loading" class="bp-avatar-loading-overlay hidden">
                                 <div class="bp-emerald-spinner"></div>
-                                <div class="bp-avatar-loading-text">CARGANDO PERSONAJE...</div>
+                                <div class="bp-avatar-loading-text" id="bp-avatar-preview-loading-text">CARGANDO PERSONAJE...</div>
+                                <div class="bp-loading-bar-track">
+                                    <div class="bp-loading-bar-fill" id="bp-avatar-preview-loading-bar-fill" style="width:0%;"></div>
+                                </div>
                             </div>
                         </div>
                         <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa • Rueda para zoom</div>
