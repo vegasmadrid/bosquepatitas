@@ -4857,15 +4857,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dirL.shadow.camera.bottom = -1.0;
         previewScene.add(dirL);
 
-        // Peana circular que recibe sombras proyectadas (tono neutro oscuro elegante para evitar reflejos verdosos en el modelo)
-        const pedMesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.55, 0.60, 0.08, 32),
-            new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.1 })
-        );
-        pedMesh.position.y = -0.04;
-        pedMesh.receiveShadow = true;
-        previewScene.add(pedMesh);
-
         let previewTargetY = 0.8;
 
         // Auto-encuadre inteligente para mostrar el avatar COMPLETO (pies a cabeza) sin cortes
@@ -4876,13 +4867,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const box = new THREE.Box3().setFromObject(mesh);
             if (box.isEmpty() || !isFinite(box.min.x)) return;
 
-            // Incluir la peana en el volumen de encuadre
             const framingBox = box.clone();
-            framingBox.min.y = Math.min(framingBox.min.y, -0.08);
-            framingBox.min.x = Math.min(framingBox.min.x, -0.60);
-            framingBox.max.x = Math.max(framingBox.max.x, 0.60);
-            framingBox.min.z = Math.min(framingBox.min.z, -0.60);
-            framingBox.max.z = Math.max(framingBox.max.z, 0.60);
+            framingBox.min.y = Math.min(framingBox.min.y, 0);
 
             const size = framingBox.getSize(new THREE.Vector3());
             const center = framingBox.getCenter(new THREE.Vector3());
@@ -4898,7 +4884,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const halfFovY = fovY / 2;
             const halfFovX = Math.atan(Math.tan(halfFovY) * currentAspect);
 
-            // Margen generoso (34%) para garantizar que cabeza, gorros, pelo y peana se vean holgados y completos
+            // Margen generoso (34%) para garantizar que cabeza, gorros y pelo se vean holgados y completos
             const margin = 1.34;
             const distY = (size.y / 2 * margin) / Math.tan(halfFovY);
             const distX = (size.x / 2 * margin) / Math.tan(halfFovX);
@@ -5024,17 +5010,6 @@ document.addEventListener('DOMContentLoaded', () => {
         previewRenderer.domElement.addEventListener('touchstart', onPreviewDown, { passive: true });
         window.addEventListener('touchmove', onPreviewMove, { passive: true });
         window.addEventListener('touchend', onPreviewUp, { passive: true });
-
-        // Zoom interactivo con la rueda del ratón
-        previewRenderer.domElement.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const zoomDelta = e.deltaY * 0.0025;
-            const curDist = previewCamera.position.distanceTo(new THREE.Vector3(0, previewTargetY, 0));
-            const newDist = THREE.MathUtils.clamp(curDist + zoomDelta, 1.2, 7.0);
-            const dir = previewCamera.position.clone().sub(new THREE.Vector3(0, previewTargetY, 0)).normalize();
-            previewCamera.position.copy(new THREE.Vector3(0, previewTargetY, 0).addScaledVector(dir, newDist));
-            previewCamera.lookAt(0, previewTargetY, 0);
-        }, { passive: false });
 
         // Animation Loop
         let previewClock = new THREE.Clock();
@@ -5419,29 +5394,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        const btnGenderMale = document.getElementById('bp-btn-gender-male');
-        const btnGenderFemale = document.getElementById('bp-btn-gender-female');
-        if (btnGenderMale && btnGenderFemale) {
-            btnGenderMale.addEventListener('click', () => {
-                currentConfig.human_gender = 'male';
-                currentConfig.gender = 'male';
-                btnGenderMale.classList.remove('bp-arcade-btn-green');
-                btnGenderMale.classList.add('bp-arcade-btn-yellow');
-                btnGenderFemale.classList.remove('bp-arcade-btn-yellow');
-                btnGenderFemale.classList.add('bp-arcade-btn-green');
-                rebuildPreviewMesh(currentConfig);
-            });
-            btnGenderFemale.addEventListener('click', () => {
-                currentConfig.human_gender = 'female';
-                currentConfig.gender = 'female';
-                btnGenderFemale.classList.remove('bp-arcade-btn-green');
-                btnGenderFemale.classList.add('bp-arcade-btn-yellow');
-                btnGenderMale.classList.remove('bp-arcade-btn-yellow');
-                btnGenderMale.classList.add('bp-arcade-btn-green');
-                rebuildPreviewMesh(currentConfig);
-            });
-        }
-
         // Eventos para selección y previsualización en vivo de los 3 estilos de caminata
         document.querySelectorAll('.bp-walk-style-btn').forEach(wsBtn => {
             wsBtn.addEventListener('click', () => {
@@ -5689,14 +5641,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         <!-- HUMAN CUSTOMIZATION (TUTOR CLÁSICO O TUTOR GLB) -->
                         <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
-                            <!-- GENDER TOGGLE -->
-                            <div id="bp-block-gender" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">GÉNERO DEL TUTOR HUMANO</label>
-                                <div style="display:flex; gap:10px;">
-                                    <button type="button" id="bp-btn-gender-male" class="bp-arcade-btn ${currentGender === 'male' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👨 Hombre</button>
-                                    <button type="button" id="bp-btn-gender-female" class="bp-arcade-btn ${currentGender === 'female' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👩 Mujer</button>
-                                </div>
-                            </div>
                             <!-- SKIN COLOR -->
                             <div id="bp-block-skin" style="margin-bottom:16px;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL / CUERPO</label>
@@ -5808,7 +5752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             </div>
                         </div>
-                        <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa • Rueda para zoom</div>
+                        <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa</div>
                     </div>
 
                 </div>
