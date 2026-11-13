@@ -313,10 +313,10 @@ document.addEventListener('DOMContentLoaded', () => {
     arcadeAvatarModal.innerHTML = `
         <div class="bp-arcade-header">
             <div>
-                <h2 class="bp-arcade-title">🧸 PERSONALIZAR AVATAR 3D</h2>
-                <div class="bp-arcade-subtitle">Diseña la apariencia de tu tutor humano o avatar animal en tiempo real.</div>
+                <h2 class="bp-arcade-title">Personalizar avatar 3D</h2>
+                <div class="bp-arcade-subtitle">Diseña la apariencia de tu tutor humano o tu avatar animal en tiempo real.</div>
             </div>
-            <button id="bp-avatar-arcade-close" class="bp-arcade-close-btn bp-arcade-exit-btn">VOLVER AL BOSQUE</button>
+            <button id="bp-avatar-arcade-close" class="bp-arcade-close-btn bp-arcade-exit-btn">Volver al bosque</button>
         </div>
         <div id="bp-avatar-arcade-content"></div>
     `;
@@ -4579,6 +4579,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const handleArcadeClose = () => {
+        if (!arcadeAvatarModal.classList.contains('hidden') && avatarConfigDirty) {
+            const confirmLeave = window.confirm('Tienes cambios sin guardar en tu avatar. ¿Seguro que quieres salir sin guardarlos?');
+            if (!confirmLeave) return;
+            avatarConfigDirty = false;
+        }
         arcadePetsModal.classList.add('hidden');
         arcadeAvatarModal.classList.add('hidden');
     };
@@ -4804,6 +4809,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let previewScene, previewCamera, previewRenderer, previewAvatarMesh, previewAnimFrame;
+    let avatarConfigDirty = false;
+
+    // Nombres de color en español para accesibilidad (title/aria-label de los swatches)
+    const AVATAR_COLOR_NAMES = {
+        '#ffe0bd': 'Beige claro', '#f5c29b': 'Beige dorado', '#d08b5b': 'Canela',
+        '#8d5524': 'Marrón tostado', '#613318': 'Marrón oscuro',
+        '#10b981': 'Verde esmeralda', '#059669': 'Verde esmeralda oscuro',
+        '#3b82f6': 'Azul', '#1d4ed8': 'Azul intenso', '#1e3a8a': 'Azul marino',
+        '#ef4444': 'Rojo', '#dc2626': 'Rojo intenso',
+        '#f59e0b': 'Naranja / dorado', '#d97706': 'Naranja quemado',
+        '#8b5cf6': 'Violeta', '#6d28d9': 'Violeta intenso',
+        '#ec4899': 'Rosa', '#db2777': 'Rosa intenso',
+        '#1e293b': 'Gris oscuro', '#0f172a': 'Gris casi negro', '#334155': 'Gris pizarra',
+        '#94a3b8': 'Gris plata', '#ffffff': 'Blanco', '#f8fafc': 'Blanco hueso',
+        '#fef08a': 'Rubio claro', '#3b2314': 'Castaño', '#e11d48': 'Rojo intenso',
+        '#eab308': 'Amarillo dorado', '#b45309': 'Marrón canela'
+    };
+    function avatarColorLabel(hex) {
+        if (!hex) return 'Color por defecto';
+        return AVATAR_COLOR_NAMES[hex.toLowerCase()] || ('Color personalizado ' + hex);
+    }
     let rebuildPreviewMesh = null;
     let syncCustomizerControls = null;
 
@@ -5060,13 +5086,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!container) return;
             container.querySelectorAll('.bp-color-swatch').forEach(sw => {
                 const col = sw.dataset.color;
-                if (col && activeVal && col.toLowerCase() === activeVal.toLowerCase()) {
-                    sw.style.borderColor = '#ffd600';
-                    sw.style.transform = 'scale(1.15)';
-                } else {
-                    sw.style.borderColor = '#000000';
-                    sw.style.transform = 'scale(1.0)';
-                }
+                const isActive = !!(col && activeVal && col.toLowerCase() === activeVal.toLowerCase());
+                sw.style.borderColor = isActive ? '#10b981' : 'rgba(255,255,255,0.18)';
+                sw.style.transform = isActive ? 'scale(1.08)' : 'scale(1.0)';
+                sw.classList.toggle('active', isActive);
+                sw.setAttribute('aria-pressed', isActive ? 'true' : 'false');
             });
         }
 
@@ -5165,30 +5189,28 @@ document.addEventListener('DOMContentLoaded', () => {
             ];
 
             container.innerHTML = `
-                <div style="margin-bottom:16px;">
-                    <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:10px;">
-                        🎨 CAPAS PERSONALIZABLES DEL MODELO 3D:
-                    </label>
+                <div class="bp-avatarcfg-section">
+                    <div class="bp-avatarcfg-section-title">🎨 Capas personalizables del modelo</div>
                     ${layers.map((layer, idx) => {
                         const defaultCol = (layer.hasDefColor !== 0 && layer.hasDefColor !== false && layer.hasDefColor !== '0') ? (layer.defColor || '') : '';
                         const activeCol = currentLayerColors[layer.name] || defaultCol || '';
                         return `
-                            <div class="bp-glb-layer-control" style="margin-bottom:14px; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                                    <span style="font-size:11px; font-weight:700; color:#34d399;">
-                                        ${idx + 1}. ${layer.label || layer.name}
-                                        ${defaultCol ? `<small style="color:#94a3b8; font-weight:normal; margin-left:4px;">(Defecto)</small>` : ''}
+                            <div class="bp-glb-layer-control bp-avatarcfg-option-block">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap;">
+                                    <span class="bp-avatarcfg-field-label" style="margin-bottom:0;">
+                                        ${layer.label || layer.name}
+                                        ${defaultCol ? `<span class="bp-avatarcfg-field-value"> (color por defecto)</span>` : ''}
                                     </span>
                                     <div style="display:flex; align-items:center; gap:6px;">
-                                        <label title="Elegir cualquier color personalizado" style="font-size:9px; color:#ffd600; cursor:pointer;">Selector:</label>
-                                        <input type="color" class="bp-layer-color-picker" data-layer-name="${layer.name}" value="${activeCol || '#ffffff'}" style="width:28px; height:24px; padding:0; border:1px solid #ffd600; border-radius:4px; cursor:pointer; background:none;" />
+                                        <label title="Elegir cualquier color personalizado" for="bp-layer-picker-${idx}" style="font-size:11px; color:var(--ac-text-muted); cursor:pointer;">Personalizado</label>
+                                        <input type="color" id="bp-layer-picker-${idx}" class="bp-layer-color-picker" data-layer-name="${layer.name}" value="${activeCol || '#ffffff'}" aria-label="Selector de color personalizado para ${layer.label || layer.name}" style="width:28px; height:28px; padding:0; border:1px solid var(--ac-border-strong); border-radius:6px; cursor:pointer; background:none;" />
                                     </div>
                                 </div>
-                                <div style="display:flex; gap:6px; flex-wrap:wrap;" class="bp-layer-swatches-row" data-layer-name="${layer.name}">
+                                <div class="bp-avatarcfg-swatch-row bp-layer-swatches-row" data-layer-name="${layer.name}" role="group" aria-label="Color de ${layer.label || layer.name}">
                                     ${standardPalette.map(c => `
-                                        <div class="bp-color-swatch ${activeCol.toLowerCase() === c.toLowerCase() ? 'active' : ''}" data-color="${c}" style="background:${c}; width:24px; height:24px; border-radius:4px; cursor:pointer; border:2px solid ${activeCol.toLowerCase() === c.toLowerCase() ? '#ffd600' : '#000000'};"></div>
+                                        <button type="button" class="bp-color-swatch ${activeCol.toLowerCase() === c.toLowerCase() ? 'active' : ''}" data-color="${c}" title="${avatarColorLabel(c)}" aria-label="${avatarColorLabel(c)}" aria-pressed="${activeCol.toLowerCase() === c.toLowerCase()}" style="background:${c}; width:26px; height:26px; cursor:pointer; border:2px solid ${activeCol.toLowerCase() === c.toLowerCase() ? '#10b981' : 'rgba(255,255,255,0.18)'};"></button>
                                     `).join('')}
-                                    <div class="bp-color-swatch-reset" title="Restaurar valor inicial" style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; cursor:pointer; background:#334155; font-size:11px; border:1px solid #475569;" data-layer-name="${layer.name}">↺</div>
+                                    <button type="button" class="bp-color-swatch-reset" title="Restaurar valor inicial" aria-label="Restaurar color inicial de ${layer.label || layer.name}" style="width:26px; height:26px; font-size:13px;" data-layer-name="${layer.name}">↺</button>
                                 </div>
                             </div>
                         `;
@@ -5201,16 +5223,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const layerName = row.dataset.layerName;
                 row.querySelectorAll('.bp-color-swatch').forEach(sw => {
                     sw.addEventListener('click', () => {
+                        avatarConfigDirty = true;
                         const color = sw.dataset.color;
                         if (!currentConfig.layer_colors) currentConfig.layer_colors = {};
                         currentConfig.layer_colors[layerName] = color;
 
                         row.querySelectorAll('.bp-color-swatch').forEach(s => {
                             s.classList.remove('active');
-                            s.style.borderColor = '#000000';
+                            s.setAttribute('aria-pressed', 'false');
+                            s.style.borderColor = 'rgba(255,255,255,0.18)';
                         });
                         sw.classList.add('active');
-                        sw.style.borderColor = '#ffd600';
+                        sw.setAttribute('aria-pressed', 'true');
+                        sw.style.borderColor = '#10b981';
 
                         const picker = container.querySelector(`.bp-layer-color-picker[data-layer-name="${layerName}"]`);
                         if (picker) picker.value = color;
@@ -5228,6 +5253,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const resetBtn = row.querySelector('.bp-color-swatch-reset');
                 if (resetBtn) {
                     resetBtn.addEventListener('click', () => {
+                        avatarConfigDirty = true;
                         if (currentConfig.layer_colors && currentConfig.layer_colors[layerName]) {
                             delete currentConfig.layer_colors[layerName];
                         }
@@ -5237,7 +5263,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         row.querySelectorAll('.bp-color-swatch').forEach(s => {
                             const isMatch = fallbackCol && (s.dataset.color.toLowerCase() === fallbackCol.toLowerCase());
                             s.classList.toggle('active', isMatch);
-                            s.style.borderColor = isMatch ? '#ffd600' : '#000000';
+                            s.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+                            s.style.borderColor = isMatch ? '#10b981' : 'rgba(255,255,255,0.18)';
                         });
 
                         const picker = container.querySelector(`.bp-layer-color-picker[data-layer-name="${layerName}"]`);
@@ -5256,6 +5283,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             container.querySelectorAll('.bp-layer-color-picker').forEach(picker => {
                 picker.addEventListener('input', () => {
+                    avatarConfigDirty = true;
                     const layerName = picker.dataset.layerName;
                     const color = picker.value;
                     if (!currentConfig.layer_colors) currentConfig.layer_colors = {};
@@ -5266,7 +5294,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         row.querySelectorAll('.bp-color-swatch').forEach(s => {
                             const isMatch = (s.dataset.color.toLowerCase() === color.toLowerCase());
                             s.classList.toggle('active', isMatch);
-                            s.style.borderColor = isMatch ? '#ffd600' : '#000000';
+                            s.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+                            s.style.borderColor = isMatch ? '#10b981' : 'rgba(255,255,255,0.18)';
                         });
                     }
 
@@ -5285,16 +5314,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const modelCards = document.querySelectorAll('.bp-model-card');
         modelCards.forEach(card => {
             card.addEventListener('click', () => {
+                avatarConfigDirty = true;
                 modelCards.forEach(c => {
                     c.classList.remove('active');
+                    c.setAttribute('aria-pressed', 'false');
                     const badge = c.querySelector('.bp-glb-badge');
                     if (badge) badge.remove();
                 });
                 card.classList.add('active');
+                card.setAttribute('aria-pressed', 'true');
                 if (!card.querySelector('.bp-glb-badge')) {
                     const badge = document.createElement('div');
                     badge.className = 'bp-glb-badge';
-                    badge.textContent = '⚡ SELECCIONADO';
                     card.appendChild(badge);
                 }
 
@@ -5371,6 +5402,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (el) {
                 el.querySelectorAll('.bp-color-swatch').forEach(sw => {
                     sw.addEventListener('click', () => {
+                        avatarConfigDirty = true;
                         const col = sw.dataset.color;
                         if (type === 'hair') currentConfig.hair_color = col;
                         else if (type === 'fur') currentConfig.skin = col;
@@ -5397,15 +5429,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Eventos para selección y previsualización en vivo de los 3 estilos de caminata
         document.querySelectorAll('.bp-walk-style-btn').forEach(wsBtn => {
             wsBtn.addEventListener('click', () => {
+                avatarConfigDirty = true;
                 const walkId = wsBtn.getAttribute('data-walk-id');
                 currentConfig.walk_style = walkId;
 
                 document.querySelectorAll('.bp-walk-style-btn').forEach(b => {
-                    b.classList.remove('bp-arcade-btn-yellow');
-                    b.classList.add('bp-arcade-btn-green');
+                    b.classList.remove('is-active');
+                    b.setAttribute('aria-pressed', 'false');
                 });
-                wsBtn.classList.remove('bp-arcade-btn-green');
-                wsBtn.classList.add('bp-arcade-btn-yellow');
+                wsBtn.classList.add('is-active');
+                wsBtn.setAttribute('aria-pressed', 'true');
 
                 // Si hay vista previa 3D activa, alternar temporalmente al modo caminata para probarlo en vivo
                 rebuildPreviewMesh(currentConfig);
@@ -5415,17 +5448,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const chkIncognito = document.getElementById('bp-chk-incognito');
         if (chkIncognito) {
             chkIncognito.addEventListener('change', () => {
+                avatarConfigDirty = true;
                 currentConfig.incognito = chkIncognito.checked ? 1 : 0;
+            });
+        }
+
+        const resetBtn = document.getElementById('bp-btn-reset-avatar');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                if (avatarConfigDirty) {
+                    const confirmReset = window.confirm('Esto descartará los cambios que no has guardado. ¿Quieres continuar?');
+                    if (!confirmReset) return;
+                }
+                avatarConfigDirty = false;
+                openArcadeAvatarModal();
             });
         }
 
         const saveBtn = document.getElementById('bp-btn-save-avatar');
         const feedbackBox = document.getElementById('bp-avatar-feedback');
 
+        function showAvatarFeedback(type, message) {
+            if (!feedbackBox) return;
+            feedbackBox.style.display = 'block';
+            feedbackBox.className = type === 'success' ? 'bp-avatarcfg-alert bp-avatarcfg-alert-success' : 'bp-avatarcfg-alert bp-avatarcfg-alert-error';
+            feedbackBox.textContent = (type === 'success' ? '✅ ' : '⚠️ ') + message;
+            if (window.innerWidth <= 860 && typeof feedbackBox.scrollIntoView === 'function') {
+                feedbackBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
                 saveBtn.disabled = true;
-                saveBtn.textContent = '💾 GUARDANDO AVATAR...';
+                saveBtn.textContent = 'Guardando avatar...';
 
                 const formData = new FormData();
                 formData.append('action', 'bp_ajax_save_avatar');
@@ -5457,15 +5513,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(res => res.json())
                 .then(res => {
                     saveBtn.disabled = false;
-                    saveBtn.textContent = '💾 GUARDAR Y APLICAR AVATAR 3D';
+                    saveBtn.textContent = 'Guardar y aplicar avatar';
 
                     if (res.success) {
                         settings.avatar = currentConfig;
-                        if (feedbackBox) {
-                            feedbackBox.style.display = 'block';
-                            feedbackBox.style.color = '#34d399';
-                            feedbackBox.textContent = '✨ ¡Avatar actualizado y guardado!';
-                        }
+                        avatarConfigDirty = false;
+                        showAvatarFeedback('success', '¡Avatar actualizado y guardado!');
 
                         if (typeof rebuildLocalPlayerAvatarMesh === 'function') {
                             rebuildLocalPlayerAvatarMesh();
@@ -5483,21 +5536,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                         }
                     } else {
-                        if (feedbackBox) {
-                            feedbackBox.style.display = 'block';
-                            feedbackBox.style.color = '#f87171';
-                            feedbackBox.textContent = res.data ? res.data.message : 'Error al guardar.';
-                        }
+                        showAvatarFeedback('error', res.data ? res.data.message : 'Error al guardar.');
                     }
                 })
                 .catch(() => {
                     saveBtn.disabled = false;
-                    saveBtn.textContent = '💾 GUARDAR Y APLICAR AVATAR 3D';
-                    if (feedbackBox) {
-                        feedbackBox.style.display = 'block';
-                        feedbackBox.style.color = '#f87171';
-                        feedbackBox.textContent = 'Error de conexión.';
-                    }
+                    saveBtn.textContent = 'Guardar y aplicar avatar';
+                    showAvatarFeedback('error', 'Error de conexión.');
                 });
             });
         }
@@ -5509,18 +5554,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         arcadePetsModal.classList.add('hidden');
         arcadeAvatarModal.classList.remove('hidden');
+        avatarConfigDirty = false;
 
         if (!settings.isLoggedIn) {
             arcadeContent.innerHTML = `
-                <div style="text-align:center; padding:60px 20px;">
-                    <p style="font-family:'Press Start 2P', monospace; font-size:14px; color:#ffd600; margin-bottom:20px;">
-                        🕹️ INSERT COIN / ACCESO REQUERIDO
-                    </p>
-                    <p style="color:#a7f3d0; font-size:14px; margin-bottom:24px;">
+                <div class="bp-avatarcfg-gate">
+                    <div class="bp-avatarcfg-gate-title">🔒 Acceso requerido</div>
+                    <p class="bp-avatarcfg-gate-copy">
                         Debes iniciar sesión o registrarte para personalizar tu avatar 3D.
                     </p>
-                    <a href="${settings.loginUrl}" class="bp-arcade-btn bp-arcade-btn-yellow" style="display:inline-block; text-decoration:none; font-size:12px; padding:14px 24px;">
-                        🔑 INICIAR SESIÓN / REGISTRARSE
+                    <a href="${settings.loginUrl}" class="bp-avatarcfg-btn bp-avatarcfg-btn-primary">
+                        Iniciar sesión / Registrarse
                     </a>
                 </div>
             `;
@@ -5576,146 +5620,128 @@ document.addEventListener('DOMContentLoaded', () => {
         const isClassicPetSelected = isPet;
 
         arcadeContent.innerHTML = `
-            <div class="bp-arcade-form-box" style="border-color:#34d399; background:rgba(18, 42, 31, 0.9);">
-                <h4 style="color:#ffd600; font-family:'Press Start 2P', monospace; font-size:12px; margin-bottom:20px;">🧸 CONFIGURADOR DE AVATAR 3D</h4>
+            <div class="bp-arcade-form-box">
+                <h4>Configurador de avatar 3D</h4>
 
-                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:start;">
+                <div class="bp-avatarcfg-layout">
 
-                    <!-- CONTROLES RETRO DE TUNEO -->
+                    <!-- COLUMNA DE CONTROLES -->
                     <div>
-                        <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">SELECCIONA TU AVATAR 3D:</label>
-                        <div class="bp-glb-grid" style="margin-bottom:20px; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));">
-                            <!-- Classic Procedural Human Male Card -->
-                            <div class="bp-glb-card bp-model-card ${isMaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="male">
-                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍‍♂️</div>
-                                <div class="bp-glb-title">Hombre</div>
-                                ${isMaleSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
+                        <div class="bp-avatarcfg-section" role="group" aria-label="Elige tu avatar humano">
+                            <div class="bp-avatarcfg-section-title">👤 Avatares humanos</div>
+                            <div class="bp-glb-grid">
+                                <button type="button" class="bp-glb-card bp-model-card ${isMaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="male" aria-pressed="${isMaleSelected}" aria-label="Avatar humano, hombre">
+                                    <div class="bp-avatarcfg-icon-circle">🧍‍♂️</div>
+                                    <div class="bp-glb-title">Hombre</div>
+                                    ${isMaleSelected ? `<div class="bp-glb-badge"></div>` : ''}
+                                </button>
+                                <button type="button" class="bp-glb-card bp-model-card ${isFemaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="female" aria-pressed="${isFemaleSelected}" aria-label="Avatar humano, mujer">
+                                    <div class="bp-avatarcfg-icon-circle">🧍‍♀️</div>
+                                    <div class="bp-glb-title">Mujer</div>
+                                    ${isFemaleSelected ? `<div class="bp-glb-badge"></div>` : ''}
+                                </button>
                             </div>
-                            <!-- Classic Procedural Human Female Card -->
-                            <div class="bp-glb-card bp-model-card ${isFemaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="female">
-                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍‍♀️</div>
-                                <div class="bp-glb-title">Mujer</div>
-                                ${isFemaleSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
-                            </div>
-                            <!-- Classic Dog Card -->
-                            <div class="bp-glb-card bp-model-card ${isDogSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="dog">
-                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🐶</div>
-                                <div class="bp-glb-title">Perro</div>
-                                ${isDogSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
-                            </div>
-                            <!-- Classic Cat Card -->
-                            <div class="bp-glb-card bp-model-card ${isCatSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="cat">
-                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🐱</div>
-                                <div class="bp-glb-title">Gato</div>
-                                ${isCatSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
-                            </div>
-                            <!-- Classic Rabbit Card -->
-                            <div class="bp-glb-card bp-model-card ${isRabbitSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="rabbit">
-                                <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🐰</div>
-                                <div class="bp-glb-title">Conejo</div>
-                                ${isRabbitSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
-                            </div>
-                            <!-- GLB Models -->
-                            ${glbList.map(item => {
-                                const isSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id === item.id || avatar.glb_url === item.file_url));
-                                const thumb = item.icon_url || '';
-                                return `
-                                    <div class="bp-glb-card bp-model-card ${isSelected ? 'active' : ''}" data-model-type="glb" data-id="${item.id}" data-url="${item.file_url}" data-category="${item.category || 'human'}" data-scale="${item.scale || 1.0}" data-offset-y="${item.offset_y || 0.0}" data-anim-idle="${item.anim_idle || ''}" data-anim-walk="${item.anim_walk || ''}" data-anim-kneel-down="${item.anim_kneel_down || ''}" data-anim-kneel-idle="${item.anim_kneel_idle || ''}">
-                                        ${thumb ? `<img src="${thumb}" class="bp-glb-thumb" />` : `<div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:24px;">📦</div>`}
-                                        <div class="bp-glb-title">${item.title}</div>
-                                        ${isSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
-                                    </div>
-                                `;
-                            }).join('')}
                         </div>
 
-                        <!-- AVISO DE MODELOS CON TEXTURAS ORIGINALES FIJAS / MONOLÍTICOS -->
-                        <div id="bp-block-fixed-notice" style="display:none; background:rgba(30, 41, 59, 0.7); border:1px solid #475569; padding:14px; border-radius:8px; margin-bottom:16px; text-align:center;">
-                            <span style="font-size:22px; display:block; margin-bottom:6px;">🎨</span>
-                            <span style="font-family:'Press Start 2P', monospace; font-size:10px; color:#94a3b8; display:block; margin-bottom:6px;">TEXTURAS ORIGINALES FIJAS</span>
-                            <p style="font-size:11px; color:#cbd5e1; margin:0;">Este modelo 3D cuenta con texturas y colores originales fijos.</p>
+                        <div class="bp-avatarcfg-section" role="group" aria-label="Elige tu avatar de mascota">
+                            <div class="bp-avatarcfg-section-title">🐾 Mascotas</div>
+                            <div class="bp-glb-grid">
+                                <button type="button" class="bp-glb-card bp-model-card ${isDogSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="dog" aria-pressed="${isDogSelected}" aria-label="Avatar de mascota, perro">
+                                    <div class="bp-avatarcfg-icon-circle">🐶</div>
+                                    <div class="bp-glb-title">Perro</div>
+                                    ${isDogSelected ? `<div class="bp-glb-badge"></div>` : ''}
+                                </button>
+                                <button type="button" class="bp-glb-card bp-model-card ${isCatSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="cat" aria-pressed="${isCatSelected}" aria-label="Avatar de mascota, gato">
+                                    <div class="bp-avatarcfg-icon-circle">🐱</div>
+                                    <div class="bp-glb-title">Gato</div>
+                                    ${isCatSelected ? `<div class="bp-glb-badge"></div>` : ''}
+                                </button>
+                                <button type="button" class="bp-glb-card bp-model-card ${isRabbitSelected ? 'active' : ''}" data-model-type="classic-pet" data-species="rabbit" aria-pressed="${isRabbitSelected}" aria-label="Avatar de mascota, conejo">
+                                    <div class="bp-avatarcfg-icon-circle">🐰</div>
+                                    <div class="bp-glb-title">Conejo</div>
+                                    ${isRabbitSelected ? `<div class="bp-glb-badge"></div>` : ''}
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- AVISO DE MODELOS CON TEXTURAS ORIGINALES FIJAS -->
+                        <div id="bp-block-fixed-notice" class="bp-avatarcfg-notice" style="display:none;">
+                            <span class="bp-avatarcfg-notice-icon">🎨</span>
+                            <span class="bp-avatarcfg-notice-title">Texturas originales fijas</span>
+                            <p>Este modelo 3D cuenta con texturas y colores originales fijos. Puedes seguir ajustando el estilo de caminata y el modo incógnito.</p>
                         </div>
 
                         <!-- CONTENEDOR DINÁMICO DE CAPAS PERSONALIZABLES PARA MODELOS GLB -->
                         <div id="bp-glb-custom-layers-options" style="display:none;"></div>
 
-                        <!-- HUMAN CUSTOMIZATION (TUTOR CLÁSICO O TUTOR GLB) -->
-                        <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
-                            <!-- SKIN COLOR -->
-                            <div id="bp-block-skin" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL / CUERPO</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-skin">
+                        <!-- HUMAN CUSTOMIZATION (TUTOR CLÁSICO) -->
+                        <div id="bp-human-custom-options" class="bp-avatarcfg-section" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
+                            <div id="bp-block-skin" class="bp-avatarcfg-option-block">
+                                <label class="bp-avatarcfg-field-label" for="bp-swatches-skin">Tono de piel</label>
+                                <div class="bp-avatarcfg-swatch-row" id="bp-swatches-skin" role="group" aria-label="Tono de piel">
                                     ${['#ffe0bd', '#f5c29b', '#d08b5b', '#8d5524', '#613318'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
+                                        <button type="button" class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" title="${avatarColorLabel(c)}" aria-label="${avatarColorLabel(c)}" aria-pressed="${avatar.skin === c}" style="background:${c}; width:32px; height:32px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#10b981' : 'rgba(255,255,255,0.18)'};"></button>
                                     `).join('')}
                                 </div>
                             </div>
 
-                            <!-- SHIRT COLOR -->
-                            <div id="bp-block-shirt" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE CAMISETA / TORSO</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-shirt">
+                            <div id="bp-block-shirt" class="bp-avatarcfg-option-block">
+                                <label class="bp-avatarcfg-field-label" for="bp-swatches-shirt">Color de camiseta</label>
+                                <div class="bp-avatarcfg-swatch-row" id="bp-swatches-shirt" role="group" aria-label="Color de camiseta">
                                     ${['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#1e293b', '#ffffff'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
+                                        <button type="button" class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" title="${avatarColorLabel(c)}" aria-label="${avatarColorLabel(c)}" aria-pressed="${avatar.shirt === c}" style="background:${c}; width:32px; height:32px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#10b981' : 'rgba(255,255,255,0.18)'};"></button>
                                     `).join('')}
                                 </div>
                             </div>
 
-                            <!-- PANTS COLOR -->
-                            <div id="bp-block-pants" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">3. COLOR DE PANTALÓN / PIERNAS</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-pants">
+                            <div id="bp-block-pants" class="bp-avatarcfg-option-block">
+                                <label class="bp-avatarcfg-field-label" for="bp-swatches-pants">Color de pantalón</label>
+                                <div class="bp-avatarcfg-swatch-row" id="bp-swatches-pants" role="group" aria-label="Color de pantalón">
                                     ${['#1e3a8a', '#1e293b', '#3b2314', '#10b981', '#d97706', '#dc2626', '#ffffff'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#ffd600' : '#000000'};"></div>
+                                        <button type="button" class="bp-color-swatch ${avatar.pants === c ? 'active' : ''}" data-color="${c}" title="${avatarColorLabel(c)}" aria-label="${avatarColorLabel(c)}" aria-pressed="${avatar.pants === c}" style="background:${c}; width:32px; height:32px; cursor:pointer; border:2px solid ${avatar.pants === c ? '#10b981' : 'rgba(255,255,255,0.18)'};"></button>
                                     `).join('')}
                                 </div>
                             </div>
 
-                            <!-- HAIR COLOR -->
-                            <div id="bp-block-hair-color" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. COLOR DE PELO / CABELLO</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
+                            <div id="bp-block-hair-color" class="bp-avatarcfg-option-block">
+                                <label class="bp-avatarcfg-field-label" for="bp-swatches-hair">Color de pelo</label>
+                                <div class="bp-avatarcfg-swatch-row" id="bp-swatches-hair" role="group" aria-label="Color de pelo">
                                     ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
+                                        <button type="button" class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" title="${avatarColorLabel(c)}" aria-label="${avatarColorLabel(c)}" aria-pressed="${avatar.hair_color === c}" style="background:${c}; width:32px; height:32px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#10b981' : 'rgba(255,255,255,0.18)'};"></button>
                                     `).join('')}
                                 </div>
                             </div>
                         </div>
 
-                        <!-- PET CUSTOMIZATION (MASCOTA CLÁSICA O MASCOTA GLB) -->
-                        <div id="bp-pet-custom-options" style="display:${isClassicPetSelected ? 'block' : 'none'};">
-                            <!-- FUR COLOR -->
-                            <div id="bp-block-fur" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. COLOR DE PELAJE</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-fur">
+                        <!-- PET CUSTOMIZATION (MASCOTA CLÁSICA) -->
+                        <div id="bp-pet-custom-options" class="bp-avatarcfg-section" style="display:${isClassicPetSelected ? 'block' : 'none'};">
+                            <div id="bp-block-fur" class="bp-avatarcfg-option-block">
+                                <label class="bp-avatarcfg-field-label" for="bp-swatches-fur">Color de pelaje</label>
+                                <div class="bp-avatarcfg-swatch-row" id="bp-swatches-fur" role="group" aria-label="Color de pelaje">
                                     ${['#d97706', '#334155', '#f8fafc', '#b45309', '#1e293b', '#eab308', '#ec4899'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#ffd600' : '#000000'};"></div>
+                                        <button type="button" class="bp-color-swatch ${avatar.skin === c ? 'active' : ''}" data-color="${c}" title="${avatarColorLabel(c)}" aria-label="${avatarColorLabel(c)}" aria-pressed="${avatar.skin === c}" style="background:${c}; width:32px; height:32px; cursor:pointer; border:2px solid ${avatar.skin === c ? '#10b981' : 'rgba(255,255,255,0.18)'};"></button>
                                     `).join('')}
                                 </div>
                             </div>
 
-                            <!-- COLLAR / ACCENT COLOR -->
-                            <div id="bp-block-collar" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">2. COLOR DE COLLAR / DETALLE</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-collar">
+                            <div id="bp-block-collar" class="bp-avatarcfg-option-block">
+                                <label class="bp-avatarcfg-field-label" for="bp-swatches-collar">Color de collar / detalle</label>
+                                <div class="bp-avatarcfg-swatch-row" id="bp-swatches-collar" role="group" aria-label="Color de collar">
                                     ${['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'].map(c => `
-                                        <div class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#ffd600' : '#000000'};"></div>
+                                        <button type="button" class="bp-color-swatch ${avatar.shirt === c ? 'active' : ''}" data-color="${c}" title="${avatarColorLabel(c)}" aria-label="${avatarColorLabel(c)}" aria-pressed="${avatar.shirt === c}" style="background:${c}; width:32px; height:32px; cursor:pointer; border:2px solid ${avatar.shirt === c ? '#10b981' : 'rgba(255,255,255,0.18)'};"></button>
                                     `).join('')}
                                 </div>
                             </div>
                         </div>
 
-                        <!-- ESTILOS DE CAMINATA (Tutor Hombre y Tutora Mujer: ambos son modelos
-                             3D fijos que comparten las mismas animaciones de caminar) -->
-                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3); display:${isClassicHumanSelected ? 'block' : 'none'};">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">
-                                🚶 ESTILO DE CAMINATA (Haz clic para probar en vivo):
-                            </label>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-walk-styles-container">
+                        <!-- ESTILO DE CAMINATA -->
+                        <div class="bp-avatarcfg-option-block" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
+                            <label class="bp-avatarcfg-field-label">🚶 Estilo de caminata <span class="bp-avatarcfg-field-value">(haz clic para probarlo en la vista previa)</span></label>
+                            <div class="bp-avatarcfg-segment" id="bp-walk-styles-container" role="group" aria-label="Estilo de caminata">
                                 ${globalWalkStyles.map((ws, idx) => {
                                     const isCurrent = (avatar.walk_style === ws.id) || (!avatar.walk_style && idx === 0);
                                     return `
-                                        <button type="button" class="bp-arcade-btn bp-walk-style-btn ${isCurrent ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" data-walk-id="${ws.id}" data-walk-url="${ws.url || ''}" style="flex:1; min-width:90px; font-size:8px; padding:10px 6px;">
+                                        <button type="button" class="bp-walk-style-btn ${isCurrent ? 'is-active' : ''}" data-walk-id="${ws.id}" data-walk-url="${ws.url || ''}" aria-pressed="${isCurrent}">
                                             ${ws.name || ('Estilo ' + (idx + 1))}
                                         </button>
                                     `;
@@ -5723,36 +5749,43 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
-                        <!-- INCOGNITO CHECKBOX -->
-                        <div style="margin-bottom:20px; background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
-                            <label style="font-size:12px; color:#a7f3d0; cursor:pointer; display:flex; align-items:center; gap:8px;">
-                                <input type="checkbox" id="bp-chk-incognito" ${avatar.incognito ? 'checked' : ''} style="width:18px; height:18px; accent-color:#10b981;" />
-                                <span>👻 Visitar en solitario / Modo Incógnito (ocultar mi avatar a los demás)</span>
+                        <!-- INCOGNITO TOGGLE -->
+                        <div class="bp-avatarcfg-toggle-row">
+                            <label class="bp-avatarcfg-toggle-copy" for="bp-chk-incognito">
+                                Modo incógnito
+                                <span>Oculta tu avatar a otros visitantes del bosque</span>
                             </label>
+                            <span class="bp-avatarcfg-switch">
+                                <input type="checkbox" id="bp-chk-incognito" ${avatar.incognito ? 'checked' : ''} />
+                                <span class="bp-avatarcfg-switch-track"></span>
+                            </span>
                         </div>
 
-                        <div id="bp-avatar-feedback" style="display:none; font-size:12px; margin-bottom:12px; color:#2ecc71;"></div>
+                        <div id="bp-avatar-feedback" aria-live="polite" style="display:none;"></div>
 
-                        <button id="bp-btn-save-avatar" class="bp-arcade-btn bp-arcade-btn-yellow" style="font-size:11px; padding:14px 22px; width:100%;">
-                            💾 GUARDAR Y APLICAR AVATAR 3D
-                        </button>
+                        <div class="bp-avatarcfg-actions">
+                            <button type="button" id="bp-btn-reset-avatar" class="bp-avatarcfg-btn bp-avatarcfg-btn-secondary">
+                                Restablecer
+                            </button>
+                            <button type="button" id="bp-btn-save-avatar" class="bp-avatarcfg-btn bp-avatarcfg-btn-primary">
+                                Guardar y aplicar avatar
+                            </button>
+                        </div>
                     </div>
 
                     <!-- LIVE 3D PREVIEW BOX -->
                     <div style="text-align:center;">
-                        <div style="font-family:'Press Start 2P', monospace; font-size:11px; color:#ffd600; margin-bottom:10px;">
-                            🕹️ VISTA PREVIA EN VIVO 3D
-                        </div>
-                        <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;">
+                        <div class="bp-avatarcfg-preview-title">🕹️ Vista previa en vivo</div>
+                        <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; position:relative; overflow:hidden;">
                             <div id="bp-avatar-preview-loading" class="bp-avatar-loading-overlay hidden">
                                 <div class="bp-emerald-spinner"></div>
-                                <div class="bp-avatar-loading-text" id="bp-avatar-preview-loading-text">CARGANDO PERSONAJE...</div>
+                                <div class="bp-avatar-loading-text" id="bp-avatar-preview-loading-text">Cargando personaje...</div>
                                 <div class="bp-loading-bar-track">
                                     <div class="bp-loading-bar-fill" id="bp-avatar-preview-loading-bar-fill" style="width:0%;"></div>
                                 </div>
                             </div>
                         </div>
-                        <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa</div>
+                        <div class="bp-avatarcfg-preview-caption">Arrastra para rotar la vista previa</div>
                     </div>
 
                 </div>

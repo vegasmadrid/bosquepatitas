@@ -1491,3 +1491,588 @@ kbd {
     0% { background-position: 0% 0%; }
     100% { background-position: 200% 0%; }
 }
+
+/* ==========================================================================
+   CONFIGURADOR DE AVATAR 3D — REDISEÑO MODERNO
+   Todo lo de aquí abajo está deliberadamente ámbito-limitado a
+   #bp-avatar-arcade-modal: el resto de overlays (p.ej. "Mis Mascotas")
+   conserva su estética arcade original sin cambios.
+   ========================================================================== */
+
+#bp-avatar-arcade-modal {
+    --ac-bg-1: #0a1812;
+    --ac-bg-2: #081310;
+    --ac-surface: rgba(255, 255, 255, 0.035);
+    --ac-surface-strong: rgba(255, 255, 255, 0.06);
+    --ac-border: rgba(255, 255, 255, 0.10);
+    --ac-border-strong: rgba(255, 255, 255, 0.18);
+    --ac-accent: #10b981;
+    --ac-accent-strong: #059669;
+    --ac-accent-soft: rgba(16, 185, 129, 0.16);
+    --ac-ring: #10b981;
+    --ac-ring-off: rgba(255, 255, 255, 0.16);
+    --ac-text: #eef7f2;
+    --ac-text-muted: #a9c3b5;
+    --ac-danger: #f87171;
+    --ac-danger-soft: rgba(248, 113, 113, 0.14);
+    --ac-radius-lg: 20px;
+    --ac-radius-md: 14px;
+    --ac-radius-sm: 10px;
+    --ac-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    --ac-font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+    background: radial-gradient(ellipse at top center, var(--ac-bg-1) 0%, var(--ac-bg-2) 65%) !important;
+    font-family: var(--ac-font) !important;
+}
+
+/* Apaga el efecto CRT/scanlines retro únicamente en este modal */
+#bp-avatar-arcade-modal::before {
+    content: none !important;
+}
+
+#bp-avatar-arcade-modal .bp-arcade-header {
+    border-bottom: 1px solid var(--ac-border) !important;
+    padding-bottom: 20px !important;
+    margin-bottom: 24px !important;
+}
+
+#bp-avatar-arcade-modal .bp-arcade-title {
+    font-family: var(--ac-font) !important;
+    font-weight: 800 !important;
+    font-size: clamp(16px, 2.4vw, 22px) !important;
+    color: var(--ac-text) !important;
+    text-shadow: none !important;
+    letter-spacing: -0.2px !important;
+}
+
+#bp-avatar-arcade-modal .bp-arcade-subtitle {
+    font-family: var(--ac-font) !important;
+    color: var(--ac-text-muted) !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
+}
+
+#bp-avatar-arcade-modal .bp-arcade-close-btn {
+    background: transparent !important;
+    color: var(--ac-text) !important;
+    border: 1px solid var(--ac-border-strong) !important;
+    box-shadow: none !important;
+    font-family: var(--ac-font) !important;
+    font-weight: 600 !important;
+    border-radius: 999px !important;
+    padding: 10px 20px !important;
+}
+
+#bp-avatar-arcade-modal .bp-arcade-close-btn:hover {
+    background: var(--ac-surface-strong) !important;
+    color: var(--ac-text) !important;
+    border-color: var(--ac-accent) !important;
+    transform: none !important;
+    box-shadow: 0 0 0 3px var(--ac-accent-soft) !important;
+}
+
+#bp-avatar-arcade-modal .bp-arcade-form-box {
+    background: var(--ac-surface) !important;
+    border: 1px solid var(--ac-border) !important;
+    box-shadow: var(--ac-shadow) !important;
+    border-radius: var(--ac-radius-lg) !important;
+    padding: 28px !important;
+    backdrop-filter: blur(6px);
+}
+
+#bp-avatar-arcade-modal .bp-arcade-form-box h4 {
+    font-family: var(--ac-font) !important;
+    font-weight: 800 !important;
+    font-size: 18px !important;
+    letter-spacing: -0.2px !important;
+}
+
+/* Etiquetas de sección (p.ej. "Avatares humanos", "Mascotas") */
+.bp-avatarcfg-section-title {
+    font-family: var(--ac-font);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ac-text-muted);
+    margin: 0 0 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.bp-avatarcfg-section {
+    margin-bottom: 22px;
+}
+
+.bp-avatarcfg-field-label {
+    font-family: var(--ac-font);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ac-text);
+    display: block;
+    margin-bottom: 10px;
+}
+
+.bp-avatarcfg-field-label .bp-avatarcfg-field-value {
+    font-weight: 500;
+    color: var(--ac-text-muted);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* Grid de tarjetas de avatar (humano / mascota) */
+#bp-avatar-arcade-modal .bp-glb-grid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)) !important;
+    gap: 12px !important;
+}
+
+#bp-avatar-arcade-modal .bp-glb-card {
+    position: relative !important;
+    background: var(--ac-surface) !important;
+    border: 1px solid var(--ac-border) !important;
+    border-radius: var(--ac-radius-md) !important;
+    box-shadow: none !important;
+    padding: 16px 10px 14px !important;
+    font-family: var(--ac-font) !important;
+    transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease !important;
+}
+
+#bp-avatar-arcade-modal .bp-glb-card:hover {
+    border-color: var(--ac-border-strong) !important;
+    background: var(--ac-surface-strong) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3) !important;
+}
+
+#bp-avatar-arcade-modal .bp-glb-card.active {
+    border-color: var(--ac-accent) !important;
+    border-width: 1px !important;
+    background: var(--ac-accent-soft) !important;
+    box-shadow: 0 0 0 1px var(--ac-accent) inset !important;
+}
+
+#bp-avatar-arcade-modal .bp-glb-card:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 3px var(--ac-accent-soft), 0 0 0 1px var(--ac-accent) !important;
+}
+
+#bp-avatar-arcade-modal .bp-model-card {
+    border: none !important;
+    cursor: pointer;
+    width: 100%;
+    appearance: none;
+    text-align: center;
+}
+
+/* Icono dentro de un círculo suave, estilo producto moderno */
+.bp-avatarcfg-icon-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--ac-surface-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin: 0 auto 8px;
+    transition: background 0.18s ease;
+}
+
+#bp-avatar-arcade-modal .bp-glb-card.active .bp-avatarcfg-icon-circle {
+    background: var(--ac-accent-soft);
+}
+
+#bp-avatar-arcade-modal .bp-glb-title {
+    font-family: var(--ac-font) !important;
+    font-weight: 600 !important;
+    font-size: 12.5px !important;
+    color: var(--ac-text) !important;
+}
+
+/* Insignia de "seleccionado": punto con check, no texto pixelado */
+#bp-avatar-arcade-modal .bp-glb-badge {
+    position: absolute !important;
+    top: 8px !important;
+    right: 8px !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    background: var(--ac-accent) !important;
+    color: #04140d !important;
+    font-size: 0 !important;
+    font-weight: 800 !important;
+    text-transform: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+}
+
+#bp-avatar-arcade-modal .bp-glb-badge::after {
+    content: "✓";
+    font-size: 11px;
+    line-height: 1;
+}
+
+/* Swatches de color: círculos modernos con anillo de selección */
+#bp-avatar-arcade-modal .bp-color-swatch {
+    border-radius: 50% !important;
+    border-width: 2px !important;
+    appearance: none;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+#bp-avatar-arcade-modal .bp-color-swatch:hover {
+    transform: scale(1.08) !important;
+}
+
+#bp-avatar-arcade-modal .bp-color-swatch:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 3px var(--ac-accent-soft) !important;
+}
+
+#bp-avatar-arcade-modal .bp-color-swatch-reset {
+    border-radius: 50% !important;
+    background: var(--ac-surface-strong) !important;
+    border: 1px solid var(--ac-border) !important;
+    color: var(--ac-text-muted) !important;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+#bp-avatar-arcade-modal .bp-color-swatch-reset:hover {
+    border-color: var(--ac-accent) !important;
+    color: var(--ac-text) !important;
+}
+
+.bp-avatarcfg-swatch-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.bp-avatarcfg-current-color {
+    font-size: 11.5px;
+    color: var(--ac-text-muted);
+    margin-top: 8px;
+    font-family: var(--ac-font);
+}
+
+/* Opciones dinámicas (humano / mascota / capas GLB) */
+.bp-avatarcfg-option-block {
+    background: var(--ac-surface) !important;
+    border: 1px solid var(--ac-border) !important;
+    border-radius: var(--ac-radius-md) !important;
+    padding: 16px !important;
+    margin-bottom: 14px !important;
+}
+
+/* Aviso de texturas fijas */
+.bp-avatarcfg-notice {
+    background: var(--ac-surface) !important;
+    border: 1px solid var(--ac-border) !important;
+    border-radius: var(--ac-radius-md) !important;
+    padding: 16px !important;
+    text-align: center;
+}
+
+.bp-avatarcfg-notice-icon {
+    font-size: 20px;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.bp-avatarcfg-notice-title {
+    font-family: var(--ac-font);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ac-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.bp-avatarcfg-notice p {
+    font-size: 12.5px;
+    color: var(--ac-text-muted);
+    margin: 0;
+    font-family: var(--ac-font);
+}
+
+/* Control segmentado para el estilo de caminata */
+.bp-avatarcfg-segment {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+#bp-avatar-arcade-modal .bp-walk-style-btn {
+    font-family: var(--ac-font) !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    padding: 10px 14px !important;
+    border: 1px solid var(--ac-border) !important;
+    box-shadow: none !important;
+    border-radius: 999px !important;
+    background: var(--ac-surface) !important;
+    color: var(--ac-text-muted) !important;
+    flex: 1 !important;
+    min-width: 100px !important;
+    transition: all 0.15s ease !important;
+}
+
+#bp-avatar-arcade-modal .bp-walk-style-btn:hover {
+    border-color: var(--ac-border-strong) !important;
+    color: var(--ac-text) !important;
+}
+
+#bp-avatar-arcade-modal .bp-walk-style-btn.is-active {
+    background: var(--ac-accent-soft) !important;
+    border-color: var(--ac-accent) !important;
+    color: var(--ac-text) !important;
+}
+
+/* Toggle de modo incógnito, estilo switch moderno */
+.bp-avatarcfg-toggle-row {
+    background: var(--ac-surface) !important;
+    border: 1px solid var(--ac-border) !important;
+    border-radius: var(--ac-radius-md) !important;
+    padding: 14px 16px !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.bp-avatarcfg-toggle-row .bp-avatarcfg-toggle-copy {
+    font-family: var(--ac-font);
+    font-size: 13px;
+    color: var(--ac-text);
+    font-weight: 600;
+}
+
+.bp-avatarcfg-toggle-row .bp-avatarcfg-toggle-copy span {
+    display: block;
+    font-size: 11.5px;
+    color: var(--ac-text-muted);
+    font-weight: 500;
+    margin-top: 2px;
+}
+
+.bp-avatarcfg-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.bp-avatarcfg-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.bp-avatarcfg-switch-track {
+    position: absolute;
+    inset: 0;
+    background: var(--ac-surface-strong);
+    border: 1px solid var(--ac-border-strong);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.bp-avatarcfg-switch-track::before {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 3px;
+    top: 3px;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.bp-avatarcfg-switch input:checked + .bp-avatarcfg-switch-track {
+    background: var(--ac-accent);
+    border-color: var(--ac-accent);
+}
+
+.bp-avatarcfg-switch input:checked + .bp-avatarcfg-switch-track::before {
+    transform: translateX(18px);
+}
+
+.bp-avatarcfg-switch input:focus-visible + .bp-avatarcfg-switch-track {
+    box-shadow: 0 0 0 3px var(--ac-accent-soft);
+}
+
+/* Botones de acción (guardar / restablecer) */
+.bp-avatarcfg-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+#bp-avatar-arcade-modal .bp-avatarcfg-btn {
+    font-family: var(--ac-font) !important;
+    font-weight: 700 !important;
+    font-size: 13.5px !important;
+    padding: 13px 20px !important;
+    border-radius: 999px !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, opacity 0.15s ease !important;
+    text-align: center;
+}
+
+#bp-avatar-arcade-modal .bp-avatarcfg-btn-primary {
+    background: linear-gradient(135deg, var(--ac-accent) 0%, var(--ac-accent-strong) 100%) !important;
+    color: #04140d !important;
+    flex: 2;
+}
+
+#bp-avatar-arcade-modal .bp-avatarcfg-btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 10px 24px rgba(16, 185, 129, 0.35) !important;
+}
+
+#bp-avatar-arcade-modal .bp-avatarcfg-btn-primary:disabled {
+    opacity: 0.65 !important;
+    cursor: default;
+    transform: none !important;
+}
+
+#bp-avatar-arcade-modal .bp-avatarcfg-btn-secondary {
+    background: transparent !important;
+    color: var(--ac-text-muted) !important;
+    border-color: var(--ac-border-strong) !important;
+    flex: 1;
+}
+
+#bp-avatar-arcade-modal .bp-avatarcfg-btn-secondary:hover {
+    color: var(--ac-text) !important;
+    border-color: var(--ac-accent) !important;
+}
+
+/* Mensaje de feedback (éxito / error) como alerta moderna */
+.bp-avatarcfg-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-radius: var(--ac-radius-sm);
+    padding: 12px 14px;
+    font-family: var(--ac-font);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    border-left: 3px solid transparent;
+    animation: bp-avatarcfg-fade-in 0.2s ease;
+}
+
+.bp-avatarcfg-alert-success {
+    background: var(--ac-accent-soft);
+    border-left-color: var(--ac-accent);
+    color: #c9f7e4;
+}
+
+.bp-avatarcfg-alert-error {
+    background: var(--ac-danger-soft);
+    border-left-color: var(--ac-danger);
+    color: #ffd9d9;
+}
+
+@keyframes bp-avatarcfg-fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Vista previa 3D */
+#bp-avatar-arcade-modal #bp-avatar-preview-container {
+    border: 1px solid var(--ac-border) !important;
+    border-radius: var(--ac-radius-lg) !important;
+    box-shadow: var(--ac-shadow) !important;
+    background: #060d0a !important;
+}
+
+#bp-avatar-arcade-modal .bp-avatar-loading-text {
+    font-family: var(--ac-font) !important;
+    font-size: 12px !important;
+    text-shadow: none !important;
+    letter-spacing: 0 !important;
+}
+
+.bp-avatarcfg-preview-caption {
+    font-family: var(--ac-font);
+    font-size: 12px;
+    color: var(--ac-text-muted);
+    margin-top: 10px;
+}
+
+.bp-avatarcfg-preview-title {
+    font-family: var(--ac-font);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ac-text);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+/* Pantalla de acceso requerido */
+.bp-avatarcfg-gate {
+    text-align: center;
+    padding: 72px 20px;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.bp-avatarcfg-gate-title {
+    font-family: var(--ac-font);
+    font-weight: 800;
+    font-size: 19px;
+    color: var(--ac-text);
+    margin-bottom: 10px;
+}
+
+.bp-avatarcfg-gate-copy {
+    font-family: var(--ac-font);
+    color: var(--ac-text-muted);
+    font-size: 14px;
+    margin-bottom: 26px;
+    line-height: 1.5;
+}
+
+#bp-avatar-arcade-modal .bp-avatarcfg-gate .bp-avatarcfg-btn-primary {
+    display: inline-block;
+    text-decoration: none;
+}
+
+/* Layout principal: formulario + preview, responsive */
+.bp-avatarcfg-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr);
+    gap: 28px;
+    align-items: start;
+}
+
+@media (max-width: 860px) {
+    .bp-avatarcfg-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    #bp-avatar-arcade-modal .bp-arcade-form-box {
+        padding: 20px !important;
+    }
+}
