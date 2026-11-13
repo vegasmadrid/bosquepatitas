@@ -24,20 +24,27 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="bp-forest-spinner"></div>
             <div class="bp-forest-loading-title">⏳ CARGANDO AVATAR 3D...</div>
             <div class="bp-forest-loading-sub" id="bp-forest-avatar-loading-progress">DESCARGANDO MODELO Y TEXTURAS</div>
+            <div class="bp-loading-bar-track">
+                <div class="bp-loading-bar-fill" id="bp-forest-avatar-loading-bar-fill" style="width:0%;"></div>
+            </div>
         `;
         container.appendChild(forestAvatarLoading);
     }
 
-    function showForestAvatarLoading(text = 'DESCARGANDO MODELO Y TEXTURAS') {
+    function showForestAvatarLoading(text = 'DESCARGANDO MODELO Y TEXTURAS', percent = null) {
         if (!forestAvatarLoading) return;
         const progressEl = document.getElementById('bp-forest-avatar-loading-progress');
         if (progressEl) progressEl.textContent = text;
+        const barFill = document.getElementById('bp-forest-avatar-loading-bar-fill');
+        if (barFill) barFill.style.width = (percent === null ? 0 : Math.max(0, Math.min(100, percent))) + '%';
         forestAvatarLoading.classList.remove('hidden');
     }
 
     function hideForestAvatarLoading() {
         if (!forestAvatarLoading) return;
         forestAvatarLoading.classList.add('hidden');
+        const barFill = document.getElementById('bp-forest-avatar-loading-bar-fill');
+        if (barFill) barFill.style.width = '0%';
     }
 
     let tooltip = document.getElementById('bp-tooltip');
@@ -704,8 +711,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings.pusherKey) return;
 
         const simulatedData = [
-            { id: 'sim_elena', name: 'Elena', human_gender: 'female', skin: '#f5c29b', shirt: '#ec4899', pants: '#2563eb', hair_style: 'long', hair_color: '#f59e0b', accessory: 'flower', x: -6, z: 8 },
-            { id: 'sim_marcos', name: 'Marcos', human_gender: 'male', skin: '#ffe0bd', shirt: '#ffffff', pants: '#2563eb', hair_style: 'classic', hair_color: '#1e293b', accessory: 'flower', x: 8, z: -10 }
+            { id: 'sim_elena', name: 'Elena', human_gender: 'female', skin: '#f5c29b', shirt: '#ec4899', pants: '#2563eb', hair_color: '#f59e0b', x: -6, z: 8 },
+            { id: 'sim_marcos', name: 'Marcos', human_gender: 'male', skin: '#ffe0bd', shirt: '#ffffff', pants: '#2563eb', hair_color: '#1e293b', x: 8, z: -10 }
         ];
 
         simulatedData.forEach(sim => {
@@ -1003,8 +1010,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!clip || !model) return clip;
         const cloned = clip.clone();
         const boneNames = new Set();
+        // Índice por nombre de hueso normalizado (sin prefijo "mixamorig"/"mixamorig2"/"mixamorigN...")
+        // para poder re-dirigir animaciones cuyo esqueleto fue re-exportado con un prefijo distinto
+        // al del modelo (p.ej. clips "mixamorigHips" sobre un modelo con huesos "mixamorig2Hips").
+        const boneByNormalized = new Map();
         model.traverse(child => {
-            if (child.name) boneNames.add(child.name);
+            if (!child.name) return;
+            boneNames.add(child.name);
+            const norm = child.name.toLowerCase().replace(/^mixamorig\d*/, '');
+            if (norm && !boneByNormalized.has(norm)) {
+                boneByNormalized.set(norm, child.name);
+            }
         });
 
         // Detectar si el clip es una animación de desplazamiento/caminata para anular root motion
@@ -1023,12 +1039,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (boneNames.has(stripped)) {
                     mappedNode = stripped;
                 } else {
+                    let found = null;
                     for (let bName of boneNames) {
                         if (bName.toLowerCase() === stripped.toLowerCase() || bName.toLowerCase() === rawNode.toLowerCase()) {
-                            mappedNode = bName;
+                            found = bName;
                             break;
                         }
                     }
+                    if (!found) {
+                        const normRaw = stripped.toLowerCase().replace(/^mixamorig\d*/, '');
+                        if (normRaw && boneByNormalized.has(normRaw)) {
+                            found = boneByNormalized.get(normRaw);
+                        }
+                    }
+                    if (found) mappedNode = found;
                 }
             }
             track.name = mappedNode + prop;
@@ -1039,10 +1063,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const isRootOrHips = /hip|root|pelvis/i.test(mappedNode);
             if (isRootOrHips && prop === '.position' && track.values && track.values.length >= 3) {
                 const firstX = track.values[0];
+                const firstY = track.values[1];
                 const firstZ = track.values[2];
+
+                // Reanclar la altura (Y) de la cadera a la pose de reposo real de ESTE modelo.
+                // El clip viene de un esqueleto Mixamo estándar con sus propias proporciones; su
+                // altura de cadera absoluta no coincide necesariamente con la de este rig en
+                // concreto (huesos "mixamorigN"), lo que sin corregir hunde o levanta los pies
+                // respecto al suelo. Conservamos el movimiento relativo (respiración, balanceo al
+                // andar) pero desplazamos todo el canal Y para que arranque en la altura de cadera
+                // real del modelo en su pose de reposo (bind pose, antes de animar).
+                //
+                // Este desfase se calcula UNA SOLA VEZ por modelo (a partir del primer clip que
+                // se prepara, que siempre es el de reposo/idle, cuyo primer fotograma sí es la
+                // pose de pie) y se reutiliza para el resto de animaciones. Si se recalculase por
+                // separado para cada clip asumiendo que su primer fotograma es "de pie", clips que
+                // arrancan ya en otra pose (arrodillarse, bailar...) quedarían mal reanclados
+                // (el personaje flotaría o se hundiría respecto al suelo real).
+                let yOffset = 0;
+                if (model.userData && typeof model.userData.__hipYReanchorOffset === 'number') {
+                    yOffset = model.userData.__hipYReanchorOffset;
+                } else {
+                    const boneObj = (model && typeof model.getObjectByName === 'function') ? model.getObjectByName(mappedNode) : null;
+                    if (boneObj) {
+                        yOffset = boneObj.position.y - firstY;
+                        if (model.userData) model.userData.__hipYReanchorOffset = yOffset;
+                    }
+                }
+
                 for (let i = 0; i < track.values.length; i += 3) {
-                    track.values[i] = firstX;     // Bloquear desplazamiento en X
-                    track.values[i + 2] = firstZ; // Bloquear desplazamiento en Z
+                    track.values[i] = firstX;           // Bloquear desplazamiento en X
+                    track.values[i + 1] += yOffset;     // Reanclar altura Y a la pose de reposo del modelo
+                    track.values[i + 2] = firstZ;        // Bloquear desplazamiento en Z
                 }
             }
         });
@@ -1068,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (callback) callback(null);
         });
     }
-    // const glbModelCache = new Map(); // Disabled GLB cache
+    const glbModelCache = new Map();
     const activeAnimMixers = [];
 
     // Helper para sanitizar materiales de modelos FBX/GLTF cuyas texturas no tengan imagen cargada
@@ -1197,12 +1249,47 @@ document.addEventListener('DOMContentLoaded', () => {
         return clonedScene;
     }
 
+    // Modelos y animaciones 3D fijos, empaquetados con el propio plugin en assets/models/
+    // (no dependen de la biblioteca de medios de WordPress ni del catálogo configurable
+    // desde el backend: solo tenemos un par de avatares fijos).
+    const BP_MODELS_BASE_URL = ((typeof settings !== 'undefined' && settings.pluginUrl) ? settings.pluginUrl : '/wp-content/plugins/bosque-patitas/').replace(/\/+$/, '') + '/assets/models/';
+
+    // Modelos GLB fijos del Tutor Hombre y la Tutora Mujer (sustituyen al cuerpo procedural)
+    const FEMALE_HUMAN_GLB_URL = BP_MODELS_BASE_URL + 'Mujer.glb';
+    const MALE_HUMAN_GLB_URL = BP_MODELS_BASE_URL + 'Hombre.glb';
+    // Animaciones compartidas por ambos tutores humanos (reposo + dos estilos de caminata)
+    const HUMAN_ANIM_IDLE_URL = BP_MODELS_BASE_URL + 'Reposo.fbx';
+    const HUMAN_WALK_STYLE_URLS = {
+        walk_1: BP_MODELS_BASE_URL + 'Caminar_normal.fbx',
+        walk_2: BP_MODELS_BASE_URL + 'Caminar_flow.fbx'
+    };
+    // Animaciones de arrodillarse frente a las tumbas, reposo arrodillado y
+    // baile (gesto), compartidas también por ambos tutores humanos.
+    const HUMAN_ANIM_KNEEL_DOWN_URL = BP_MODELS_BASE_URL + 'Arrodillarse.fbx';
+    const HUMAN_ANIM_KNEEL_IDLE_URL = BP_MODELS_BASE_URL + 'Arrodillado.fbx';
+    const HUMAN_ANIM_DANCE_URL = BP_MODELS_BASE_URL + 'Bailar.fbx';
+
     function create3DAvatarModel(config = {}, onLoadCallback = null) {
         const avatarType = config.avatar_type || 'human';
-        // GLB handling removed – only native human and pet avatars are supported now.
-        // if (avatarType === 'glb' || (config.glb_url && config.glb_url !== '')) {
-        //     return createGLBAvatarModel(config, onLoadCallback);
-        // }
+        // Nota: el catálogo genérico de avatares GLB configurables desde el admin
+        // (avatar_type === 'glb' elegido libremente) sigue sin estar conectado aquí.
+        // El Tutor Hombre y la Tutora Mujer siempre usan sus modelos GLB fijos de
+        // abajo en vez del cuerpo procedural (createHumanAvatarModel queda solo
+        // como respaldo si algún día falta el archivo .glb correspondiente).
+        const genderVal = config.human_gender || config.gender || 'male';
+        if (avatarType !== 'pet') {
+            const isFemale = (genderVal === 'female');
+            return createGLBAvatarModel(Object.assign({}, config, {
+                avatar_type: 'glb',
+                category: 'human',
+                glb_id: config.glb_id || (isFemale ? 'builtin_female_glb' : 'builtin_male_glb'),
+                glb_url: isFemale ? FEMALE_HUMAN_GLB_URL : MALE_HUMAN_GLB_URL,
+                anim_idle: config.anim_idle || HUMAN_ANIM_IDLE_URL,
+                anim_kneel_down: config.anim_kneel_down || HUMAN_ANIM_KNEEL_DOWN_URL,
+                anim_kneel_idle: config.anim_kneel_idle || HUMAN_ANIM_KNEEL_IDLE_URL,
+                anim_dance: config.anim_dance || HUMAN_ANIM_DANCE_URL
+            }), onLoadCallback);
+        }
 
         let mesh;
         if (avatarType === 'pet') {
@@ -1310,17 +1397,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     // 2. Si no hay capas personalizadas activas, solo aplicar si hay selección explícita
                     const category = config.category || glbMeta.category || 'human';
-                    const testStr = `${meshName} ${matName}`.toLowerCase();
 
-                    if (config.skin && /skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(testStr)) {
-                        matchedColor = config.skin;
-                    } else if (config.shirt && /shirt|camis|torso|top|cloth|chest|jacket|sweater|ropa|collar/i.test(testStr)) {
-                        matchedColor = config.shirt;
-                    } else if (config.pants && /pant|trousers|leg|pierna|bottom|jean|short/i.test(testStr) && category !== 'pet') {
-                        matchedColor = config.pants;
-                    } else if (config.hair_color && /hair|pelo|cabello/i.test(testStr) && category !== 'pet') {
-                        matchedColor = config.hair_color;
+                    function matchColorForStr(str) {
+                        if (config.skin && /skin|piel|cuerpo|body|face|head|fur|pelaje/i.test(str)) return config.skin;
+                        if (config.shirt && /shirt|camis|torso|top|cloth|chest|jacket|suit|blazer|chaqueta|americana|saco|sweater|ropa|collar/i.test(str)) return config.shirt;
+                        if (config.pants && /pant|trousers|leg|pierna|bottom|jean|short/i.test(str) && category !== 'pet') return config.pants;
+                        if (config.hair_color && /hair|pelo|cabello/i.test(str) && category !== 'pet') return config.hair_color;
+                        return null;
                     }
+
+                    // Emparejar SOLO por el nombre de la sub-malla (meshName), nunca por el
+                    // nombre del material. En varios modelos (Ch22_*, Ch33_*) todas las
+                    // sub-mallas -camiseta, pantalón, zapatos, cinturón...- comparten un único
+                    // material genérico (p.ej. "Ch33_body"), así que emparejar también contra el
+                    // material haría que esa palabra compartida ("body") secuestrase la categoría
+                    // de sub-mallas que en realidad son otra cosa (cinturón, chaqueta, zapatos).
+                    // Una sub-malla cuyo propio nombre no encaja en ninguna categoría se deja con
+                    // su color/textura original en vez de adivinar por el material compartido.
+                    matchedColor = matchColorForStr(meshName.toLowerCase());
                 }
 
                 if (matchedColor) {
@@ -1364,6 +1458,56 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.isArray(layers) ? layers.filter(l => (l.enabled == 1 || l.enabled === true || l.enabled === '1')) : [];
     }
 
+    // Indicador de carga simple y suave para cuando un avatar GLB se está descargando:
+    // un resplandor circular en el suelo (textura con degradado radial, sin bordes
+    // poligonales visibles) con una animación de pulso propia, en vez de las formas
+    // de alambre (pedestal + octaedro) que se veían antes mientras cargaba.
+    function createLoadingPlaceholder() {
+        const group = new THREE.Group();
+        group.name = 'loadingPlaceholder';
+
+        const size = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        grad.addColorStop(0, 'rgba(16, 185, 129, 0.55)');
+        grad.addColorStop(0.55, 'rgba(16, 185, 129, 0.22)');
+        grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, size);
+        const glowTexture = new THREE.CanvasTexture(canvas);
+
+        const glowMat = new THREE.MeshBasicMaterial({
+            map: glowTexture,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.75), glowMat);
+        glowMesh.rotation.x = -Math.PI / 2;
+        glowMesh.position.y = 0.02;
+        group.add(glowMesh);
+
+        let stopped = false;
+        const start = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        function pulse() {
+            if (stopped) return;
+            const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+            const t = (now - start) / 450;
+            const wave = 0.5 + 0.5 * Math.sin(t);
+            const scale = 0.85 + 0.3 * wave;
+            glowMesh.scale.set(scale, scale, 1);
+            glowMat.opacity = 0.45 + 0.4 * wave;
+            requestAnimationFrame(pulse);
+        }
+        requestAnimationFrame(pulse);
+
+        group.userData.stopPulse = () => { stopped = true; };
+        return group;
+    }
+
     function createGLBAvatarModel(config = {}, onLoadCallback = null) {
         const containerGroup = new THREE.Group();
         containerGroup.name = 'glbAvatarContainer';
@@ -1380,9 +1524,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let glbUrl = (matchedMeta && matchedMeta.file_url) ? matchedMeta.file_url : (config.glb_url || '');
 
-        // Redirección de seguridad si apunta a la ruta antigua local de Ch22_female_avatar.glb
-        if (glbUrl && glbUrl.indexOf('Ch22_female_avatar.glb') !== -1 && glbUrl.indexOf('/wp-content/uploads/') === -1) {
-            glbUrl = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+        // Redirección de seguridad si apunta a una ruta antigua/obsoleta del modelo de la
+        // Tutora Mujer (nombre de archivo anterior o subida vía biblioteca de medios de
+        // WordPress): usar siempre el modelo fijo empaquetado en assets/models/.
+        if (glbUrl && glbUrl !== FEMALE_HUMAN_GLB_URL && /ch22_female_avatar\.glb|mujer\.glb/i.test(glbUrl)) {
+            glbUrl = FEMALE_HUMAN_GLB_URL;
         }
 
         if (!glbUrl) {
@@ -1491,6 +1637,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const foundWs = globalAnims.walk_styles.find(w => w.id === selectedWalkStyle);
                 if (foundWs && foundWs.url) walkStyleUrl = foundWs.url;
             }
+            // Si no hay un estilo de caminata configurado desde el admin (back end sin datos
+            // todavía), usar las animaciones de caminar compartidas por los tutores humanos
+            // como respaldo, para que el selector "ESTILOS DE CAMINATA" del configurador
+            // funcione tanto con el Tutor Hombre como con la Tutora Mujer.
+            if (!walkStyleUrl && (glbUrl === FEMALE_HUMAN_GLB_URL || glbUrl === MALE_HUMAN_GLB_URL)) {
+                walkStyleUrl = HUMAN_WALK_STYLE_URLS[selectedWalkStyle] || HUMAN_WALK_STYLE_URLS.walk_1;
+            }
 
             let animIdleRef      = config.anim_idle || glbMeta.anim_idle || (globalAnims ? globalAnims.anim_idle : '') || '';
             let animWalkRef      = walkStyleUrl || config.anim_walk || glbMeta.anim_walk || (globalAnims ? globalAnims.anim_walk : '') || '';
@@ -1588,30 +1741,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const cached = glbModelCache.get(glbUrl);
             applyModelScene(cached.scene, cached.animations);
         } else {
-            // Indicador de carga holográfico arcade 3D
-            const placeholderGroup = new THREE.Group();
-            placeholderGroup.name = 'loadingPlaceholder';
-
-            const holoPedestal = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.35, 0.4, 0.08, 16),
-                new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, metalness: 0.8, wireframe: true })
-            );
-            holoPedestal.position.y = 0.04;
-            placeholderGroup.add(holoPedestal);
-
-            const holoBeacon = new THREE.Mesh(
-                new THREE.OctahedronGeometry(0.25, 0),
-                new THREE.MeshStandardMaterial({ color: 0xffd600, roughness: 0.2, metalness: 0.9, wireframe: true })
-            );
-            holoBeacon.position.y = 0.9;
-            placeholderGroup.add(holoBeacon);
-
+            // Indicador de carga: un resplandor suave en el suelo (sin geometría
+            // poligonal visible) mientras se descarga el modelo real.
+            const placeholderGroup = createLoadingPlaceholder();
             containerGroup.add(placeholderGroup);
 
             // Mostrar aviso central en el bosque si es el avatar del jugador
             const isLocalPlayerLoading = (config === settings.avatar || config.glb_url === (settings.avatar && settings.avatar.glb_url));
             if (isLocalPlayerLoading && typeof showForestAvatarLoading === 'function') {
-                showForestAvatarLoading('DESCARGANDO MODELO 3D...');
+                showForestAvatarLoading('DESCARGANDO MODELO 3D...', 0);
             }
 
             let versionedUrl = glbUrl;
@@ -1626,7 +1764,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (xhr.lengthComputable && xhr.total > 0) {
                     const percent = Math.min(100, Math.round((xhr.loaded / xhr.total) * 100));
                     if (isLocalPlayerLoading && typeof showForestAvatarLoading === 'function') {
-                        showForestAvatarLoading(`DESCARGANDO MODELO 3D: ${percent}%`);
+                        showForestAvatarLoading(`DESCARGANDO MODELO 3D: ${percent}%`, percent);
+                    }
+                    if (typeof config.onProgress === 'function') {
+                        config.onProgress(percent);
                     }
                 }
             };
@@ -1639,6 +1780,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             hideForestAvatarLoading();
                         }
                         glbModelCache.set(glbUrl, { scene: fbxScene, animations: fbxScene.animations || [] });
+                        if (placeholderGroup.userData.stopPulse) placeholderGroup.userData.stopPulse();
                         containerGroup.remove(placeholderGroup);
                         disposeThreeObject(placeholderGroup);
                         applyModelScene(fbxScene, fbxScene.animations || []);
@@ -1649,6 +1791,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
                             hideForestAvatarLoading();
                         }
+                        if (placeholderGroup.userData.stopPulse) placeholderGroup.userData.stopPulse();
                         containerGroup.remove(placeholderGroup);
                         disposeThreeObject(placeholderGroup);
                         const fallbackMesh = createHumanAvatarModel(config);
@@ -1664,6 +1807,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             hideForestAvatarLoading();
                         }
                         glbModelCache.set(glbUrl, { scene: gltf.scene, animations: gltf.animations || [] });
+                        if (placeholderGroup.userData.stopPulse) placeholderGroup.userData.stopPulse();
                         containerGroup.remove(placeholderGroup);
                         disposeThreeObject(placeholderGroup);
                         applyModelScene(gltf.scene, gltf.animations || []);
@@ -1674,6 +1818,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (isLocalPlayerLoading && typeof hideForestAvatarLoading === 'function') {
                             hideForestAvatarLoading();
                         }
+                        if (placeholderGroup.userData.stopPulse) placeholderGroup.userData.stopPulse();
                         containerGroup.remove(placeholderGroup);
                         disposeThreeObject(placeholderGroup);
                         const fallbackMesh = createHumanAvatarModel(config);
@@ -1698,9 +1843,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const skinColor = config.skin || '#ffe0bd';
         const shirtColor = config.shirt || (isFemale ? '#ec4899' : '#ffffff');
         const pantsColor = config.pants || '#2563eb';
-        const hairStyle = config.hair_style || 'classic';
         const hairColor = config.hair_color || (isFemale ? '#b45309' : '#3b2314');
-        const accessory = config.accessory || 'none';
 
         const avatarGroup = new THREE.Group();
         avatarGroup.name = 'playmobilAvatar';
@@ -1907,20 +2050,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Torso suave modelado con curvas orgánicas
         const torsoWidth = isFemale ? 0.138 : 0.150;
         const torsoDepth = isFemale ? 0.120 : 0.130;
-        const torsoHeight = 0.30;
+        const torsoHeight = 0.22;
         const torsoCapsuleGeo = createCapsuleGeometry(torsoWidth, torsoHeight, 14, 24);
         const torsoMesh = new THREE.Mesh(torsoCapsuleGeo, shirtMat);
         torsoMesh.scale.set(1.08, 1.0, isFemale ? 0.82 : 0.88);
-        torsoMesh.position.set(0, 0.20, 0);
+        torsoMesh.position.set(0, 0.24, 0);
         torsoGroup.add(torsoMesh);
-
-        // Dobladillo inferior de la camiseta (pliegue natural caído sobre los jeans)
-        const hemTorusGeo = new THREE.TorusGeometry(isFemale ? 0.132 : 0.144, 0.016, 12, 28);
-        const hemMesh = new THREE.Mesh(hemTorusGeo, shirtMat);
-        hemMesh.rotation.x = Math.PI / 2;
-        hemMesh.scale.set(1.08, 1.0, isFemale ? 0.82 : 0.88);
-        hemMesh.position.set(0, 0.06, 0);
-        torsoGroup.add(hemMesh);
 
         // Cuello acanalado de la camiseta (collar ring)
         const collarRingGeo = new THREE.TorusGeometry(0.068, 0.014, 12, 26);
@@ -1938,9 +2073,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // ──────────────────────────────────────────────────────────
         // 3. BRAZOS CON MANGAS DE CAMISETA Y MANOS CARTOON DETALLADAS
         // ──────────────────────────────────────────────────────────
-        const armSleeveRadius = isFemale ? 0.052 : 0.056;
-        const armForearmRadius = isFemale ? 0.038 : 0.042;
-        const armSpreadX = isFemale ? 0.17 : 0.185;
+        const armSleeveRadius = isFemale ? 0.050 : 0.054;
+        const armForearmRadius = isFemale ? 0.036 : 0.040;
+        const armSpreadX = isFemale ? 0.150 : 0.163;
 
         function createCartoonArm(isLeftArm) {
             const armSubGroup = new THREE.Group();
@@ -1952,36 +2087,46 @@ document.addEventListener('DOMContentLoaded', () => {
             armSubGroup.add(shoulderMesh);
 
             // Manga corta
-            const sleeveMesh = new THREE.Mesh(createCapsuleGeometry(armSleeveRadius, 0.12, 10, 18), shirtMat);
-            sleeveMesh.position.set(0, -0.06, 0);
+            const sleeveMesh = new THREE.Mesh(createCapsuleGeometry(armSleeveRadius, 0.075, 10, 18), shirtMat);
+            sleeveMesh.position.set(0, -0.045, 0);
             armSubGroup.add(sleeveMesh);
 
             // Dobladillo de la manga (cuff)
             const cuffTorus = new THREE.Mesh(new THREE.TorusGeometry(armSleeveRadius + 0.002, 0.009, 10, 20), shirtMat);
             cuffTorus.rotation.x = Math.PI / 2;
-            cuffTorus.position.set(0, -0.125, 0);
+            cuffTorus.position.set(0, -0.090, 0);
             armSubGroup.add(cuffTorus);
 
-            // Antebrazo de piel
-            const forearmMesh = new THREE.Mesh(createCapsuleGeometry(armForearmRadius, 0.18, 10, 18), skinMat);
-            forearmMesh.position.set(0, -0.22, 0);
+            // Antebrazo de piel (más largo para que la mano llegue bien a la altura del muslo)
+            const forearmMesh = new THREE.Mesh(createCapsuleGeometry(armForearmRadius, 0.26, 10, 18), skinMat);
+            forearmMesh.position.set(0, -0.225, 0);
             armSubGroup.add(forearmMesh);
 
             // Mano Cartoon con dedos y pulgar
             const handGroup = new THREE.Group();
-            const palmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.040, 16, 16), skinMat);
-            palmMesh.scale.set(1.0, 0.85, 0.72);
+            handGroup.name = 'handGroup';
+            const palmMesh = new THREE.Mesh(new THREE.SphereGeometry(0.042, 16, 16), skinMat);
+            palmMesh.scale.set(1.0, 0.85, 0.80);
             handGroup.add(palmMesh);
 
+            // Dedos sugeridos (pequeños lóbulos redondeados en el borde frontal de la mano)
+            for (let f = -1; f <= 1; f++) {
+                const fingerMesh = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 10), skinMat);
+                fingerMesh.scale.set(0.85, 1.3, 0.85);
+                fingerMesh.position.set(f * 0.018, -0.030, 0.026);
+                handGroup.add(fingerMesh);
+            }
+
             // Pulgar
-            const thumbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.015, 10, 10), skinMat);
+            const thumbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 10), skinMat);
             thumbMesh.scale.set(0.9, 1.4, 0.9);
-            thumbMesh.position.set(armSign * 0.032, 0.008, 0.012);
+            thumbMesh.position.set(armSign * 0.034, 0.010, 0.014);
             thumbMesh.rotation.z = armSign * -0.35;
             handGroup.add(thumbMesh);
 
-            handGroup.position.set(0, -0.33, 0);
+            handGroup.position.set(0, -0.40, 0);
             armSubGroup.add(handGroup);
+            armSubGroup.userData.handGroup = handGroup;
 
             return armSubGroup;
         }
@@ -1989,125 +2134,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Brazo Izquierdo
         const leftArmGroup = createCartoonArm(true);
         leftArmGroup.name = 'leftArm';
-        leftArmGroup.position.set(-armSpreadX, 0.35, 0);
-        leftArmGroup.rotation.z = 0.11;
+        leftArmGroup.position.set(-armSpreadX, 0.34, 0);
+        leftArmGroup.rotation.z = 0.035;
+        leftArmGroup.rotation.x = 0.08;
         torsoGroup.add(leftArmGroup);
 
         // Brazo Derecho
         const rightArmGroup = createCartoonArm(false);
         rightArmGroup.name = 'rightArm';
-        rightArmGroup.position.set(armSpreadX, 0.35, 0);
-        rightArmGroup.rotation.z = -0.11;
-
-        // ──────────────────────────────────────────────────────────
-        // ACCESORIOS EN MANO DERECHA
-        // (Flor en maceta colorida idéntica a la imagen de referencia)
-        // ──────────────────────────────────────────────────────────
-        function createCuteFlowerPotProp() {
-            const potGroup = new THREE.Group();
-
-            // Maceta de terracota
-            const potMat = new THREE.MeshStandardMaterial({
-                color: 0xc26d42,
-                roughness: 0.65,
-                metalness: 0.05
-            });
-            const potBody = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.040, 0.09, 18), potMat);
-            potBody.position.y = 0.045;
-            potGroup.add(potBody);
-
-            const potRim = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.058, 0.024, 18), potMat);
-            potRim.position.y = 0.085;
-            potGroup.add(potRim);
-
-            // Tierra oscura fértil
-            const soilMat = new THREE.MeshStandardMaterial({ color: 0x3d271d, roughness: 0.9 });
-            const soilMesh = new THREE.Mesh(new THREE.CircleGeometry(0.054, 16), soilMat);
-            soilMesh.rotation.x = -Math.PI / 2;
-            soilMesh.position.y = 0.092;
-            potGroup.add(soilMesh);
-
-            // Tallo verde brillante
-            const stemMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.5 });
-            const stemMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.12, 10), stemMat);
-            stemMesh.position.set(0, 0.15, 0);
-            potGroup.add(stemMesh);
-
-            // Hojas verdes redondeadas
-            const leafGeo = new THREE.SphereGeometry(0.022, 10, 10);
-            leafGeo.scale(1.8, 0.3, 0.8);
-            const leaf1 = new THREE.Mesh(leafGeo, stemMat);
-            leaf1.position.set(0.030, 0.13, 0);
-            leaf1.rotation.z = 0.35;
-            potGroup.add(leaf1);
-
-            const leaf2 = new THREE.Mesh(leafGeo, stemMat);
-            leaf2.position.set(-0.030, 0.14, 0);
-            leaf2.rotation.z = -0.35;
-            potGroup.add(leaf2);
-
-            // Pétalos coloridos como en la imagen de referencia (rosa, azul, amarillo, morado, naranja)
-            const petalColors = [0xf43f5e, 0x38bdf8, 0xfacc15, 0xa855f7, 0xfb923c];
-            for (let p = 0; p < 5; p++) {
-                const angle = (p * Math.PI * 2) / 5;
-                const petalMat = new THREE.MeshStandardMaterial({
-                    color: petalColors[p],
-                    roughness: 0.40,
-                    metalness: 0.02
-                });
-                const petalMesh = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), petalMat);
-                petalMesh.scale.set(0.85, 1.25, 0.65);
-                petalMesh.position.set(Math.sin(angle) * 0.038, 0.22 + Math.cos(angle) * 0.038, 0.005);
-                potGroup.add(petalMesh);
-            }
-
-            // Centro botón amarillo de la flor
-            const centerMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.35 });
-            const centerMesh = new THREE.Mesh(new THREE.SphereGeometry(0.024, 14, 14), centerMat);
-            centerMesh.scale.set(1.0, 1.0, 0.6);
-            centerMesh.position.set(0, 0.22, 0.012);
-            potGroup.add(centerMesh);
-
-            return potGroup;
-        }
-
-        if (accessory === 'flower' || accessory === 'flower_pot') {
-            const potProp = createCuteFlowerPotProp();
-            potProp.scale.set(0.85, 0.85, 0.85);
-            potProp.position.set(0, -0.38, 0.06);
-            rightArmGroup.add(potProp);
-        } else if (accessory === 'lantern') {
-            const lanternMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
-            const glowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-            const lanternBody = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.12, 12), lanternMat);
-            lanternBody.position.set(0, -0.38, 0.06);
-
-            const glowCore = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 10), glowMat);
-            glowCore.position.set(0, -0.38, 0.06);
-
-            const lanternLight = new THREE.PointLight(0xffbb33, 0.9, 3.5);
-            lanternLight.position.set(0, -0.38, 0.06);
-
-            rightArmGroup.add(lanternBody);
-            rightArmGroup.add(glowCore);
-            rightArmGroup.add(lanternLight);
-        } else if (accessory === 'wand') {
-            const wandMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.25, metalness: 0.85 });
-            const wandMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.35, 10), wandMat);
-            wandMesh.position.set(0, -0.36, 0.08);
-            wandMesh.rotation.x = Math.PI / 4;
-
-            const starMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
-            const starMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.042), starMat);
-            starMesh.position.set(0, -0.24, 0.20);
-
-            const starLight = new THREE.PointLight(0x67e8f9, 0.7, 2.5);
-            starLight.position.set(0, -0.24, 0.20);
-
-            rightArmGroup.add(wandMesh);
-            rightArmGroup.add(starMesh);
-            rightArmGroup.add(starLight);
-        }
+        rightArmGroup.position.set(armSpreadX, 0.34, 0);
+        rightArmGroup.rotation.z = -0.035;
+        rightArmGroup.rotation.x = 0.08;
 
         torsoGroup.add(rightArmGroup);
 
@@ -2272,9 +2309,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const faceTexture = new THREE.CanvasTexture(faceCanvas);
         faceTexture.needsUpdate = true;
-        const faceMat = new THREE.MeshBasicMaterial({ map: faceTexture, transparent: true });
-        const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.27), faceMat);
-        facePlane.position.set(0, 0.005, 0.155);
+        // Parche esférico (no un plano) que sigue la curvatura real de la cabeza,
+        // con material iluminado (no plano/sin sombra) para que no parezca una
+        // pegatina plana flotando delante de la cara.
+        const faceMat = new THREE.MeshBasicMaterial({
+            map: faceTexture,
+            transparent: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+        });
+        const facePatchPhi = 1.05;   // ancho angular del parche (horizontal)
+        const facePatchTheta = 1.05; // alto angular del parche (vertical)
+        const facePatchGeo = new THREE.SphereGeometry(
+            0.162, 32, 32,
+            Math.PI / 2 - facePatchPhi / 2, facePatchPhi,
+            Math.PI / 2 - facePatchTheta / 2, facePatchTheta
+        );
+        const facePlane = new THREE.Mesh(facePatchGeo, faceMat);
+        facePlane.position.set(0, 0.005, 0);
         headGroup.add(facePlane);
 
         // Cobertura del cráneo posterior (nuca)
@@ -2285,252 +2338,14 @@ document.addEventListener('DOMContentLoaded', () => {
         headGroup.add(backNapeHair);
 
         // ──────────────────────────────────────────────────────────
-        // 5. PEINADOS Y SOMBREROS PRO (HOMBRE & MUJER)
+        // 5. CABELLO BÁSICO (sin peinados/sombreros configurables: este
+        // modelo procedural solo se usa como respaldo si el GLB no carga)
         // ──────────────────────────────────────────────────────────
-        if (isFemale) {
-            // ── PEINADOS FEMENINOS ──
-            if (hairStyle === 'classic' || hairStyle === 'long') {
-                // Melena larga con mechones frontales y flequillo lateral
-                const capGeo = new THREE.SphereGeometry(0.162, 28, 24, 0, Math.PI * 2, 0, Math.PI * 0.52);
-                capGeo.scale(1.02, 1.06, 1.03);
-                const capMesh = new THREE.Mesh(capGeo, hairMat);
-                capMesh.position.set(0, 0.025, -0.015);
-                headGroup.add(capMesh);
-
-                // Flequillo barrido elegante
-                const bang1 = new THREE.Mesh(createCapsuleGeometry(0.034, 0.10, 8, 14), hairMat);
-                bang1.rotation.z = -0.45;
-                bang1.position.set(-0.065, 0.11, 0.12);
-                headGroup.add(bang1);
-
-                const bang2 = new THREE.Mesh(createCapsuleGeometry(0.030, 0.09, 8, 14), hairMat);
-                bang2.rotation.z = -0.25;
-                bang2.position.set(-0.02, 0.13, 0.125);
-                headGroup.add(bang2);
-
-                // Mechones laterales largos que caen sobre los hombros
-                for (let side = -1; side <= 1; side += 2) {
-                    const strandGroup = new THREE.Group();
-                    const s1 = new THREE.Mesh(createCapsuleGeometry(0.032, 0.22, 10, 16), hairMat);
-                    s1.position.set(0, -0.12, 0);
-                    strandGroup.add(s1);
-
-                    const s2 = new THREE.Mesh(createCapsuleGeometry(0.026, 0.16, 8, 12), hairMat);
-                    s2.position.set(0, -0.24, 0.02);
-                    strandGroup.add(s2);
-
-                    strandGroup.position.set(side * 0.135, 0.0, 0.01);
-                    strandGroup.rotation.z = side * 0.08;
-                    headGroup.add(strandGroup);
-                }
-
-                // Volumen de cabello trasero
-                const backVolume = new THREE.Mesh(createCapsuleGeometry(0.075, 0.26, 12, 18), hairMat);
-                backVolume.position.set(0, -0.10, -0.11);
-                headGroup.add(backVolume);
-
-            } else if (hairStyle === 'ponytail') {
-                // Coleta alta femenina con coletero
-                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.50);
-                const capMesh = new THREE.Mesh(capGeo, hairMat);
-                capMesh.position.set(0, 0.02, -0.01);
-                headGroup.add(capMesh);
-
-                // Coletero
-                const tieMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.35 });
-                const tieMesh = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.010, 8, 16), tieMat);
-                tieMesh.position.set(0, 0.12, -0.13);
-                tieMesh.rotation.x = 0.4;
-                headGroup.add(tieMesh);
-
-                // Coleta con caída ondulada
-                const ponyMesh = new THREE.Mesh(createCapsuleGeometry(0.042, 0.28, 10, 16), hairMat);
-                ponyMesh.position.set(0, -0.04, -0.18);
-                ponyMesh.rotation.x = 0.25;
-                headGroup.add(ponyMesh);
-
-            } else if (hairStyle === 'cap') {
-                // Boina francesa elegante
-                const beretMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.45, metalness: 0.08 });
-                const beretMesh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.45), beretMat);
-                beretMesh.scale.set(1.12, 0.70, 1.08);
-                beretMesh.position.set(0.02, 0.09, 0.01);
-                beretMesh.rotation.z = 0.16;
-                headGroup.add(beretMesh);
-
-                // Mechones frontales bajo la boina
-                for (let side = -1; side <= 1; side += 2) {
-                    const strand = new THREE.Mesh(createCapsuleGeometry(0.028, 0.16, 8, 12), hairMat);
-                    strand.position.set(side * 0.12, -0.06, 0.03);
-                    strand.rotation.z = side * 0.12;
-                    headGroup.add(strand);
-                }
-
-            } else if (hairStyle === 'crown') {
-                // Tiara real con gemas
-                const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.15, metalness: 0.90 });
-                const gemMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.10, metalness: 0.70 });
-
-                const tiaraRing = new THREE.Mesh(new THREE.TorusGeometry(0.150, 0.010, 8, 28, Math.PI), goldMat);
-                tiaraRing.rotation.y = Math.PI / 2;
-                tiaraRing.rotation.x = -0.15;
-                tiaraRing.position.set(0, 0.08, 0.01);
-                headGroup.add(tiaraRing);
-
-                for (let i = -2; i <= 2; i++) {
-                    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.018, 0), i === 0 ? gemMat : goldMat);
-                    const ang = (Math.PI / 2) + (i * 0.26);
-                    gem.position.set(Math.cos(ang) * 0.154, 0.10 + (2 - Math.abs(i)) * 0.016, Math.sin(ang) * 0.154);
-                    headGroup.add(gem);
-                }
-
-                // Pelo que acompaña la tiara
-                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.50);
-                const capMesh = new THREE.Mesh(capGeo, hairMat);
-                capMesh.position.set(0, 0.02, -0.01);
-                headGroup.add(capMesh);
-
-            } else if (hairStyle === 'hat') {
-                // Sombrero de copa estilizado femenino
-                const hatMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.40, metalness: 0.12 });
-                const ribbonMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.25, metalness: 0.20 });
-
-                const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.016, 32), hatMat);
-                brim.position.set(0, 0.12, 0);
-                headGroup.add(brim);
-
-                const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.146, 0.146, 0.030, 28), ribbonMat);
-                ribbon.position.set(0, 0.146, 0);
-                headGroup.add(ribbon);
-
-                const topHat = new THREE.Mesh(new THREE.CylinderGeometry(0.140, 0.145, 0.16, 28), hatMat);
-                topHat.position.set(0, 0.23, 0);
-                headGroup.add(topHat);
-
-                // Mechones que salen del sombrero
-                for (let side = -1; side <= 1; side += 2) {
-                    const strand = new THREE.Mesh(createCapsuleGeometry(0.028, 0.18, 8, 12), hairMat);
-                    strand.position.set(side * 0.12, -0.05, 0.02);
-                    strand.rotation.z = side * 0.10;
-                    headGroup.add(strand);
-                }
-            }
-        } else {
-            // ── PEINADOS MASCULINOS ──
-            if (hairStyle === 'classic' || hairStyle === 'hat') {
-                // Sombrero de copa elegante idéntico a la imagen de referencia ("DESPUÉS / MEJORADO")
-                // Pelo sutil en las patillas y nuca visible bajo el sombrero
-                const sideburnL = new THREE.Mesh(createCapsuleGeometry(0.022, 0.06, 6, 10), hairMat);
-                sideburnL.position.set(-0.146, 0.04, 0.04);
-                headGroup.add(sideburnL);
-
-                const sideburnR = new THREE.Mesh(createCapsuleGeometry(0.022, 0.06, 6, 10), hairMat);
-                sideburnR.position.set(0.146, 0.04, 0.04);
-                headGroup.add(sideburnR);
-
-                // Peinado frontal que asoma bajo el sombrero
-                const bangLeft = new THREE.Mesh(createCapsuleGeometry(0.026, 0.06, 8, 12), hairMat);
-                bangLeft.rotation.z = -0.35;
-                bangLeft.position.set(-0.06, 0.10, 0.13);
-                headGroup.add(bangLeft);
-
-                const bangRight = new THREE.Mesh(createCapsuleGeometry(0.026, 0.06, 8, 12), hairMat);
-                bangRight.rotation.z = 0.35;
-                bangRight.position.set(0.06, 0.10, 0.13);
-                headGroup.add(bangRight);
-
-                // Sombrero de copa como en la imagen de referencia
-                const hatMat = new THREE.MeshStandardMaterial({
-                    color: 0x1e293b,
-                    roughness: 0.45,
-                    metalness: 0.10
-                });
-                const ribbonMat = new THREE.MeshStandardMaterial({
-                    color: 0xf97316, // Cinta naranja brillante exactamente como la foto
-                    roughness: 0.30,
-                    metalness: 0.15
-                });
-
-                // Ala ancha curvada del sombrero
-                const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.250, 0.020, 36), hatMat);
-                brim.position.set(0, 0.125, 0);
-                headGroup.add(brim);
-
-                // Cinta naranja vibrante
-                const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.152, 0.152, 0.034, 32), ribbonMat);
-                ribbon.position.set(0, 0.152, 0);
-                headGroup.add(ribbon);
-
-                // Copa alta redondeada
-                const topHat = new THREE.Mesh(new THREE.CylinderGeometry(0.146, 0.150, 0.165, 32), hatMat);
-                topHat.position.set(0, 0.240, 0);
-                headGroup.add(topHat);
-
-                // Tapa superior del sombrero con borde suave
-                const hatTopCap = new THREE.Mesh(new THREE.CylinderGeometry(0.144, 0.144, 0.012, 32), hatMat);
-                hatTopCap.position.set(0, 0.322, 0);
-                headGroup.add(hatTopCap);
-            } else if (hairStyle === 'spiky') {
-                // Pelo corto moderno con tupé / pinchos estilizados
-                const capGeo = new THREE.SphereGeometry(0.160, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.54);
-                const capMesh = new THREE.Mesh(capGeo, hairMat);
-                capMesh.position.set(0, 0.02, -0.01);
-                headGroup.add(capMesh);
-
-                for (let i = -4; i <= 4; i++) {
-                    const spikeHeight = 0.08 + (4 - Math.abs(i)) * 0.014;
-                    const spike = new THREE.Mesh(createCapsuleGeometry(0.022, spikeHeight, 8, 12), hairMat);
-                    spike.position.set(
-                        i * 0.030,
-                        0.16 + (4 - Math.abs(i)) * 0.010,
-                        (3 - Math.abs(i)) * 0.014 + 0.015
-                    );
-                    spike.rotation.z = -i * 0.10;
-                    spike.rotation.x = -0.18;
-                    headGroup.add(spike);
-                }
-
-            } else if (hairStyle === 'cap') {
-                // Gorra moderna con visera
-                const capMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.40, metalness: 0.08 });
-                const capDome = new THREE.Mesh(new THREE.SphereGeometry(0.164, 26, 22, 0, Math.PI * 2, 0, Math.PI * 0.54), capMat);
-                capDome.position.set(0, 0.018, 0);
-                headGroup.add(capDome);
-
-                const visorGeo = createCapsuleGeometry(0.07, 0.16, 10, 16);
-                const visor = new THREE.Mesh(visorGeo, capMat);
-                visor.scale.set(1.5, 0.18, 1.0);
-                visor.position.set(0, 0.025, 0.20);
-                visor.rotation.x = 0.20;
-                headGroup.add(visor);
-
-                const capButton = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), capMat);
-                capButton.position.set(0, 0.185, 0);
-                headGroup.add(capButton);
-
-            } else if (hairStyle === 'crown') {
-                // Corona real dorada
-                const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.15, metalness: 0.90 });
-                const gemMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.10, metalness: 0.70 });
-
-                const crownBase = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.125, 0.06, 24, 1, true), goldMat);
-                crownBase.position.set(0, 0.14, 0);
-                headGroup.add(crownBase);
-
-                for (let a = 0; a < 8; a++) {
-                    const ang = (a * Math.PI * 2) / 8;
-                    const pt = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.07, 8), goldMat);
-                    pt.position.set(Math.sin(ang) * 0.135, 0.20, Math.cos(ang) * 0.135);
-                    headGroup.add(pt);
-
-                    if (a % 2 === 0) {
-                        const gem = new THREE.Mesh(new THREE.SphereGeometry(0.010, 8, 8), gemMat);
-                        gem.position.set(Math.sin(ang) * 0.135, 0.16, Math.cos(ang) * 0.135);
-                        headGroup.add(gem);
-                    }
-                }
-            }
-        }
+        const capGeo = new THREE.SphereGeometry(0.162, 28, 24, 0, Math.PI * 2, 0, Math.PI * 0.52);
+        capGeo.scale(1.02, 1.06, 1.03);
+        const capMesh = new THREE.Mesh(capGeo, hairMat);
+        capMesh.position.set(0, 0.025, -0.015);
+        headGroup.add(capMesh);
 
         torsoGroup.add(headGroup);
         avatarGroup.add(torsoGroup);
@@ -5042,15 +4857,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dirL.shadow.camera.bottom = -1.0;
         previewScene.add(dirL);
 
-        // Peana circular que recibe sombras proyectadas (tono neutro oscuro elegante para evitar reflejos verdosos en el modelo)
-        const pedMesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.55, 0.60, 0.08, 32),
-            new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.1 })
-        );
-        pedMesh.position.y = -0.04;
-        pedMesh.receiveShadow = true;
-        previewScene.add(pedMesh);
-
         let previewTargetY = 0.8;
 
         // Auto-encuadre inteligente para mostrar el avatar COMPLETO (pies a cabeza) sin cortes
@@ -5061,13 +4867,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const box = new THREE.Box3().setFromObject(mesh);
             if (box.isEmpty() || !isFinite(box.min.x)) return;
 
-            // Incluir la peana en el volumen de encuadre
             const framingBox = box.clone();
-            framingBox.min.y = Math.min(framingBox.min.y, -0.08);
-            framingBox.min.x = Math.min(framingBox.min.x, -0.60);
-            framingBox.max.x = Math.max(framingBox.max.x, 0.60);
-            framingBox.min.z = Math.min(framingBox.min.z, -0.60);
-            framingBox.max.z = Math.max(framingBox.max.z, 0.60);
+            framingBox.min.y = Math.min(framingBox.min.y, 0);
 
             const size = framingBox.getSize(new THREE.Vector3());
             const center = framingBox.getCenter(new THREE.Vector3());
@@ -5083,7 +4884,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const halfFovY = fovY / 2;
             const halfFovX = Math.atan(Math.tan(halfFovY) * currentAspect);
 
-            // Margen generoso (34%) para garantizar que cabeza, gorros, pelo y peana se vean holgados y completos
+            // Margen generoso (34%) para garantizar que cabeza, gorros y pelo se vean holgados y completos
             const margin = 1.34;
             const distY = (size.y / 2 * margin) / Math.tan(halfFovY);
             const distX = (size.x / 2 * margin) / Math.tan(halfFovX);
@@ -5111,14 +4912,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         rebuildPreviewMesh = function(cfg) {
             const previewLoading = document.getElementById('bp-avatar-preview-loading');
+            const previewLoadingText = document.getElementById('bp-avatar-preview-loading-text');
+            const previewLoadingBarFill = document.getElementById('bp-avatar-preview-loading-bar-fill');
             if (previewLoading) previewLoading.classList.remove('hidden');
+            if (previewLoadingText) previewLoadingText.textContent = 'CARGANDO PERSONAJE...';
+            if (previewLoadingBarFill) previewLoadingBarFill.style.width = '0%';
 
             if (previewAvatarMesh) {
                 disposeThreeObject(previewAvatarMesh);
                 previewScene.remove(previewAvatarMesh);
                 previewAvatarMesh = null;
             }
-            previewAvatarMesh = create3DAvatarModel(cfg, (loadedMesh) => {
+            const cfgWithProgress = Object.assign({}, cfg, {
+                onProgress: (percent) => {
+                    if (previewLoadingText) previewLoadingText.textContent = `CARGANDO PERSONAJE... ${percent}%`;
+                    if (previewLoadingBarFill) previewLoadingBarFill.style.width = percent + '%';
+                }
+            });
+            previewAvatarMesh = create3DAvatarModel(cfgWithProgress, (loadedMesh) => {
                 if (previewLoading) previewLoading.classList.add('hidden');
                 if (loadedMesh) {
                     loadedMesh.position.set(0, 0, 0);
@@ -5200,17 +5011,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('touchmove', onPreviewMove, { passive: true });
         window.addEventListener('touchend', onPreviewUp, { passive: true });
 
-        // Zoom interactivo con la rueda del ratón
-        previewRenderer.domElement.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const zoomDelta = e.deltaY * 0.0025;
-            const curDist = previewCamera.position.distanceTo(new THREE.Vector3(0, previewTargetY, 0));
-            const newDist = THREE.MathUtils.clamp(curDist + zoomDelta, 1.2, 7.0);
-            const dir = previewCamera.position.clone().sub(new THREE.Vector3(0, previewTargetY, 0)).normalize();
-            previewCamera.position.copy(new THREE.Vector3(0, previewTargetY, 0).addScaledVector(dir, newDist));
-            previewCamera.lookAt(0, previewTargetY, 0);
-        }, { passive: false });
-
         // Animation Loop
         let previewClock = new THREE.Clock();
         function animatePreview() {
@@ -5251,9 +5051,7 @@ document.addEventListener('DOMContentLoaded', () => {
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
-            hair_style: 'classic',
             hair_color: '#3b2314',
-            accessory: 'none',
             incognito: 0
         }, avatarConfig);
 
@@ -5295,7 +5093,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const blockSkin = document.getElementById('bp-block-skin');
             const blockShirt = document.getElementById('bp-block-shirt');
             const blockPants = document.getElementById('bp-block-pants');
-            const blockHairStyle = document.getElementById('bp-block-hair-style');
             const blockHairColor = document.getElementById('bp-block-hair-color');
 
             const blockFur = document.getElementById('bp-block-fur');
@@ -5319,7 +5116,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (blockSkin) blockSkin.style.display = 'block';
                     if (blockShirt) blockShirt.style.display = 'block';
                     if (blockPants) blockPants.style.display = 'block';
-                    if (blockHairStyle) blockHairStyle.style.display = 'block';
                     if (blockHairColor) blockHairColor.style.display = 'block';
 
                     updateSwatchActive('bp-swatches-skin', cfg.skin);
@@ -5549,8 +5345,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const foundBackendItem = glbList.find(g => String(g.id) === String(card.dataset.id));
 
                     let freshUrl = (foundBackendItem && foundBackendItem.file_url) ? foundBackendItem.file_url : card.dataset.url;
-                    if (freshUrl && freshUrl.indexOf('Ch22_female_avatar.glb') !== -1 && freshUrl.indexOf('/wp-content/uploads/') === -1) {
-                        freshUrl = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+                    if (freshUrl && freshUrl !== FEMALE_HUMAN_GLB_URL && /ch22_female_avatar\.glb|mujer\.glb/i.test(freshUrl)) {
+                        freshUrl = FEMALE_HUMAN_GLB_URL;
                     }
 
                     currentConfig.glb_url     = freshUrl;
@@ -5597,45 +5393,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         });
-
-        const selectHair = document.getElementById('bp-select-hair-style');
-        if (selectHair) {
-            selectHair.addEventListener('change', () => {
-                currentConfig.hair_style = selectHair.value;
-                rebuildPreviewMesh(currentConfig);
-            });
-        }
-
-        const selectAcc = document.getElementById('bp-select-accessory');
-        if (selectAcc) {
-            selectAcc.addEventListener('change', () => {
-                currentConfig.accessory = selectAcc.value;
-                rebuildPreviewMesh(currentConfig);
-            });
-        }
-
-        const btnGenderMale = document.getElementById('bp-btn-gender-male');
-        const btnGenderFemale = document.getElementById('bp-btn-gender-female');
-        if (btnGenderMale && btnGenderFemale) {
-            btnGenderMale.addEventListener('click', () => {
-                currentConfig.human_gender = 'male';
-                currentConfig.gender = 'male';
-                btnGenderMale.classList.remove('bp-arcade-btn-green');
-                btnGenderMale.classList.add('bp-arcade-btn-yellow');
-                btnGenderFemale.classList.remove('bp-arcade-btn-yellow');
-                btnGenderFemale.classList.add('bp-arcade-btn-green');
-                rebuildPreviewMesh(currentConfig);
-            });
-            btnGenderFemale.addEventListener('click', () => {
-                currentConfig.human_gender = 'female';
-                currentConfig.gender = 'female';
-                btnGenderFemale.classList.remove('bp-arcade-btn-green');
-                btnGenderFemale.classList.add('bp-arcade-btn-yellow');
-                btnGenderMale.classList.remove('bp-arcade-btn-yellow');
-                btnGenderMale.classList.add('bp-arcade-btn-green');
-                rebuildPreviewMesh(currentConfig);
-            });
-        }
 
         // Eventos para selección y previsualización en vivo de los 3 estilos de caminata
         document.querySelectorAll('.bp-walk-style-btn').forEach(wsBtn => {
@@ -5688,9 +5445,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('skin', currentConfig.skin);
                 formData.append('shirt', currentConfig.shirt);
                 formData.append('pants', currentConfig.pants);
-                formData.append('hair_style', currentConfig.hair_style);
                 formData.append('hair_color', currentConfig.hair_color);
-                formData.append('accessory', currentConfig.accessory);
                 formData.append('walk_style', currentConfig.walk_style || 'walk_1');
                 formData.append('layer_colors', JSON.stringify(currentConfig.layer_colors || {}));
                 formData.append('incognito', currentConfig.incognito ? 1 : 0);
@@ -5782,9 +5537,7 @@ document.addEventListener('DOMContentLoaded', () => {
             skin: '#ffe0bd',
             shirt: '#10b981',
             pants: '#1e3a8a',
-            hair_style: 'classic',
             hair_color: '#3b2314',
-            accessory: 'none',
             layer_colors: {},
             walk_style: 'walk_1',
             incognito: 0
@@ -5800,16 +5553,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 avatar.glb_url = matchedCurrent.file_url;
                 if (matchedCurrent.scale) avatar.scale = matchedCurrent.scale;
                 if (matchedCurrent.offset_y) avatar.offset_y = matchedCurrent.offset_y;
-            } else if (avatar.glb_url && avatar.glb_url.indexOf('Ch22_female_avatar.glb') !== -1 && avatar.glb_url.indexOf('/wp-content/uploads/') === -1) {
-                avatar.glb_url = 'https://bosquepatitas.com/wp-content/uploads/2026/11/Ch22_female_avatar.glb';
+            } else if (avatar.glb_url && avatar.glb_url !== FEMALE_HUMAN_GLB_URL && /ch22_female_avatar\.glb|mujer\.glb/i.test(avatar.glb_url)) {
+                avatar.glb_url = FEMALE_HUMAN_GLB_URL;
             }
         }
 
         const globalAnims = (typeof settings !== 'undefined' && settings.globalAnimations) ? settings.globalAnimations : {};
-        const globalWalkStyles = Array.isArray(globalAnims.walk_styles) ? globalAnims.walk_styles : [
-            { id: 'walk_1', name: 'Paso Normal' },
-            { id: 'walk_2', name: 'Paso Alegre' },
-            { id: 'walk_3', name: 'Paseo Relajado' }
+        const globalWalkStyles = (Array.isArray(globalAnims.walk_styles) && globalAnims.walk_styles.length > 0) ? globalAnims.walk_styles : [
+            { id: 'walk_1', name: 'Normal' },
+            { id: 'walk_2', name: 'Con Flow' }
         ];
 
         const isGlbSelected = (avatar.avatar_type === 'glb' && (avatar.glb_id || avatar.glb_url));
@@ -5836,13 +5588,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             <!-- Classic Procedural Human Male Card -->
                             <div class="bp-glb-card bp-model-card ${isMaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="male">
                                 <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍‍♂️</div>
-                                <div class="bp-glb-title">Tutor Hombre</div>
+                                <div class="bp-glb-title">Hombre</div>
                                 ${isMaleSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
                             </div>
                             <!-- Classic Procedural Human Female Card -->
                             <div class="bp-glb-card bp-model-card ${isFemaleSelected ? 'active' : ''}" data-model-type="classic-human" data-gender="female">
                                 <div class="bp-glb-thumb" style="display:flex; align-items:center; justify-content:center; font-size:26px;">🧍‍♀️</div>
-                                <div class="bp-glb-title">Tutora Mujer</div>
+                                <div class="bp-glb-title">Mujer</div>
                                 ${isFemaleSelected ? `<div class="bp-glb-badge">⚡ SELECCIONADO</div>` : ''}
                             </div>
                             <!-- Classic Dog Card -->
@@ -5889,14 +5641,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         <!-- HUMAN CUSTOMIZATION (TUTOR CLÁSICO O TUTOR GLB) -->
                         <div id="bp-human-custom-options" style="display:${isClassicHumanSelected ? 'block' : 'none'};">
-                            <!-- GENDER TOGGLE -->
-                            <div id="bp-block-gender" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">GÉNERO DEL TUTOR HUMANO</label>
-                                <div style="display:flex; gap:10px;">
-                                    <button type="button" id="bp-btn-gender-male" class="bp-arcade-btn ${currentGender === 'male' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👨 Tutor Hombre</button>
-                                    <button type="button" id="bp-btn-gender-female" class="bp-arcade-btn ${currentGender === 'female' ? 'bp-arcade-btn-yellow' : 'bp-arcade-btn-green'}" style="flex:1; font-size:10px; padding:10px 8px;">👩 Tutora Mujer</button>
-                                </div>
-                            </div>
                             <!-- SKIN COLOR -->
                             <div id="bp-block-skin" style="margin-bottom:16px;">
                                 <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">1. TONO DE PIEL / CUERPO</label>
@@ -5927,23 +5671,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             </div>
 
-                            <!-- HAIR STYLE (SOLO PROCEDURAL CLÁSICO) -->
-                            <div id="bp-block-hair-style" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. ESTILO DE PEINADO / SOMBRERO</label>
-                                <select id="bp-select-hair-style" class="bp-arcade-input">
-                                    <option value="classic" ${avatar.hair_style === 'classic' ? 'selected' : ''}>🎩 Sombrero de Copa Elegante (Foto Pro)</option>
-                                    <option value="long" ${avatar.hair_style === 'long' ? 'selected' : ''}>💇 Melena con Flequillo (Mujer)</option>
-                                    <option value="ponytail" ${avatar.hair_style === 'ponytail' ? 'selected' : ''}>🎀 Coleta Alta Chic (Mujer)</option>
-                                    <option value="spiky" ${avatar.hair_style === 'spiky' ? 'selected' : ''}>⚡ Pelo Spiky Moderno</option>
-                                    <option value="cap" ${avatar.hair_style === 'cap' ? 'selected' : ''}>🧢 Gorra / Boina Chic</option>
-                                    <option value="crown" ${avatar.hair_style === 'crown' ? 'selected' : ''}>👑 Corona / Tiara Real</option>
-                                    <option value="hat" ${avatar.hair_style === 'hat' ? 'selected' : ''}>🎩 Sombrero de Copa</option>
-                                </select>
-                            </div>
-
                             <!-- HAIR COLOR -->
                             <div id="bp-block-hair-color" style="margin-bottom:16px;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">5. COLOR DE PELO / CABELLO</label>
+                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">4. COLOR DE PELO / CABELLO</label>
                                 <div style="display:flex; gap:8px; flex-wrap:wrap;" id="bp-swatches-hair">
                                     ${['#3b2314', '#1e293b', '#f59e0b', '#e11d48', '#94a3b8', '#fef08a'].map(c => `
                                         <div class="bp-color-swatch ${avatar.hair_color === c ? 'active' : ''}" data-color="${c}" style="background:${c}; width:32px; height:32px; border-radius:6px; cursor:pointer; border:2px solid ${avatar.hair_color === c ? '#ffd600' : '#000000'};"></div>
@@ -5975,19 +5705,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
-                        <!-- ACCESSORY -->
-                        <div style="margin-bottom:16px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:6px;">ACCESORIO</label>
-                            <select id="bp-select-accessory" class="bp-arcade-input">
-                                <option value="none" ${avatar.accessory === 'none' ? 'selected' : ''}>🚫 Ninguno</option>
-                                <option value="lantern" ${avatar.accessory === 'lantern' ? 'selected' : ''}>🏮 Linterna Brillante</option>
-                                <option value="flower" ${avatar.accessory === 'flower' || avatar.accessory === 'flower_pot' ? 'selected' : ''}>🌸 Flor en Maceta (Foto Pro)</option>
-                                <option value="wand" ${avatar.accessory === 'wand' ? 'selected' : ''}>🪄 Varita Mágica de Estrellas</option>
-                            </select>
-                        </div>
-
-                        <!-- 3 ESTILOS DE CAMINATA -->
-                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3);">
+                        <!-- ESTILOS DE CAMINATA (Tutor Hombre y Tutora Mujer: ambos son modelos
+                             3D fijos que comparten las mismas animaciones de caminar) -->
+                        <div style="margin-bottom:18px; background:rgba(0,0,0,0.25); padding:12px; border-radius:6px; border:1px solid rgba(255,214,0,0.3); display:${isClassicHumanSelected ? 'block' : 'none'};">
                             <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:8px;">
                                 🚶 ESTILO DE CAMINATA (Haz clic para probar en vivo):
                             </label>
@@ -6026,10 +5746,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; background:#0b1711; border:3px solid #10b981; border-radius:10px; box-shadow:inset 0 0 20px rgba(0,0,0,0.8); position:relative; overflow:hidden;">
                             <div id="bp-avatar-preview-loading" class="bp-avatar-loading-overlay hidden">
                                 <div class="bp-emerald-spinner"></div>
-                                <div class="bp-avatar-loading-text">CARGANDO PERSONAJE...</div>
+                                <div class="bp-avatar-loading-text" id="bp-avatar-preview-loading-text">CARGANDO PERSONAJE...</div>
+                                <div class="bp-loading-bar-track">
+                                    <div class="bp-loading-bar-fill" id="bp-avatar-preview-loading-bar-fill" style="width:0%;"></div>
+                                </div>
                             </div>
                         </div>
-                        <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa • Rueda para zoom</div>
+                        <div style="font-size:11px; color:#a7f3d0; margin-top:8px;">Arrastra para rotar la vista previa</div>
                     </div>
 
                 </div>
