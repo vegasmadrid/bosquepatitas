@@ -4842,7 +4842,7 @@ document.addEventListener('DOMContentLoaded', () => {
         previewContainer.innerHTML = '';
 
         previewScene = new THREE.Scene();
-        previewScene.background = new THREE.Color(0x0b1711);
+        previewScene.background = new THREE.Color(0xe7ece9);
 
         let width = previewContainer.clientWidth || 320;
         let height = previewContainer.clientHeight || 360;
@@ -5773,8 +5773,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
 
-                    <!-- LIVE 3D PREVIEW BOX -->
-                    <div style="text-align:center;">
+                    <!-- LIVE 3D PREVIEW BOX (fija al hacer scroll, para verla mientras se ajustan colores) -->
+                    <div class="bp-avatarcfg-preview-col" style="text-align:center;">
                         <div class="bp-avatarcfg-preview-title">🕹️ Vista previa en vivo</div>
                         <div id="bp-avatar-preview-container" style="width:100%; height:360px; min-height:320px; position:relative; overflow:hidden;">
                             <div id="bp-avatar-preview-loading" class="bp-avatar-loading-overlay hidden">

@@ -1500,25 +1500,25 @@ kbd {
    ========================================================================== */
 
 #bp-avatar-arcade-modal {
-    --ac-bg-1: #0a1812;
-    --ac-bg-2: #081310;
-    --ac-surface: rgba(255, 255, 255, 0.035);
-    --ac-surface-strong: rgba(255, 255, 255, 0.06);
-    --ac-border: rgba(255, 255, 255, 0.10);
-    --ac-border-strong: rgba(255, 255, 255, 0.18);
+    --ac-bg-1: #fafcfb;
+    --ac-bg-2: #eef3f1;
+    --ac-surface: #ffffff;
+    --ac-surface-strong: #eef2f0;
+    --ac-border: rgba(15, 23, 20, 0.08);
+    --ac-border-strong: rgba(15, 23, 20, 0.16);
     --ac-accent: #10b981;
     --ac-accent-strong: #059669;
-    --ac-accent-soft: rgba(16, 185, 129, 0.16);
+    --ac-accent-soft: rgba(16, 185, 129, 0.12);
     --ac-ring: #10b981;
-    --ac-ring-off: rgba(255, 255, 255, 0.16);
-    --ac-text: #eef7f2;
-    --ac-text-muted: #a9c3b5;
-    --ac-danger: #f87171;
-    --ac-danger-soft: rgba(248, 113, 113, 0.14);
+    --ac-ring-off: rgba(15, 23, 20, 0.14);
+    --ac-text: #16221d;
+    --ac-text-muted: #5c6f66;
+    --ac-danger: #dc2626;
+    --ac-danger-soft: rgba(220, 38, 38, 0.08);
     --ac-radius-lg: 20px;
     --ac-radius-md: 14px;
     --ac-radius-sm: 10px;
-    --ac-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    --ac-shadow: 0 10px 28px rgba(15, 23, 20, 0.08);
     --ac-font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
 
     background: radial-gradient(ellipse at top center, var(--ac-bg-1) 0%, var(--ac-bg-2) 65%) !important;
@@ -1980,13 +1980,13 @@ kbd {
 .bp-avatarcfg-alert-success {
     background: var(--ac-accent-soft);
     border-left-color: var(--ac-accent);
-    color: #c9f7e4;
+    color: #0a5c43;
 }
 
 .bp-avatarcfg-alert-error {
     background: var(--ac-danger-soft);
     border-left-color: var(--ac-danger);
-    color: #ffd9d9;
+    color: #8f1d1d;
 }
 
 @keyframes bp-avatarcfg-fade-in {
@@ -1999,7 +1999,11 @@ kbd {
     border: 1px solid var(--ac-border) !important;
     border-radius: var(--ac-radius-lg) !important;
     box-shadow: var(--ac-shadow) !important;
-    background: #060d0a !important;
+    background: #e7ece9 !important;
+}
+
+#bp-avatar-arcade-modal .bp-avatar-loading-overlay {
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.92) 0%, rgba(234, 240, 237, 0.98) 100%) !important;
 }
 
 #bp-avatar-arcade-modal .bp-avatar-loading-text {
@@ -2007,6 +2011,7 @@ kbd {
     font-size: 12px !important;
     text-shadow: none !important;
     letter-spacing: 0 !important;
+    color: var(--ac-text-muted) !important;
 }
 
 .bp-avatarcfg-preview-caption {
@@ -2065,9 +2070,37 @@ kbd {
     align-items: start;
 }
 
+/* La vista previa se queda fija al hacer scroll por las opciones, para que
+   el color/modelo que acabas de tocar se vea siempre sin tener que subir */
+.bp-avatarcfg-preview-col {
+    position: sticky;
+    top: 0;
+    align-self: start;
+}
+
 @media (max-width: 860px) {
     .bp-avatarcfg-layout {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* En móvil la preview pasa a ser una cabecera fija arriba del todo,
+       y el formulario se desplaza por debajo sin tapar el avatar */
+    .bp-avatarcfg-preview-col {
+        order: -1;
+        z-index: 5;
+        background: var(--ac-bg-1);
+        padding-bottom: 14px;
+        margin: 0 -4px 6px;
+        padding-left: 4px;
+        padding-right: 4px;
+        border-bottom: 1px solid var(--ac-border);
+    }
+
+    #bp-avatar-arcade-modal .bp-avatarcfg-preview-col #bp-avatar-preview-container {
+        height: 220px !important;
+        min-height: 200px !important;
     }
 }
 
