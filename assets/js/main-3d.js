@@ -1303,64 +1303,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Helper para tintado dinámico y no destructivo de avatares GLB según capas configuradas en el back end
-    // Ojos procedurales para el Tutor Hombre y la Tutora Mujer (modelos GLB fijos
-    // Ch33/Ch22): sus mallas vienen sin textura (el .glb no trae imágenes embebidas),
-    // así que las cuencas de los ojos quedan huecas/sin rellenar y el rostro resulta
-    // inquietante. Esta función busca el hueso de la cabeza y añade un par de globos
-    // oculares sencillos (esclerótica blanca + iris + pupila) calibrados a mano para
-    // cada uno de los dos modelos fijos, para que la cara deje de verse vacía.
-    const HUMAN_EYE_CALIBRATION = {
-        male:   { x: 2.84, y: 10.30, z: 11.55, radius: 1.45, iris: '#3b2314' },
-        female: { x: 2.42, y: 9.90,  z: 13.55, radius: 1.25, iris: '#3b2314' }
-    };
-
-    function findHeadBone(model) {
-        let found = null;
-        model.traverse(o => {
-            if (found || o.type !== 'Bone') return;
-            const norm = o.name.toLowerCase().replace(/^mixamorig\d*/, '');
-            if (norm === 'head') found = o;
-        });
-        return found;
-    }
-
-    function addProceduralHumanEyes(model, isFemale, irisColorHex) {
-        if (!model || model.userData.bpEyesAdded) return;
-        const headBone = findHeadBone(model);
-        if (!headBone) return;
-
-        const calib = isFemale ? HUMAN_EYE_CALIBRATION.female : HUMAN_EYE_CALIBRATION.male;
-        const irisColor = irisColorHex || calib.iris;
-
-        const group = new THREE.Group();
-        group.name = 'bpProceduralEyes';
-
-        const scleraMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.25 });
-        const irisMat = new THREE.MeshStandardMaterial({ color: irisColor, roughness: 0.3 });
-        const pupilMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.15 });
-
-        [-1, 1].forEach(side => {
-            const eyeGroup = new THREE.Group();
-
-            const sclera = new THREE.Mesh(new THREE.SphereGeometry(calib.radius, 16, 16), scleraMat);
-            eyeGroup.add(sclera);
-
-            const iris = new THREE.Mesh(new THREE.SphereGeometry(calib.radius * 0.52, 14, 14), irisMat);
-            iris.position.set(0, 0, calib.radius * 0.72);
-            eyeGroup.add(iris);
-
-            const pupil = new THREE.Mesh(new THREE.SphereGeometry(calib.radius * 0.24, 10, 10), pupilMat);
-            pupil.position.set(0, 0, calib.radius * 0.92);
-            eyeGroup.add(pupil);
-
-            eyeGroup.position.set(side * calib.x, calib.y, calib.z);
-            group.add(eyeGroup);
-        });
-
-        headBone.add(group);
-        model.userData.bpEyesAdded = true;
-    }
-
     function applyGLBColors(root, config = {}) {
         if (!root) return;
 
@@ -1613,12 +1555,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Aplicar tintado de materiales
             applyGLBColors(model, config);
-
-            // Añadir ojos procedurales solo a los dos modelos humanos fijos (sus .glb
-            // no traen texturas, así que sin esto la cara queda con las cuencas vacías)
-            if (glbUrl === FEMALE_HUMAN_GLB_URL || glbUrl === MALE_HUMAN_GLB_URL) {
-                addProceduralHumanEyes(model, glbUrl === FEMALE_HUMAN_GLB_URL);
-            }
 
             containerGroup.userData.applyColors = (cfg) => applyGLBColors(model, cfg);
             containerGroup.userData.glbModel    = model;
