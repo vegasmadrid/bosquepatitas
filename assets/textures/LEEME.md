@@ -31,12 +31,19 @@ También se aceptan `.jpg` y `.png` con los mismos nombres; si hay varios, gana 
 ficha de Poly Haven). Si las piedras o la hierba se ven demasiado grandes o pequeñas, es
 el número que hay que ajustar.
 
+## Texturas incluidas
+
+Proceden de Poly Haven (licencia CC0), reducidas y convertidas a WebP:
+
+- `paving_*`: [Pavement 05](https://polyhaven.com/a/pavement_05), 1024 px, 3,4 m.
+- `bark_*`: [Bark Platanus](https://polyhaven.com/a/bark_platanus), 512 px, 1,5 m.
+
+No llevan mapa de rugosidad: se usa un valor fijo, que en estas dos superficies apenas
+se distingue.
+
 ## Sugerencias (CC0, Poly Haven)
 
-- Adoquinado: [Pavement 05](https://polyhaven.com/a/pavement_05), 3,4 m de ancho.
-- Corteza: [Bark Platanus](https://polyhaven.com/a/bark_platanus), 1,5 m, o
-  [Trident Maple Bark](https://polyhaven.com/a/trident_maple_bark), 1,8 m.
-- Césped: cualquier textura de la categoría de césped de Poly Haven o ambientCG que sea
-  de hierba corta y uniforme.
+- Césped: [Leafy Grass](https://polyhaven.com/a/leafy_grass), 2 m de ancho.
+- Otra corteza: [Trident Maple Bark](https://polyhaven.com/a/trident_maple_bark), 1,8 m.
 
-De cada una hacen falta tres mapas a 1K: Diffuse, Normal (GL) y Rough.
+De cada una hacen falta los mapas Diffuse y Normal (GL) a 1K; Rough es opcional.
