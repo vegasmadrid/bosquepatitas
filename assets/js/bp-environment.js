@@ -4,8 +4,8 @@
  * Cielo, luz, césped, baldosas y árboles del bosque.
  *
  * Todo lo que hay aquí se genera en el navegador: no se descarga ninguna
- * imagen. Las texturas fotográficas opcionales (assets/textures/) se cargan
- * después del primer render y sustituyen a las procedurales sin bloquear.
+ * imagen. Las texturas fotográficas opcionales (assets/textures/) se piden al
+ * crear el entorno; env.ready avisa cuando están puestas.
  *
  * Compatible con Three.js r128 (script global, sin módulos).
  */
@@ -627,6 +627,7 @@
             uBpLo: { value: new THREE.Vector3(opts.lo[0], opts.lo[1], opts.lo[2]) },
             uBpHi: { value: new THREE.Vector3(opts.hi[0], opts.hi[1], opts.hi[2]) }
         };
+        mat.userData.bpUniforms = uniforms;
         mat.onBeforeCompile = function (shader) {
             Object.assign(shader.uniforms, uniforms);
             shader.vertexShader = shader.vertexShader
@@ -641,7 +642,7 @@
                 .replace('#include <map_fragment>', [
                     '#ifdef USE_MAP',
                     '    vec4 texelColor = mapTexelToLinear( texture2D( map, vUv ) );',
-                    '    float bpM = texture2D( uBpMacro, vBpUv * uBpMacroScale ).r;',
+                    '    float bpM = 0.62 * texture2D( uBpMacro, vBpUv * uBpMacroScale ).r + 0.38 * texture2D( uBpMacro, vBpUv * uBpMacroScale * 0.173 + vec2( 0.31, 0.57 ) ).r;',
                     '    if ( uBpBlend > 0.0 ) {',
                     '        float bpM2 = texture2D( uBpMacro, vBpUv * uBpMacroScale * 3.3 + vec2( 0.37, 0.61 ) ).r;',
                     '        vec2 bpUv2 = vec2( vUv.x * 1.31 - vUv.y * 0.93, vUv.x * 0.93 + vUv.y * 1.31 ) + vec2( 0.27, 0.71 );',
@@ -1336,50 +1337,121 @@
         };
 
         // ---- Bosque -------------------------------------------------------
-        env.createForest = function (defs) {
+        let forestMats = null;
+        function getForestMaterials() {
+            if (forestMats) return forestMats;
+            forestMats = { core: new THREE.MeshLambertMaterial({ color: new THREE.Color(0x244a23).convertSRGBToLinear() }), species: [] };
+            [
+                { key: 'oak', tex: buildBroadleafTexture(q.leaf, rng, aniso), wind: 0.05, alpha: 0.42 },
+                { key: 'pine', tex: buildPineTexture(q.leaf, rng, aniso), wind: 0.035, alpha: 0.36 },
+                { key: 'willow', tex: buildWillowTexture(q.leaf, rng, aniso), wind: 0.11, alpha: 0.36 }
+            ].forEach(sp => {
+                forestMats.species.push({
+                    key: sp.key,
+                    material: addWind(new THREE.MeshLambertMaterial({ map: sp.tex, alphaTest: sp.alpha, vertexColors: true }), sp.wind),
+                    depth: addWind(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: sp.tex, alphaTest: sp.alpha }), sp.wind)
+                });
+            });
+            return forestMats;
+        }
+
+        // defs: [{ x, z, type, s? }]. o.distant: árboles lejanos, con menos hojas y sin sombras.
+        env.createForest = function (defs, o) {
             const tf = performance.now();
+            const distant = !!(o && o.distant);
+            const qf = distant
+                ? Object.assign({}, q, { oakCards: Math.round(q.oakCards * 0.55), willowTop: Math.round(q.willowTop * 0.6), willowCurtain: Math.round(q.willowCurtain * 0.7), pineTiers: Math.max(6, q.pineTiers - 2), trunkSegs: 6 })
+                : q;
             const group = new THREE.Group();
-            group.name = 'bpForest';
+            group.name = distant ? 'bpOuterForest' : 'bpForest';
             const P = { trunk: new GeoBuilder(), core: new GeoBuilder(), oak: new GeoBuilder(), pine: new GeoBuilder(), willow: new GeoBuilder() };
             const M = new THREE.Matrix4(), quat = new THREE.Quaternion(), sc = new THREE.Vector3(), tr = new THREE.Vector3();
             defs.forEach(t => {
                 const r = makeRng((Math.round(t.x * 31 + 977) * 7919) ^ (Math.round(t.z * 17 + 613) * 104729));
-                const s = 0.92 + r() * 0.3;
+                const s = (t.s || 1) * (0.92 + r() * 0.3);
                 quat.setFromAxisAngle(Y, r() * Math.PI * 2);
                 M.compose(tr.set(t.x, 0, t.z), quat, sc.set(s, s * (0.95 + r() * 0.12), s));
-                if (t.type === 'pine') buildPine(P, M, r, q);
-                else if (t.type === 'willow') buildWillow(P, M, r, q);
-                else buildOak(P, M, r, q);
+                if (t.type === 'pine') buildPine(P, M, r, qf);
+                else if (t.type === 'willow') buildWillow(P, M, r, qf);
+                else buildOak(P, M, r, qf);
             });
 
+            const mats = getForestMaterials();
             const trunks = new THREE.Mesh(P.trunk.build(false), barkMaterial);
-            trunks.castShadow = true; trunks.receiveShadow = true;
+            trunks.castShadow = !distant; trunks.receiveShadow = !distant;
             group.add(trunks);
-
-            const coreMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0x244a23).convertSRGBToLinear() });
-            const cores = new THREE.Mesh(P.core.build(false), coreMat);
-            cores.castShadow = true;
+            const cores = new THREE.Mesh(P.core.build(false), mats.core);
+            cores.castShadow = !distant;
             group.add(cores);
-
-            const species = [
-                { key: 'oak', tex: buildBroadleafTexture(q.leaf, rng, aniso), wind: 0.05, alpha: 0.42 },
-                { key: 'pine', tex: buildPineTexture(q.leaf, rng, aniso), wind: 0.035, alpha: 0.36 },
-                { key: 'willow', tex: buildWillowTexture(q.leaf, rng, aniso), wind: 0.11, alpha: 0.36 }
-            ];
-            species.forEach(sp => {
+            mats.species.forEach(sp => {
                 if (!P[sp.key].count) return;
-                const mat = addWind(new THREE.MeshLambertMaterial({ map: sp.tex, alphaTest: sp.alpha, vertexColors: true }), sp.wind);
-                const mesh = new THREE.Mesh(P[sp.key].build(true), mat);
-                mesh.customDepthMaterial = addWind(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: sp.tex, alphaTest: sp.alpha }), sp.wind);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
+                const mesh = new THREE.Mesh(P[sp.key].build(true), sp.material);
+                mesh.customDepthMaterial = sp.depth;
+                mesh.castShadow = !distant;
+                mesh.receiveShadow = !distant;
                 mesh.name = 'bpLeaves_' + sp.key;
                 group.add(mesh);
             });
             noRaycast(group);
             scene.add(group);
-            env.timings.forest = Math.round(performance.now() - tf);
+            if (!distant) env.timings.forest = Math.round(performance.now() - tf);
             return group;
+        };
+
+        // Arbolado que rodea el recinto: da fondo al paisaje. Se reparte en cuatro
+        // cuadrantes para que los que quedan a la espalda de la cámara no se dibujen.
+        env.createOuterForest = function (o) {
+            const tf = performance.now();
+            const r = makeRng(771133);
+            const count = isMobile ? 40 : 76;
+            const quads = [[], [], [], []], placed = [];
+            let guard = 0;
+            while (placed.length < count && guard++ < 6000) {
+                const x = (r() * 2 - 1) * o.outer, z = (r() * 2 - 1) * o.outer;
+                const d = Math.max(Math.abs(x), Math.abs(z));
+                if (d < o.inner) continue;
+                if (Math.abs(x) < o.corridor || Math.abs(z) < o.corridor) continue;   // vistas despejadas desde las puertas
+                if (r() > Math.exp(-(d - o.inner) / 42)) continue;                      // más denso cerca de la verja
+                let ok = true;
+                for (let i = 0; i < placed.length && ok; i++) {
+                    const dx = placed[i].x - x, dz = placed[i].z - z;
+                    if (dx * dx + dz * dz < 36) ok = false;
+                }
+                if (!ok) continue;
+                const t = r();
+                const def = { x, z, type: t < 0.45 ? 'oak' : (t < 0.8 ? 'pine' : 'willow'), s: 1.1 + r() * 0.6 };
+                placed.push(def);
+                quads[(x > 0 ? 1 : 0) + (z > 0 ? 2 : 0)].push(def);
+            }
+            quads.forEach(list => { if (list.length) env.createForest(list, { distant: true }); });
+
+            // Sombra de contacto bajo cada árbol lejano (quedan fuera del mapa de sombras del sol)
+            const sc = makeCanvas(64, 64), sx = sc.getContext('2d');
+            const grad = sx.createRadialGradient(32, 32, 2, 32, 32, 31);
+            grad.addColorStop(0, 'rgba(0,0,0,1)'); grad.addColorStop(0.55, 'rgba(0,0,0,0.75)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+            sx.fillStyle = grad; sx.fillRect(0, 0, 64, 64);
+            const pos = [], uv = [], idx = [];
+            const dir = new THREE.Vector2(-sunLight.position.x, -sunLight.position.z).normalize();
+            placed.forEach((t, i) => {
+                const len = 4.6 * t.s, wid = 3.2 * t.s, cx = t.x + dir.x * len * 0.55, cz = t.z + dir.y * len * 0.55;
+                [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(c => {
+                    pos.push(cx + dir.x * c[0] * len - dir.y * c[1] * wid, 0.06, cz + dir.y * c[0] * len + dir.x * c[1] * wid);
+                    uv.push(c[0] * 0.5 + 0.5, c[1] * 0.5 + 0.5);
+                });
+                idx.push(i * 4, i * 4 + 2, i * 4 + 1, i * 4, i * 4 + 3, i * 4 + 2);
+            });
+            const sg = new THREE.BufferGeometry();
+            sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            sg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+            sg.setIndex(idx);
+            const shadows = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({
+                map: new THREE.CanvasTexture(sc), color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false,
+                polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+            }));
+            shadows.name = 'bpOuterShadows';
+            shadows.raycast = function () {};
+            scene.add(shadows);
+            env.timings.outerForest = Math.round(performance.now() - tf);
         };
 
         // ---- Mobiliario ----------------------------------------------------
@@ -1475,18 +1547,24 @@
             return group;
         };
 
-        // ---- Texturas fotográficas opcionales (carga diferida) --------
-        let photoStarted = false, frames = 0;
+        // ---- Texturas fotográficas opcionales ---------------------------
+        // Se piden nada más crear el entorno. env.ready se resuelve cuando todas están
+        // aplicadas (o han fallado), para que la escena no se muestre a medio cargar.
+        let photoDone = 0, photoTotal = 0;
+        const progressListeners = [];
+        env.onProgress = function (fn) { progressListeners.push(fn); fn(photoDone, photoTotal); };
 
         function loadPhotoSet(name, cfg) {
             const target = { grass: grassMaterial, paving: pavingMaterial, bark: barkMaterial }[name];
-            if (!target || !cfg || !cfg.color) return;
+            if (!target || !cfg || !cfg.color) return Promise.resolve();
             const loader = new THREE.TextureLoader();
             const load = url => new Promise(resolve => {
                 if (!url) { resolve(null); return; }
-                loader.load(url, resolve, undefined, () => resolve(null));
+                photoTotal++;
+                const done = t => { photoDone++; progressListeners.forEach(fn => fn(photoDone, photoTotal)); resolve(t); };
+                loader.load(url, done, undefined, () => done(null));
             });
-            Promise.all([load(cfg.color), load(cfg.normal), load(cfg.rough)]).then(res => {
+            return Promise.all([load(cfg.color), load(cfg.normal), load(cfg.rough)]).then(res => {
                 const color = res[0], normal = res[1], rough = res[2];
                 if (!color) return;
                 const size = Math.max(0.2, parseFloat(cfg.size) || 2);
@@ -1504,27 +1582,27 @@
                 target.map = color;
                 target.normalMap = normal;
                 target.roughnessMap = rough;
-                if (!rough) target.roughness = name === 'paving' ? 0.85 : 0.92;
+                target.roughness = rough ? 1.0 : (name === 'paving' ? 0.85 : 0.92);
+                if (name === 'grass') {
+                    // La foto tira a oliva: se lleva hacia un verde más vivo
+                    target.userData.bpUniforms.uBpLo.value.set(0.44, 0.94, 0.56);
+                    target.userData.bpUniforms.uBpHi.value.set(0.62, 1.16, 0.76);
+                    target.normalScale.set(1.1, 1.1);
+                }
                 target.needsUpdate = true;
                 old.forEach(t => { if (t) t.dispose(); });
             });
         }
 
-        function startPhotoLoading() {
-            if (photoStarted || !photoSets) return;
-            photoStarted = true;
-            Object.keys(photoSets).forEach(name => loadPhotoSet(name, photoSets[name]));
-        }
+        env.ready = photoSets
+            ? Promise.all(Object.keys(photoSets).map(name => loadPhotoSet(name, photoSets[name]))).then(() => {})
+            : Promise.resolve();
 
         // ---- Actualización por fotograma -------------------------------
         env.update = function (time, camera) {
             timeUniform.value = time;
             skyMaterial.uniforms.uTime.value = time;
             sky.position.copy(camera.position);
-            if (!photoStarted && photoSets && ++frames === 3) {
-                if (global.requestIdleCallback) global.requestIdleCallback(startPhotoLoading, { timeout: 2500 });
-                else setTimeout(startPhotoLoading, 600);
-            }
         };
 
         return env;

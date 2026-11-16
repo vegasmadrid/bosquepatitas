@@ -2,6 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('bp-canvas-container');
     if (!container) return;
 
+    // Pantalla de carga con porcentaje (la crea el shortcode; ver bosque-patitas.php)
+    const bpLoader = window.BPLoader || {
+        set() {},
+        finish() { const l = document.getElementById('bp-loading'); if (l) l.remove(); }
+    };
+    bpLoader.set(22, 'Preparando el bosque…');
+
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
     const settings = (typeof BP_Settings !== 'undefined') ? BP_Settings : {
@@ -410,8 +417,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // 3. TERRENO
     // ----------------------------------------------------
-    const GROUND_SIZE = 70;
-    const groundGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE), GROUND_SIZE, GROUND_SIZE);
+    // La pradera se extiende hasta el horizonte (la niebla la funde con el cielo)
+    const TERRAIN_SIZE = 1400;
+    const groundGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE), TERRAIN_SIZE, TERRAIN_SIZE);
     const ground = new THREE.Mesh(groundGeo, bpEnv.grassMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -3636,142 +3644,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // GENERADOR DE MAR DE NUBES ESPONJOSAS 3D (CELESTIAL CLOUD BED)
-    // ----------------------------------------------------
-    function createCloudBed() {
-        const cloudGroup = new THREE.Group();
-
-        const cloudMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            emissive: 0xffffff,
-            emissiveIntensity: 0.35, // Blanco brillante celestialmente radiante
-            roughness: 0.9,
-            metalness: 0.0,
-            flatShading: false
-        });
-
-        // Una esfera compartida dibujada con InstancedMesh (pocas llamadas en vez de una por copo).
-        // Se omite el casquete inferior: queda siempre por debajo de la cámara y nunca se ve.
-        const cloudPuffGeo = new THREE.SphereGeometry(1, isMobile ? 12 : 16, isMobile ? 7 : 9, 0, Math.PI * 2, 0, Math.PI * 0.72);
-        const cloudPuffRadii = [2.5, 3.2, 2.8];
-        const CLOUD_CHUNK = 60; // los copos se agrupan por zonas para descartar las que quedan fuera de cámara
-        const puffChunks = new Map();
-        const puffMatrix = new THREE.Matrix4();
-        const puffPos = new THREE.Vector3();
-        const puffQuat = new THREE.Quaternion();
-        const puffEuler = new THREE.Euler();
-        const puffScale = new THREE.Vector3();
-
-        // Función matemática exacta para verificar que NINGUNA esfera/copo penetre en el área del cementerio
-        const CEMETERY_SAFE_BOX = 35.5; // El terreno del cementerio mide 35x35 desde el centro, la verja en 33.0
-
-        function isOverlappingCemetery(x, z, radius) {
-            const absX = Math.abs(x);
-            const absZ = Math.abs(z);
-
-            let dx = 0;
-            if (absX > CEMETERY_SAFE_BOX) {
-                dx = absX - CEMETERY_SAFE_BOX;
-            }
-
-            let dz = 0;
-            if (absZ > CEMETERY_SAFE_BOX) {
-                dz = absZ - CEMETERY_SAFE_BOX;
-            }
-
-            if (absX <= CEMETERY_SAFE_BOX && absZ <= CEMETERY_SAFE_BOX) return true;
-            if (absX <= CEMETERY_SAFE_BOX) return dz < radius;
-            if (absZ <= CEMETERY_SAFE_BOX) return dx < radius;
-            return (dx * dx + dz * dz) < (radius * radius);
-        }
-
-        const totalClouds = isMobile ? 180 : 320;
-        const MIN_CLUSTER_DIST = 38.0;
-
-        for (let i = 0; i < totalClouds; i++) {
-            const sector = Math.floor(Math.random() * 4);
-            let cx, cz;
-
-            const distFromEdge = Math.random() * 110.0;
-            const u = MIN_CLUSTER_DIST + distFromEdge;
-            const v = (Math.random() - 0.5) * 300.0;
-
-            if (sector === 0) {       // Sur
-                cx = v; cz = u;
-            } else if (sector === 1) { // Norte
-                cx = v; cz = -u;
-            } else if (sector === 2) { // Este
-                cx = u; cz = v;
-            } else {                  // Oeste
-                cx = -u; cz = v;
-            }
-
-            const dist = Math.hypot(cx, cz);
-            const scale = 0.9 + Math.random() * 1.4 + Math.min(2.5, dist / 45.0);
-
-            // Posición Y baja para formar el suelo de nubes bajo el cementerio
-            const cy = -6.2 + (Math.random() - 0.5) * 1.0;
-
-            const puffCount = Math.floor(5 + Math.random() * 5);
-
-            for (let p = 0; p < puffCount; p++) {
-                const baseRadius = 2.8;
-                const geoRadius = cloudPuffRadii[Math.floor(Math.random() * cloudPuffRadii.length)];
-
-                const px = (Math.random() - 0.5) * 6.5 * scale;
-                const py = (Math.random() - 0.5) * 1.2 * scale;
-                const pz = (Math.random() - 0.5) * 6.5 * scale;
-
-                const pScale = (0.85 + Math.random() * 0.75) * scale;
-                const puffRadius = baseRadius * pScale * 1.15;
-
-                const worldX = cx + px;
-                const worldZ = cz + pz;
-
-                // Verificación matemática estricta contra el cuadro del cementerio
-                if (isOverlappingCemetery(worldX, worldZ, puffRadius)) {
-                    continue;
-                }
-
-                // Proporciones redondas y mulliditas (curvas esponjosas)
-                puffPos.set(cx + px, cy + py, cz + pz);
-                puffEuler.set((Math.random() - 0.5) * 0.5, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.5);
-                puffQuat.setFromEuler(puffEuler);
-                puffScale.set(pScale * 1.15 * geoRadius, pScale * 0.85 * geoRadius, pScale * 1.15 * geoRadius);
-                const chunkKey = Math.floor(puffPos.x / CLOUD_CHUNK) + ',' + Math.floor(puffPos.z / CLOUD_CHUNK);
-                if (!puffChunks.has(chunkKey)) puffChunks.set(chunkKey, []);
-                puffChunks.get(chunkKey).push(puffMatrix.compose(puffPos, puffQuat, puffScale).clone());
-            }
-        }
-
-        puffChunks.forEach(list => {
-            const geo = cloudPuffGeo.clone();
-            const puffs = new THREE.InstancedMesh(geo, cloudMat, list.length);
-            const box = new THREE.Box3();
-            let maxPuffRadius = 0;
-            list.forEach((m, i) => {
-                puffs.setMatrixAt(i, m);
-                puffPos.setFromMatrixPosition(m);
-                box.expandByPoint(puffPos);
-                maxPuffRadius = Math.max(maxPuffRadius, m.getMaxScaleOnAxis());
-            });
-            puffs.instanceMatrix.needsUpdate = true;
-            puffs.raycast = function () {}; // decorativo: no participa en la detección de clics
-            // Esfera envolvente de la zona, para que el descarte por cámara funcione con instancias
-            geo.boundingSphere = new THREE.Sphere();
-            box.getBoundingSphere(geo.boundingSphere);
-            geo.boundingSphere.radius += maxPuffRadius;
-            cloudGroup.add(puffs);
-        });
-
-        return cloudGroup;
-    }
-
-    // ----------------------------------------------------
     // CONSTRUCCIÓN DEL BOSQUE
     // ----------------------------------------------------
-    const cloudBed = createCloudBed();
-    scene.add(cloudBed);
     const victorianFence = createVictorianFencePerimeter();
     scene.add(victorianFence);
 
@@ -3823,6 +3697,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     bpEnv.createForest(forestTreePositions);
+    // Arbolado exterior, al otro lado de la verja
+    bpEnv.createOuterForest({ inner: 38, outer: 115, corridor: 5 });
 
     rebuildLocalPlayerAvatarMesh();
     initPusherMultiplayer();
@@ -3830,8 +3706,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // CONSUMO REST API DE WORDPRESS
     // ----------------------------------------------------
+    let tombsReady = Promise.resolve();
     if (settings.apiUrl) {
-        fetch(settings.apiUrl)
+        tombsReady = fetch(settings.apiUrl)
             .then(res => res.json())
             .then(tumbas => {
                 if (Array.isArray(tumbas)) {
@@ -6374,9 +6251,22 @@ document.addEventListener('DOMContentLoaded', () => {
     renderer.domElement.addEventListener('touchmove', onPointerMove, { passive: true });
     renderer.domElement.addEventListener('touchend', onPointerUp, { passive: true });
 
-    // Quitar loader
-    const loader = document.getElementById('bp-loading');
-    if (loader) loader.remove();
+    // La pantalla de carga no se retira hasta que están puestas las texturas y las
+    // tumbas, y los shaders compilados: así el bosque aparece ya completo.
+    (function revealWhenReady() {
+        let texFraction = settings.photoTextures && Object.keys(settings.photoTextures).length ? 0 : 1;
+        let tombsDone = 0;
+        const report = () => bpLoader.set(55 + 32 * texFraction + 9 * tombsDone, texFraction < 1 ? 'Cargando texturas…' : 'Colocando recuerdos…');
+        bpEnv.onProgress((done, total) => { if (total) texFraction = done / total; report(); });
+        const tombs = tombsReady.then(() => { tombsDone = 1; report(); });
+        const timeout = new Promise(resolve => setTimeout(resolve, 15000)); // red muy lenta: se abre igualmente
+        report();
+        Promise.race([Promise.all([bpEnv.ready, tombs]), timeout]).then(() => {
+            bpLoader.set(97, 'Abriendo las puertas…');
+            try { renderer.compile(scene, camera); } catch (e) { /* se compilará al dibujar */ }
+            requestAnimationFrame(() => requestAnimationFrame(() => bpLoader.finish()));
+        });
+    })();
 
     // Redimensionado
     window.addEventListener('resize', () => {

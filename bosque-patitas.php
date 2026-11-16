@@ -70,7 +70,7 @@ class BosquePatitas {
         );
 
         // Cargar CSS principal 3D
-        wp_register_style('bp-style', BP_PLUGIN_URL . 'assets/css/style.css', array(), '1.0.0');
+        wp_register_style('bp-style', BP_PLUGIN_URL . 'assets/css/style.css', array(), (string) @filemtime(BP_PLUGIN_DIR . 'assets/css/style.css'));
 
         // Styles and scripts for Auth & Profile pages
         wp_register_style('bp-auth-profile-css', BP_PLUGIN_URL . 'assets/css/auth-profile.css', array(), '1.0.0');
@@ -93,8 +93,8 @@ class BosquePatitas {
      * Texturas fotográficas opcionales (assets/textures/).
      *
      * Solo se anuncian al navegador las que existen en disco, así que si la carpeta está
-     * vacía no se hace ninguna petición. Se cargan después del primer render y sustituyen
-     * a las texturas procedurales. Ver assets/textures/LEEME.md.
+     * vacía no se hace ninguna petición. Se descargan durante la pantalla de carga y
+     * sustituyen a las texturas procedurales. Ver assets/textures/LEEME.md.
      */
     private function get_photo_textures() {
         $dir = BP_PLUGIN_DIR . 'assets/textures/';
@@ -262,7 +262,286 @@ class BosquePatitas {
             'buildDate'        => $build_date
         ));
 
-        return '<div id="bp-canvas-container"><div id="bp-loading">Cargando BosquePatitas...</div></div>';
+        return '<div id="bp-canvas-container">' . $this->render_loader() . '</div>';
+    }
+
+    /**
+     * Pantalla de carga: huella dentro de un anillo que se va completando, con porcentaje.
+     *
+     * El script en línea arranca antes de que lleguen Three.js y main-3d.js, para que el
+     * porcentaje avance desde el primer momento; después main-3d.js lo dirige con
+     * window.BPLoader.set(porcentaje, texto) y BPLoader.finish().
+     */
+    private function render_loader() {
+        $motes = str_repeat('<i></i>', 14);
+        return <<<HTML
+<style>
+/* Estilos en línea para que la pantalla de carga salga bien desde el primer pintado.
+   Solo se animan transform y opacity: la animación sigue aunque se esté construyendo la escena. */
+#bp-loading {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: #ecfdf5;
+    background: radial-gradient(120% 90% at 50% 36%, #1f4f3a 0%, #102c21 46%, #07140f 100%);
+    transition: opacity 0.7s ease, visibility 0.7s ease;
+    pointer-events: auto;
+}
+
+#bp-loading.bp-load-done {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.bp-load-core {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 24px;
+}
+
+.bp-load-emblem {
+    position: relative;
+    width: 136px;
+    height: 136px;
+    margin-bottom: 22px;
+}
+
+.bp-load-emblem::before {
+    content: '';
+    position: absolute;
+    inset: -34px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(52, 211, 153, 0.34) 0%, rgba(52, 211, 153, 0) 68%);
+    animation: bp-load-breathe 3.4s ease-in-out infinite;
+}
+
+.bp-load-ring {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.bp-load-ring-track {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.12);
+    stroke-width: 3.5;
+}
+
+.bp-load-ring-fill {
+    fill: none;
+    stroke: url(#bp-load-grad);
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    stroke-dasharray: 339.3;
+    stroke-dashoffset: 339.3;
+}
+
+/* Punto de luz que recorre el anillo: da vida aunque el porcentaje se detenga un momento */
+.bp-load-orbit {
+    position: absolute;
+    inset: 0;
+    animation: bp-load-spin 2.8s linear infinite;
+}
+
+.bp-load-orbit::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 50%;
+    width: 7px;
+    height: 7px;
+    margin-left: -3.5px;
+    border-radius: 50%;
+    background: #fef3c7;
+    box-shadow: 0 0 12px 3px rgba(253, 230, 138, 0.75);
+}
+
+.bp-load-paw {
+    position: absolute;
+    top: 27%;
+    left: 27%;
+    width: 46%;
+    height: 46%;
+    fill: #d1fae5;
+    filter: drop-shadow(0 0 10px rgba(110, 231, 183, 0.5));
+    animation: bp-load-paw 3.4s ease-in-out infinite;
+}
+
+.bp-load-title {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    color: #f0fdf4;
+}
+
+.bp-load-status {
+    margin-top: 6px;
+    min-height: 18px;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    color: #a7f3d0;
+    opacity: 0.9;
+}
+
+.bp-load-percent {
+    margin-top: 14px;
+    font-size: 30px;
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+    color: #fef9c3;
+}
+
+.bp-load-percent small {
+    margin-left: 2px;
+    font-size: 15px;
+    opacity: 0.7;
+}
+
+/* Luciérnagas que suben despacio */
+.bp-load-motes {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.bp-load-motes i {
+    position: absolute;
+    bottom: -12px;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #fde68a;
+    box-shadow: 0 0 10px 2px rgba(253, 230, 138, 0.55);
+    opacity: 0;
+    animation: bp-load-rise 11s linear infinite;
+}
+
+.bp-load-motes i:nth-child(1)  { left: 6%;  animation-duration: 12s; animation-delay: -1s; }
+.bp-load-motes i:nth-child(2)  { left: 14%; animation-duration: 9s;  animation-delay: -6s;  width: 3px; height: 3px; }
+.bp-load-motes i:nth-child(3)  { left: 22%; animation-duration: 14s; animation-delay: -9s; }
+.bp-load-motes i:nth-child(4)  { left: 30%; animation-duration: 10s; animation-delay: -3s;  width: 4px; height: 4px; }
+.bp-load-motes i:nth-child(5)  { left: 38%; animation-duration: 13s; animation-delay: -11s; width: 3px; height: 3px; }
+.bp-load-motes i:nth-child(6)  { left: 46%; animation-duration: 11s; animation-delay: -5s; }
+.bp-load-motes i:nth-child(7)  { left: 54%; animation-duration: 15s; animation-delay: -2s;  width: 3px; height: 3px; }
+.bp-load-motes i:nth-child(8)  { left: 62%; animation-duration: 10s; animation-delay: -8s; }
+.bp-load-motes i:nth-child(9)  { left: 70%; animation-duration: 12s; animation-delay: -4s;  width: 4px; height: 4px; }
+.bp-load-motes i:nth-child(10) { left: 78%; animation-duration: 9s;  animation-delay: -7s; }
+.bp-load-motes i:nth-child(11) { left: 86%; animation-duration: 14s; animation-delay: -10s; width: 3px; height: 3px; }
+.bp-load-motes i:nth-child(12) { left: 93%; animation-duration: 11s; animation-delay: -0.5s; }
+.bp-load-motes i:nth-child(13) { left: 34%; animation-duration: 16s; animation-delay: -13s; width: 3px; height: 3px; }
+.bp-load-motes i:nth-child(14) { left: 66%; animation-duration: 13s; animation-delay: -6.5s; width: 4px; height: 4px; }
+
+@keyframes bp-load-rise {
+    0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+    12%  { opacity: 0.85; }
+    50%  { transform: translate3d(22px, -55vh, 0); opacity: 0.6; }
+    88%  { opacity: 0.5; }
+    100% { transform: translate3d(-14px, -112vh, 0); opacity: 0; }
+}
+
+@keyframes bp-load-breathe {
+    0%, 100% { transform: scale(0.92); opacity: 0.55; }
+    50%      { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes bp-load-paw {
+    0%, 100% { transform: scale(1); opacity: 0.88; }
+    50%      { transform: scale(1.07); opacity: 1; }
+}
+
+@keyframes bp-load-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bp-load-emblem::before,
+    .bp-load-orbit,
+    .bp-load-paw,
+    .bp-load-motes i {
+        animation: none;
+    }
+    .bp-load-orbit,
+    .bp-load-motes {
+        display: none;
+    }
+}
+</style>
+<div id="bp-loading" role="progressbar" aria-label="Cargando BosquePatitas" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="bp-load-motes" aria-hidden="true">{$motes}</div>
+    <div class="bp-load-core">
+        <div class="bp-load-emblem">
+            <svg class="bp-load-ring" viewBox="0 0 120 120" aria-hidden="true">
+                <defs>
+                    <linearGradient id="bp-load-grad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#34d399"/>
+                        <stop offset="1" stop-color="#fde68a"/>
+                    </linearGradient>
+                </defs>
+                <circle class="bp-load-ring-track" cx="60" cy="60" r="54"/>
+                <circle class="bp-load-ring-fill" id="bp-load-ring-fill" cx="60" cy="60" r="54"/>
+            </svg>
+            <div class="bp-load-orbit" aria-hidden="true"></div>
+            <svg class="bp-load-paw" viewBox="0 0 64 64" aria-hidden="true">
+                <ellipse cx="13.5" cy="27" rx="5.6" ry="7.6" transform="rotate(-22 13.5 27)"/>
+                <ellipse cx="25.5" cy="15.5" rx="6" ry="8.4" transform="rotate(-7 25.5 15.5)"/>
+                <ellipse cx="38.5" cy="15.5" rx="6" ry="8.4" transform="rotate(7 38.5 15.5)"/>
+                <ellipse cx="50.5" cy="27" rx="5.6" ry="7.6" transform="rotate(22 50.5 27)"/>
+                <path d="M32 31c-9.5 0-17.5 9-16.8 16.6.6 6.6 7.3 8.3 16.8 5.4 9.5 2.9 16.2 1.2 16.8-5.4C49.5 40 41.5 31 32 31z"/>
+            </svg>
+        </div>
+        <div class="bp-load-title">BosquePatitas</div>
+        <div class="bp-load-status" id="bp-load-status">Preparando el bosque…</div>
+        <div class="bp-load-percent"><span id="bp-load-percent">0</span><small>%</small></div>
+    </div>
+</div>
+<script>
+(function () {
+    var el = document.getElementById('bp-loading');
+    if (!el || window.BPLoader) return;
+    var pct = document.getElementById('bp-load-percent');
+    var ring = document.getElementById('bp-load-ring-fill');
+    var status = document.getElementById('bp-load-status');
+    var LEN = 2 * Math.PI * 54, shown = 0, target = 0, claimed = false, done = false, t0 = Date.now(), last = t0;
+    ring.style.strokeDasharray = LEN;
+    ring.style.strokeDashoffset = LEN;
+    function frame() {
+        // Mientras llegan los scripts del bosque, avance suave hasta el 20 %
+        if (!claimed) target = Math.max(target, Math.min(20, (Date.now() - t0) / 220));
+        // Suavizado por tiempo, no por fotogramas: tarda lo mismo en un equipo lento
+        var now = Date.now();
+        shown += (target - shown) * (1 - Math.exp(-(now - last) / 160));
+        last = now;
+        if (target - shown < 0.4) shown = target;
+        var v = Math.round(shown);
+        pct.textContent = v;
+        el.setAttribute('aria-valuenow', v);
+        ring.style.strokeDashoffset = LEN * (1 - shown / 100);
+        if (done && shown >= 99.5) {
+            el.classList.add('bp-load-done');
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 800);
+            return;
+        }
+        requestAnimationFrame(frame);
+    }
+    window.BPLoader = {
+        set: function (p, label) { claimed = true; if (p > target) target = Math.min(100, p); if (label) status.textContent = label; },
+        finish: function () { claimed = true; done = true; target = 100; }
+    };
+    requestAnimationFrame(frame);
+})();
+</script>
+HTML;
     }
 }
 

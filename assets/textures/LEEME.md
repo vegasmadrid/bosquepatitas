@@ -4,8 +4,9 @@ El bosque funciona sin ningún archivo en esta carpeta: el césped, el adoquinad
 corteza se generan en el navegador (`assets/js/bp-environment.js`).
 
 Si se añaden aquí texturas fotográficas, el plugin las detecta solo. Se descargan
-**después** de que el bosque ya se esté viendo y sustituyen a las generadas, así que no
-retrasan la carga inicial. Si un archivo no existe, no se hace ninguna petición.
+durante la pantalla de carga y el bosque no se muestra hasta que están puestas, así que
+su peso se suma al tiempo de espera inicial. Si un archivo no existe, no se hace ninguna
+petición; si alguno tarda más de 15 segundos, el bosque se abre con la textura generada.
 
 ## Nombres de archivo
 
@@ -33,17 +34,21 @@ el número que hay que ajustar.
 
 ## Texturas incluidas
 
-Proceden de Poly Haven (licencia CC0), reducidas y convertidas a WebP:
+Todas tienen licencia CC0. Están reducidas y convertidas a WebP:
 
-- `paving_*`: [Pavement 05](https://polyhaven.com/a/pavement_05), 1024 px, 3,4 m.
-- `bark_*`: [Bark Platanus](https://polyhaven.com/a/bark_platanus), 512 px, 1,5 m.
+- `paving_*`: [Pavement 05](https://polyhaven.com/a/pavement_05) de Poly Haven, 1024 px, 3,4 m.
+- `bark_*`: [Bark Platanus](https://polyhaven.com/a/bark_platanus) de Poly Haven, 512 px, 1,5 m.
+- `grass_*`: [Grass 004](https://ambientcg.com/view?id=Grass004) de ambientCG, 1024 px
+  (normales y rugosidad a 512 px), 1,4 m. La rugosidad original era muy baja y el césped
+  brillaba; se ha subido al convertirla. El color se lleva hacia un verde más vivo en
+  `bp-environment.js` (busca `uBpLo`).
 
-No llevan mapa de rugosidad: se usa un valor fijo, que en estas dos superficies apenas
-se distingue.
+El adoquinado y la corteza no llevan mapa de rugosidad: se usa un valor fijo, que en
+esas dos superficies apenas se distingue.
 
 ## Sugerencias (CC0, Poly Haven)
 
-- Césped: [Leafy Grass](https://polyhaven.com/a/leafy_grass), 2 m de ancho.
+- Otro césped: [Leafy Grass](https://polyhaven.com/a/leafy_grass), 2 m de ancho, con hojas secas.
 - Otra corteza: [Trident Maple Bark](https://polyhaven.com/a/trident_maple_bark), 1,8 m.
 
 De cada una hacen falta los mapas Diffuse y Normal (GL) a 1K; Rough es opcional.
