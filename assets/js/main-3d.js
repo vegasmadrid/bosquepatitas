@@ -295,14 +295,10 @@ document.addEventListener('DOMContentLoaded', () => {
     arcadePetsModal.id = 'bp-mascotas-arcade-modal';
     arcadePetsModal.className = 'bp-arcade-overlay hidden bp-ui-element';
     arcadePetsModal.innerHTML = `
-        <div class="bp-arcade-header">
-            <div>
-                <h2 class="bp-arcade-title">🐾 MIS MASCOTAS</h2>
-                <div class="bp-arcade-subtitle">Gestión de fichas de personajes de tus mascotas en BosquePatitas.</div>
-            </div>
-            <button id="bp-arcade-close" class="bp-arcade-close-btn bp-arcade-exit-btn">VOLVER AL BOSQUE</button>
+        <div class="bp-pm-window" role="dialog" aria-modal="true" aria-label="Mis mascotas">
+            <button type="button" id="bp-arcade-close" class="bp-pm-close" aria-label="Cerrar" title="Cerrar"></button>
+            <div id="bp-arcade-content" class="bp-pm-body"></div>
         </div>
-        <div id="bp-arcade-content"></div>
     `;
     container.appendChild(arcadePetsModal);
 
@@ -4593,7 +4589,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !arcadeAvatarModal.classList.contains('hidden')) {
+        if (e.key === 'Escape' && (!arcadeAvatarModal.classList.contains('hidden') || !arcadePetsModal.classList.contains('hidden'))) {
             handleArcadeClose();
         }
     });
@@ -4757,22 +4753,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!settings.isLoggedIn) {
             arcadeContent.innerHTML = `
-                <div style="text-align:center; padding:60px 20px;">
-                    <p style="font-family:'Press Start 2P', monospace; font-size:14px; color:#ffd600; margin-bottom:20px;">
-                        🕹️ INSERT COIN / ACCESO REQUERIDO
-                    </p>
-                    <p style="color:#a7f3d0; font-size:14px; margin-bottom:24px;">
-                        Debes iniciar sesión o registrarte para acceder al Registro de Personajes y crear fichas de mascotas.
-                    </p>
-                    <a href="${settings.loginUrl}" class="bp-arcade-btn bp-arcade-btn-yellow" style="display:inline-block; text-decoration:none; font-size:12px; padding:14px 24px;">
-                        🔑 INICIAR SESIÓN / REGISTRARSE
-                    </a>
+                <div class="bp-pm-gate">
+                    <div class="bp-pm-gate-icon">🐾</div>
+                    <h3>Inicia sesión para continuar</h3>
+                    <p>Necesitas una cuenta para crear y gestionar las fichas de tus mascotas.</p>
+                    <a href="${settings.loginUrl}" class="bp-pm-btn bp-pm-btn--primary">Iniciar sesión / Registrarse</a>
                 </div>
             `;
+            arcadeContent.classList.remove('bp-pm-body--form');
             return;
         }
 
-        arcadeContent.innerHTML = '<div style="text-align:center; padding:40px; font-family:\'Press Start 2P\', monospace; color:#34d399;">⌛ CARGANDO SELECCIÓN DE PERSONAJES...</div>';
+        arcadeContent.classList.remove('bp-pm-body--form');
+        arcadeContent.innerHTML = '<div class="bp-pm-loading" role="status"><span class="bp-pm-spinner" aria-hidden="true"></span>Cargando tus mascotas…</div>';
 
         const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
         const formData = new FormData();
@@ -5728,20 +5721,31 @@ document.addEventListener('DOMContentLoaded', () => {
             syncCustomizerControls(avatar);
         }
     }
-    function renderArcadePetsScreen(pets, editPet = null) {
+    function bpPmEsc(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function renderArcadePetsScreen(pets, editPet = null, forceForm = false) {
         const arcadeContent = document.getElementById('bp-arcade-content');
         if (!arcadeContent) return;
 
-        let cardsHtml = `
-            <div class="bp-arcade-card" style="border-dash:2px dashed #ffd600; background:rgba(255, 214, 0, 0.05); align-items:center; justify-content:center; text-align:center; cursor:pointer;" id="bp-arcade-add-new-card">
-                <div style="font-size:36px; margin-bottom:10px;">➕</div>
-                <div style="font-family:'Press Start 2P', monospace; font-size:11px; color:#ffd600;">REGISTRAR NUEVA MASCOTA</div>
-                <p style="font-size:11px; color:#a7f3d0; margin-top:6px;">Crea una nueva ficha de personaje</p>
-            </div>
-        `;
+        const petList = Array.isArray(pets) ? pets : [];
+        const showForm = !!editPet || forceForm;
+        const editData = editPet ? (editPet.mascota_details || editPet) : null;
+        const inGrave = editData ? (editData.tumba_id || 0) : 0;
+        const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
 
-        if (Array.isArray(pets) && pets.length > 0) {
-            pets.forEach(p => {
+        // ------------------------------------------------------------------
+        // Vista de lista
+        // ------------------------------------------------------------------
+        const renderList = () => {
+            let cards = '';
+            petList.forEach(p => {
                 const details = p.mascota_details || {};
                 const isApproved = details.is_approved || false;
                 const tumbaId = details.tumba_id || 0;
@@ -5751,210 +5755,251 @@ document.addEventListener('DOMContentLoaded', () => {
                 const especie = details.especie_raza || '';
                 const tombState = details.tomb_state || 'cuidada';
 
-                let tombStatusBadge = '';
+                let tombLine = '<span class="bp-pm-chip">Sin tumba</span>';
                 if (tumbaId > 0) {
-                    if (tombState === 'cuidada') {
-                        tombStatusBadge = `<div style="font-size:10px; color:#34d399 !important; font-weight:700; margin-top:3px;">🌟 CUIDADA Y LUMINOSA</div>`;
-                    } else {
-                        tombStatusBadge = `<div style="font-size:10px; color:#fbbf24 !important; font-weight:700; margin-top:3px;">🍂 NECESITA ATENCIÓN (Velas/Flores)</div>`;
-                    }
+                    tombLine = tombState === 'cuidada'
+                        ? '<span class="bp-pm-chip bp-pm-chip--ok">🌟 Tumba cuidada</span>'
+                        : '<span class="bp-pm-chip bp-pm-chip--warn">🍂 Necesita atención</span>';
                 }
 
-                cardsHtml += `
-                    <div class="bp-arcade-card">
-                        <div class="bp-arcade-card-head">
-                            ${imgUrl ? `<img src="${imgUrl}" class="bp-arcade-avatar" />` : `<div class="bp-arcade-avatar bp-arcade-avatar-placeholder"><span class="bp-paw-icon-bright">🐾</span></div>`}
-                            <div>
-                                <h4 class="bp-arcade-card-title">${title}</h4>
-                                ${honor ? `<div style="font-size:11px; color:#34d399 !important; font-weight:700;">👑 ${honor}</div>` : ''}
-                                ${especie ? `<div style="font-size:11px; color:#ffd600 !important; font-weight:700; display:flex; align-items:center; gap:4px;"><span class="bp-paw-icon-bright">🐾</span> ${especie}</div>` : ''}
-                                <div style="margin-top:6px;">
-                                    ${isApproved ? `<span class="bp-arcade-badge approved">✔ VALIDADA</span>` : `<span class="bp-arcade-badge pending">⏳ EN REVISIÓN</span>`}
+                cards += `
+                    <article class="bp-pm-card">
+                        <div class="bp-pm-card-head">
+                            ${imgUrl
+                                ? `<img src="${bpPmEsc(imgUrl)}" alt="" class="bp-pm-avatar" />`
+                                : `<div class="bp-pm-avatar bp-pm-avatar--empty">🐾</div>`}
+                            <div class="bp-pm-card-info">
+                                <h4 class="bp-pm-card-title">${bpPmEsc(title)}</h4>
+                                <div class="bp-pm-card-sub">${bpPmEsc([especie, honor].filter(Boolean).join(' · ')) || '&nbsp;'}</div>
+                                <div class="bp-pm-chips">
+                                    ${isApproved
+                                        ? '<span class="bp-pm-chip bp-pm-chip--ok">✔ Validada</span>'
+                                        : '<span class="bp-pm-chip bp-pm-chip--pending">⏳ En revisión</span>'}
+                                    ${tombLine}
                                 </div>
                             </div>
                         </div>
-
-                        <div class="bp-arcade-stats-mini">
-                            <div>💖 Cariño: <strong>${details.stat_carino || 10}/10</strong></div>
-                            <div>😼 Travesura: <strong>${details.stat_travesura || 5}/10</strong></div>
-                            <div>📍 Tumba: <strong>${tumbaId > 0 ? 'Sepultada en 3D' : 'Sin tumba'}</strong> ${tombStatusBadge}</div>
+                        <div class="bp-pm-stats">
+                            <span>💖 Cariño <strong>${parseInt(details.stat_carino, 10) || 10}/10</strong></span>
+                            <span>😼 Travesura <strong>${parseInt(details.stat_travesura, 10) || 5}/10</strong></span>
                         </div>
+                        <div class="bp-pm-actions">
+                            ${tumbaId > 0
+                                ? `<button type="button" class="bp-pm-btn bp-pm-btn--ghost bp-arcade-unlink-btn" data-id="${p.id}">Retirar de la tumba</button>`
+                                : `<button type="button" class="bp-pm-btn bp-pm-btn--ghost bp-arcade-edit-btn" data-id="${p.id}">Editar</button>`}
+                            <button type="button" class="bp-pm-btn bp-pm-btn--danger bp-arcade-delete-btn" data-id="${p.id}">Eliminar</button>
+                        </div>
+                    </article>
+                `;
+            });
 
-                        <div class="bp-arcade-actions">
-                            ${tumbaId > 0 ? `
-                                <button class="bp-arcade-btn bp-arcade-btn-green bp-arcade-unlink-btn" data-id="${p.id}">🔓 RETIRAR DE TUMBA</button>
-                            ` : `
-                                <button class="bp-arcade-btn bp-arcade-btn-yellow bp-arcade-edit-btn" data-id="${p.id}">✏️ EDITAR</button>
-                            `}
-                            <button class="bp-arcade-btn bp-arcade-btn-danger bp-arcade-delete-btn" data-id="${p.id}">🗑️ ELIMINAR</button>
+            const empty = `
+                <div class="bp-pm-empty">
+                    <div class="bp-pm-empty-icon">🐾</div>
+                    <h3>Aún no tienes mascotas</h3>
+                    <p>Crea la ficha de tu compañero para que pueda tener su lugar en el bosque.</p>
+                    <button type="button" class="bp-pm-btn bp-pm-btn--primary" data-pm-add="1">Crear la primera ficha</button>
+                </div>
+            `;
+
+            return `
+                <header class="bp-pm-head">
+                    <div class="bp-pm-head-text">
+                        <h2 class="bp-pm-title">Mis mascotas</h2>
+                        <div class="bp-pm-subtitle">${petList.length === 1 ? '1 ficha registrada' : petList.length + ' fichas registradas'}</div>
+                    </div>
+                    <button type="button" id="bp-pm-add" class="bp-pm-btn bp-pm-btn--primary" data-pm-add="1">+ Nueva mascota</button>
+                </header>
+                <div class="bp-pm-scroll">
+                    ${petList.length ? `<div class="bp-pm-grid">${cards}</div>` : empty}
+                </div>
+            `;
+        };
+
+        // ------------------------------------------------------------------
+        // Vista de formulario
+        // ------------------------------------------------------------------
+        const v = (key, fallback = '') => {
+            if (!editData) return bpPmEsc(fallback);
+            const val = editData[key];
+            return bpPmEsc(val === undefined || val === null || val === '' ? fallback : val);
+        };
+
+        const textRow = (label, name, max, placeholder, opts = {}) => `
+            <label class="bp-pm-row${opts.full ? ' bp-pm-row--full' : ''}">
+                <span class="bp-pm-label">${label}</span>
+                <input type="${opts.type || 'text'}" name="${name}" class="bp-pm-input" ${max ? `maxlength="${max}"` : ''} ${opts.required ? 'required' : ''} value="${opts.value !== undefined ? opts.value : v(name)}" ${placeholder ? `placeholder="${bpPmEsc(placeholder)}"` : ''} />
+            </label>
+        `;
+
+        const statRow = (label, name, def) => {
+            const raw = editData ? parseInt(editData[name], 10) : NaN;
+            const val = Math.min(10, Math.max(1, isNaN(raw) || raw === 0 ? def : raw));
+            return `
+                <label class="bp-pm-row bp-pm-row--stat">
+                    <span class="bp-pm-label">${label}</span>
+                    <span class="bp-pm-stat">
+                        <input type="range" min="1" max="10" step="1" name="${name}" value="${val}" class="bp-pm-range" />
+                        <output class="bp-pm-stat-val">${val}</output>
+                    </span>
+                </label>
+            `;
+        };
+
+        const currentImg = editData ? (editData.imagen_url || '') : '';
+
+        const renderForm = () => {
+            const heading = editPet ? 'Editar ficha' : 'Nueva mascota';
+            const back = `
+                <header class="bp-pm-head">
+                    <button type="button" id="bp-pm-back" class="bp-pm-back"><span aria-hidden="true">‹</span> Mis mascotas</button>
+                    <h2 class="bp-pm-title bp-pm-title--center">${heading}</h2>
+                    <span class="bp-pm-head-spacer"></span>
+                </header>
+            `;
+
+            if (inGrave > 0) {
+                return `
+                    ${back}
+                    <div class="bp-pm-scroll">
+                        <div class="bp-pm-alert">
+                            ⚠️ Esta mascota está actualmente en una tumba 3D. Debes retirarla de la tumba antes de modificar su ficha.
                         </div>
                     </div>
                 `;
-            });
-        }
+            }
 
-        const editData = editPet ? (editPet.mascota_details || editPet) : null;
-        const inGrave = editData ? (editData.tumba_id || 0) : 0;
+            return `
+                <form id="bp-arcade-pet-form" class="bp-pm-form" enctype="multipart/form-data">
+                    <input type="hidden" name="mascota_id" value="${editPet ? (editPet.id || editPet.ID) : 0}" />
+                    <input type="hidden" name="bp_nonce" value="${bpPmEsc(settings.authNonce || settings.nonce)}" />
+                    ${back}
+                    <div class="bp-pm-scroll">
+                        <div class="bp-pm-cols">
+                            <section class="bp-pm-group">
+                                <h5 class="bp-pm-group-title">Identidad</h5>
+                                <div class="bp-pm-panel">
+                                    ${textRow('Nombre real *', 'nombre', 50, 'Ej: Toby', { required: true, value: bpPmEsc(editData ? (editData.nombre || editPet.post_title || '') : '') })}
+                                    ${textRow('Especie y raza', 'especie_raza', 50, 'Ej: Perro / Mezcla')}
+                                    ${textRow('Apodos', 'apodos', 30, 'Ej: "Sr. Salchicha"')}
+                                    ${textRow('Título de honor', 'titulo_honor', 30, 'Ej: "Reina del Sofá"')}
+                                    ${textRow('Epitafio (lápida)', 'epitafio', 60, 'Frase corta para la lápida')}
+                                </div>
+                            </section>
 
-        arcadeContent.innerHTML = `
-            <div style="margin-bottom:20px; font-family:'Press Start 2P', monospace; font-size:11px; color:#34d399;">
-                GRID DE SELECCIÓN DE PERSONAJES (${Array.isArray(pets) ? pets.length : 0} REGISTRADAS)
-            </div>
+                            <section class="bp-pm-group">
+                                <h5 class="bp-pm-group-title">Fechas y fotografía</h5>
+                                <div class="bp-pm-panel">
+                                    ${textRow('Fecha de llegada', 'fecha_llegada', 0, '', { type: 'date' })}
+                                    ${textRow('Fecha de despedida', 'fecha_despedida', 0, '', { type: 'date' })}
+                                    <div class="bp-pm-row bp-pm-row--photo">
+                                        <span class="bp-pm-label">Fotografía</span>
+                                        <span class="bp-pm-photo">
+                                            ${currentImg ? `<img src="${bpPmEsc(currentImg)}" alt="" class="bp-pm-photo-thumb" />` : '<span class="bp-pm-photo-thumb bp-pm-photo-thumb--empty">🐾</span>'}
+                                            <label class="bp-pm-btn bp-pm-btn--ghost bp-pm-file-btn">
+                                                <span id="bp-pm-file-name">${currentImg ? 'Cambiar' : 'Elegir foto'}</span>
+                                                <input type="file" name="foto_mascota" accept="image/*" class="bp-pm-file" />
+                                            </label>
+                                        </span>
+                                    </div>
+                                </div>
+                            </section>
 
-            <div class="bp-arcade-grid">
-                ${cardsHtml}
-            </div>
+                            <section class="bp-pm-group">
+                                <h5 class="bp-pm-group-title">Personalidad</h5>
+                                <div class="bp-pm-panel">
+                                    ${statRow('Cariño', 'stat_carino', 10)}
+                                    ${statRow('Travesura', 'stat_travesura', 5)}
+                                    ${statRow('Amor al baño', 'stat_bano', 3)}
+                                    ${statRow('Cara de pena', 'stat_pena', 10)}
+                                </div>
+                            </section>
 
-            <!-- FORMULARIO RETRO EDITAR / CREAR MASCOTA -->
-            <div id="bp-arcade-form-drawer" class="bp-arcade-form-box ${editPet ? '' : 'hidden'}">
-                <h4>${editPet ? '✏️ EDITAR FICHA DE PERSONAJE' : '🐾 REGISTRO DE NUEVA MASCOTA'}</h4>
+                            <section class="bp-pm-group">
+                                <h5 class="bp-pm-group-title">Curiosidades</h5>
+                                <div class="bp-pm-panel">
+                                    ${textRow('Superpoder', 'superpoder', 60, 'Ej: "Detectar premios a 3 km"')}
+                                    ${textRow('Archienemigo', 'archienemigo', 60, 'Ej: "La aspiradora"')}
+                                    ${textRow('Comida favorita', 'comida_favorita', 60, 'Ej: "Jamón york"')}
+                                    ${textRow('Juguete estrella', 'juguete_estrella', 60, 'Ej: "Pelota de tenis"')}
+                                    ${textRow('Lugar favorito', 'lugar_favorito', 60, 'Ej: "Rincón del sofá"')}
+                                    ${textRow('Travesura épica', 'travesura_epica', 100, 'Ej: "Se comió la tarta de cumpleaños"')}
+                                </div>
+                            </section>
 
-                ${inGrave > 0 ? `
-                    <div style="background:rgba(225, 29, 72, 0.2); border:1px solid #e11d48; color:#fca5a5; padding:12px; border-radius:6px; font-size:12px; margin-bottom:15px;">
-                        ⚠️ Esta mascota está actualmente en una tumba 3D. Debes retirarla de la tumba antes de modificar su ficha.
+                            <section class="bp-pm-group bp-pm-group--full">
+                                <h5 class="bp-pm-group-title">Su historia</h5>
+                                <div class="bp-pm-panel">
+                                    <label class="bp-pm-row bp-pm-row--full">
+                                        <span class="bp-pm-label">La gran anécdota / historia *</span>
+                                        <textarea name="historia" rows="3" class="bp-pm-input" maxlength="2000" required placeholder="Cuéntanos su historia...">${bpPmEsc(editData ? (editData.historia || editPet.post_content || '') : '')}</textarea>
+                                    </label>
+                                    <label class="bp-pm-row bp-pm-row--full">
+                                        <span class="bp-pm-label">Carta de despedida</span>
+                                        <textarea name="carta_despedida" rows="3" class="bp-pm-input" maxlength="2000" placeholder="Tu mensaje personal de amor y despedida...">${v('carta_despedida')}</textarea>
+                                    </label>
+                                    ${textRow('Banda sonora (YouTube o Spotify)', 'soundtrack_url', 200, 'https://www.youtube.com/watch?v=...', { type: 'url', full: true })}
+                                </div>
+                            </section>
+                        </div>
                     </div>
-                ` : `
-                    <form id="bp-arcade-pet-form" enctype="multipart/form-data">
-                        <input type="hidden" name="mascota_id" value="${editPet ? (editPet.id || editPet.ID) : 0}" />
-                        <input type="hidden" name="bp_nonce" value="${settings.authNonce || settings.nonce}" />
+                    <footer class="bp-pm-footer">
+                        <div id="bp-arcade-feedback" class="bp-pm-toast" style="display:none;" role="status" aria-live="polite"></div>
+                        <button type="button" id="bp-arcade-cancel-form" class="bp-pm-btn bp-pm-btn--ghost">Cancelar</button>
+                        <button type="submit" class="bp-pm-btn bp-pm-btn--primary">Enviar ficha para validación</button>
+                    </footer>
+                </form>
+            `;
+        };
 
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">1. NOMBRE REAL *</label>
-                                <input type="text" name="nombre" class="bp-arcade-input" maxlength="50" required value="${editData ? (editData.nombre || editPet.post_title || '') : ''}" placeholder="Ej: Toby" />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">2. APODOS (MÁX. 30 CAT.)</label>
-                                <input type="text" name="apodos" class="bp-arcade-input" maxlength="30" value="${editData ? (editData.apodos || '') : ''}" placeholder='Ej: "Sr. Salchicha"' />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">3. EPITAFIO (FRASE PARA LA LÁPIDA, MÁX. 60 CAT.)</label>
-                                <input type="text" name="epitafio" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.epitafio || '') : ''}" placeholder='Ej: "Siempre estarás corriendo feliz en nuestros corazones"' />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">4. TÍTULO DE HONOR (MÁX. 30 CAT.)</label>
-                                <input type="text" name="titulo_honor" class="bp-arcade-input" maxlength="30" value="${editData ? (editData.titulo_honor || '') : ''}" placeholder='Ej: "Reina del Sofá"' />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">5. ESPECIE Y RAZA</label>
-                                <input type="text" name="especie_raza" class="bp-arcade-input" maxlength="50" value="${editData ? (editData.especie_raza || '') : ''}" placeholder='Ej: "Perro / Mezcla"' />
-                            </div>
-                        </div>
+        arcadeContent.innerHTML = showForm ? renderForm() : renderList();
+        arcadeContent.classList.toggle('bp-pm-body--form', showForm);
 
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:15px;">
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FECHA LLEGADA</label>
-                                <input type="date" name="fecha_llegada" class="bp-arcade-input" value="${editData ? (editData.fecha_llegada || '') : ''}" />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FECHA DESPEDIDA</label>
-                                <input type="date" name="fecha_despedida" class="bp-arcade-input" value="${editData ? (editData.fecha_despedida || '') : ''}" />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">FOTOGRAFÍA</label>
-                                <input type="file" name="foto_mascota" class="bp-arcade-input" accept="image/*" />
-                            </div>
-                        </div>
+        // ------------------------------------------------------------------
+        // Navegación entre vistas
+        // ------------------------------------------------------------------
+        arcadeContent.querySelectorAll('[data-pm-add]').forEach(btn => {
+            btn.addEventListener('click', () => renderArcadePetsScreen(pets, null, true));
+        });
 
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:10px; margin-bottom:15px; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px;">
-                            <div>
-                                <label style="font-size:10px; color:#34d399;">CARIÑO (1-10)</label>
-                                <input type="number" min="1" max="10" name="stat_carino" class="bp-arcade-input" value="${editData ? (editData.stat_carino || 10) : 10}" />
-                            </div>
-                            <div>
-                                <label style="font-size:10px; color:#34d399;">TRAVESURA (1-10)</label>
-                                <input type="number" min="1" max="10" name="stat_travesura" class="bp-arcade-input" value="${editData ? (editData.stat_travesura || 5) : 5}" />
-                            </div>
-                            <div>
-                                <label style="font-size:10px; color:#34d399;">AMOR BAÑO (1-10)</label>
-                                <input type="number" min="1" max="10" name="stat_bano" class="bp-arcade-input" value="${editData ? (editData.stat_bano || 3) : 3}" />
-                            </div>
-                            <div>
-                                <label style="font-size:10px; color:#34d399;">CARA PENA (1-10)</label>
-                                <input type="number" min="1" max="10" name="stat_pena" class="bp-arcade-input" value="${editData ? (editData.stat_pena || 10) : 10}" />
-                            </div>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">SUPERPODER DESTACADO</label>
-                                <input type="text" name="superpoder" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.superpoder || '') : ''}" placeholder='Ej: "Detectar premios a 3 km"' />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">ARCHIENEMIGO MORTAL</label>
-                                <input type="text" name="archienemigo" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.archienemigo || '') : ''}" placeholder='Ej: "La aspiradora"' />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">COMIDA FAVORITA</label>
-                                <input type="text" name="comida_favorita" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.comida_favorita || '') : ''}" placeholder='Ej: "Jamón york"' />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">JUGUETE ESTRELLA</label>
-                                <input type="text" name="juguete_estrella" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.juguete_estrella || '') : ''}" placeholder='Ej: "Pelota de tenis"' />
-                            </div>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LUGAR FAVORITO</label>
-                                <input type="text" name="lugar_favorito" class="bp-arcade-input" maxlength="60" value="${editData ? (editData.lugar_favorito || '') : ''}" placeholder='Ej: "Rincón del sofá"' />
-                            </div>
-                            <div>
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">TRAVESURA ÉPICA</label>
-                                <input type="text" name="travesura_epica" class="bp-arcade-input" maxlength="100" value="${editData ? (editData.travesura_epica || '') : ''}" placeholder='Ej: "Se comió la tarta de cumpleaños"' />
-                            </div>
-                            <div style="grid-column: span 2;">
-                                <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">BANDA SONORA (ENLACE YOUTUBE O SPOTIFY)</label>
-                                <input type="url" name="soundtrack_url" class="bp-arcade-input" maxlength="200" value="${editData ? (editData.soundtrack_url || '') : ''}" placeholder="https://www.youtube.com/watch?v=..." />
-                            </div>
-                        </div>
-
-                        <div style="margin-bottom:15px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">LA GRAN ANÉCDOTA / HISTORIA *</label>
-                            <textarea name="historia" rows="3" class="bp-arcade-input" maxlength="2000" required placeholder="Cuéntanos su historia...">${editData ? (editData.historia || editPet.post_content || '') : ''}</textarea>
-                        </div>
-
-                        <div style="margin-bottom:15px;">
-                            <label style="font-size:11px; font-weight:700; color:#ffd600; display:block; margin-bottom:4px;">CARTA DE DESPEDIDA</label>
-                            <textarea name="carta_despedida" rows="3" class="bp-arcade-input" maxlength="2000" placeholder="Tu mensaje personal de amor y despedida...">${editData ? (editData.carta_despedida || '') : ''}</textarea>
-                        </div>
-
-                        <div id="bp-arcade-feedback" style="display:none; font-size:12px; margin-bottom:12px; color:#2ecc71;"></div>
-
-                        <div style="display:flex; gap:10px;">
-                            <button type="submit" class="bp-arcade-btn bp-arcade-btn-green" style="font-size:11px; padding:12px 20px;">
-                                🕹️ ENVIAR FICHA PARA VALIDACIÓN
-                            </button>
-                            <button type="button" id="bp-arcade-cancel-form" class="bp-arcade-btn bp-arcade-btn-yellow" style="font-size:11px; padding:12px 20px;">
-                                CANCELAR
-                            </button>
-                        </div>
-                    </form>
-                `}
-            </div>
-        `;
-
-        // Wire Add New Button
-        const addNewCard = document.getElementById('bp-arcade-add-new-card');
-        const formDrawer = document.getElementById('bp-arcade-form-drawer');
-
-        if (addNewCard && formDrawer) {
-            addNewCard.addEventListener('click', () => {
-                formDrawer.classList.remove('hidden');
-                formDrawer.scrollIntoView({ behavior: 'smooth' });
-            });
-        }
-
+        const goList = () => renderArcadePetsScreen(pets);
+        const backBtn = document.getElementById('bp-pm-back');
+        if (backBtn) backBtn.addEventListener('click', goList);
         const cancelFormBtn = document.getElementById('bp-arcade-cancel-form');
-        if (cancelFormBtn && formDrawer) {
-            cancelFormBtn.addEventListener('click', () => {
-                formDrawer.classList.add('hidden');
+        if (cancelFormBtn) cancelFormBtn.addEventListener('click', goList);
+
+        // ------------------------------------------------------------------
+        // Controles del formulario
+        // ------------------------------------------------------------------
+        arcadeContent.querySelectorAll('.bp-pm-range').forEach(range => {
+            range.addEventListener('input', () => {
+                const out = range.parentElement.querySelector('.bp-pm-stat-val');
+                if (out) out.textContent = range.value;
+            });
+        });
+
+        const fileInput = arcadeContent.querySelector('.bp-pm-file');
+        if (fileInput) {
+            fileInput.addEventListener('change', () => {
+                const label = document.getElementById('bp-pm-file-name');
+                const file = fileInput.files && fileInput.files[0];
+                if (label) label.textContent = file ? (file.name.length > 22 ? file.name.slice(0, 20) + '…' : file.name) : (currentImg ? 'Cambiar' : 'Elegir foto');
             });
         }
 
-        // Wire Form Submission
+        // ------------------------------------------------------------------
+        // Envío del formulario
+        // ------------------------------------------------------------------
         const arcadeForm = document.getElementById('bp-arcade-pet-form');
         const feedbackBox = document.getElementById('bp-arcade-feedback');
+        const SUBMIT_LABEL = 'Enviar ficha para validación';
+
+        const showToast = (msg, ok) => {
+            if (!feedbackBox) return;
+            feedbackBox.style.display = 'block';
+            feedbackBox.className = 'bp-pm-toast ' + (ok ? 'bp-pm-toast--ok' : 'bp-pm-toast--err');
+            feedbackBox.textContent = msg;
+        };
 
         if (arcadeForm) {
             arcadeForm.addEventListener('submit', (e) => {
@@ -5963,69 +6008,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 const submitBtn = arcadeForm.querySelector('button[type="submit"]');
                 if (submitBtn) {
                     submitBtn.disabled = true;
-                    submitBtn.textContent = 'GUARDANDO FICHA...';
+                    submitBtn.textContent = 'Guardando…';
                 }
 
                 const formData = new FormData(arcadeForm);
                 formData.append('action', 'bp_ajax_save_mascota');
 
-                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
-
-                fetch(ajaxUrl, {
-                    method: 'POST',
-                    body: formData
-                })
+                fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())
                 .then(res => {
                     if (res.success) {
-                        if (feedbackBox) {
-                            feedbackBox.style.display = 'block';
-                            feedbackBox.style.color = '#2ecc71';
-                            feedbackBox.textContent = res.data.message || 'Ficha enviada con éxito.';
-                        }
-                        setTimeout(() => {
-                            openArcadePetsModal();
-                        }, 1000);
+                        showToast((res.data && res.data.message) || 'Ficha enviada con éxito.', true);
+                        setTimeout(() => { openArcadePetsModal(); }, 1000);
                     } else {
                         if (submitBtn) {
                             submitBtn.disabled = false;
-                            submitBtn.textContent = '🕹️ ENVIAR FICHA PARA VALIDACIÓN';
+                            submitBtn.textContent = SUBMIT_LABEL;
                         }
-                        if (feedbackBox) {
-                            feedbackBox.style.display = 'block';
-                            feedbackBox.style.color = '#e11d48';
-                            feedbackBox.textContent = res.data.message || 'Error al guardar.';
-                        }
+                        showToast((res.data && res.data.message) || 'Error al guardar.', false);
                     }
                 })
-                .catch(err => {
+                .catch(() => {
                     if (submitBtn) {
                         submitBtn.disabled = false;
-                        submitBtn.textContent = '🕹️ ENVIAR FICHA PARA VALIDACIÓN';
+                        submitBtn.textContent = SUBMIT_LABEL;
                     }
-                    if (feedbackBox) {
-                        feedbackBox.style.display = 'block';
-                        feedbackBox.style.color = '#e11d48';
-                        feedbackBox.textContent = 'Error de conexión.';
-                    }
+                    showToast('Error de conexión.', false);
                 });
             });
         }
 
-        // Wire Edit Buttons
+        // ------------------------------------------------------------------
+        // Acciones de las tarjetas
+        // ------------------------------------------------------------------
         arcadeContent.querySelectorAll('.bp-arcade-edit-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const petId = parseInt(btn.dataset.id, 10);
-                const pet = Array.isArray(pets) ? pets.find(p => p.id === petId) : null;
-                if (pet) {
-                    renderArcadePetsScreen(pets, pet);
-                    const drawer = document.getElementById('bp-arcade-form-drawer');
-                    if (drawer) drawer.scrollIntoView({ behavior: 'smooth' });
-                }
+                const pet = petList.find(p => p.id === petId);
+                if (pet) renderArcadePetsScreen(pets, pet);
             });
         });
 
-        // Wire Unlink Buttons
         arcadeContent.querySelectorAll('.bp-arcade-unlink-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const petId = parseInt(btn.dataset.id, 10);
@@ -6036,17 +6059,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('mascota_id', petId);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
-                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
-
                 fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())
-                .then(res => {
-                    openArcadePetsModal();
-                });
+                .then(() => { openArcadePetsModal(); });
             });
         });
 
-        // Wire Delete Buttons
         arcadeContent.querySelectorAll('.bp-arcade-delete-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const petId = parseInt(btn.dataset.id, 10);
@@ -6057,13 +6075,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('mascota_id', petId);
                 formData.append('bp_nonce', settings.authNonce || settings.nonce);
 
-                const ajaxUrl = (typeof settings !== 'undefined' && settings.ajaxUrl) ? settings.ajaxUrl : (typeof BP_Auth_Data !== 'undefined' ? BP_Auth_Data.ajaxurl : (window.location.origin + '/wp-admin/admin-ajax.php'));
-
                 fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(res => res.json())
-                .then(res => {
-                    openArcadePetsModal();
-                });
+                .then(() => { openArcadePetsModal(); });
             });
         });
     }

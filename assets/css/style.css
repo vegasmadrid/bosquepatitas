@@ -2203,3 +2203,594 @@ kbd {
         bottom: 10px;
     }
 }
+
+/* ==========================================================================
+   MIS MASCOTAS — ventana tipo "sheet" (estética Apple)
+   Mismo lenguaje visual que el configurador de avatar. Todo está limitado a
+   #bp-mascotas-arcade-modal para no afectar a otros elementos .bp-arcade-*.
+   ========================================================================== */
+
+#bp-mascotas-arcade-modal {
+    --pm-text: #1d1d1f;
+    --pm-text-2: #6e6e73;
+    --pm-hair: rgba(60, 60, 67, 0.14);
+    --pm-fill: rgba(120, 120, 128, 0.16);
+    --pm-accent: #0a7aff;
+    --pm-accent-press: #0062d6;
+    --pm-panel: #e8e9ee;
+    --pm-row: rgba(255, 255, 255, 0.78);
+    --pm-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+
+    padding: 24px !important;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden !important;
+    background: rgba(14, 17, 24, 0.42) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    backdrop-filter: blur(22px) saturate(140%);
+    font-family: var(--pm-font) !important;
+    color: var(--pm-text) !important;
+    -webkit-font-smoothing: antialiased;
+}
+
+@supports (height: 100dvh) {
+    #bp-mascotas-arcade-modal { height: 100dvh !important; }
+}
+
+#bp-mascotas-arcade-modal::before { content: none !important; }
+
+#bp-mascotas-arcade-modal button,
+#bp-mascotas-arcade-modal input,
+#bp-mascotas-arcade-modal textarea {
+    font-family: inherit;
+    text-transform: none;
+    letter-spacing: normal;
+    text-shadow: none;
+    margin: 0;
+}
+
+/* ---------- Ventana ---------- */
+#bp-mascotas-arcade-modal .bp-pm-window {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(920px, 100%);
+    height: min(660px, 100%);
+    background: var(--pm-panel);
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25), 0 30px 80px rgba(0, 0, 0, 0.45);
+    animation: bp-pm-pop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes bp-pm-pop {
+    from { opacity: 0; transform: scale(0.97) translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #bp-mascotas-arcade-modal .bp-pm-window,
+    #bp-mascotas-arcade-modal .bp-pm-toast,
+    #bp-mascotas-arcade-modal .bp-pm-spinner { animation: none; }
+}
+
+/* Botón cerrar (X), sin hijos DOM */
+#bp-mascotas-arcade-modal .bp-pm-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 30;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(120, 120, 128, 0.18);
+    color: var(--pm-text-2);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-close::before,
+#bp-mascotas-arcade-modal .bp-pm-close::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 1.6px;
+    margin: -0.8px 0 0 -6px;
+    background: currentColor;
+    border-radius: 2px;
+    transform: rotate(45deg);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-close::after { transform: rotate(-45deg); }
+
+#bp-mascotas-arcade-modal .bp-pm-close:hover {
+    background: rgba(120, 120, 128, 0.32);
+    color: var(--pm-text);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-close:focus-visible,
+#bp-mascotas-arcade-modal .bp-pm-btn:focus-visible,
+#bp-mascotas-arcade-modal .bp-pm-back:focus-visible,
+#bp-mascotas-arcade-modal .bp-pm-input:focus-visible {
+    outline: 2px solid var(--pm-accent);
+    outline-offset: 2px;
+}
+
+/* ---------- Cuerpo y cabecera compacta ---------- */
+#bp-mascotas-arcade-modal .bp-pm-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex: 0 0 auto;
+    padding: 14px 54px 12px 20px;
+    border-bottom: 1px solid var(--pm-hair);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-title {
+    margin: 0;
+    padding: 0;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    color: var(--pm-text) !important;
+    text-shadow: none !important;
+    font-family: inherit !important;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-title--center {
+    flex: 1;
+    text-align: center;
+    font-size: 16px;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-subtitle {
+    margin-top: 1px;
+    font-size: 12.5px;
+    color: var(--pm-text-2);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-head-spacer { width: 90px; }
+
+#bp-mascotas-arcade-modal .bp-pm-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: 90px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--pm-accent);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-back span {
+    font-size: 22px;
+    line-height: 1;
+    margin-top: -2px;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 20px 20px;
+    overscroll-behavior: contain;
+}
+
+/* ---------- Botones ---------- */
+#bp-mascotas-arcade-modal .bp-pm-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-btn:disabled { opacity: 0.45; cursor: default; }
+
+#bp-mascotas-arcade-modal .bp-pm-btn--primary { background: var(--pm-accent); color: #fff !important; }
+#bp-mascotas-arcade-modal .bp-pm-btn--primary:hover:not(:disabled) { background: var(--pm-accent-press); }
+
+#bp-mascotas-arcade-modal .bp-pm-btn--ghost { background: var(--pm-fill); color: var(--pm-text) !important; }
+#bp-mascotas-arcade-modal .bp-pm-btn--ghost:hover:not(:disabled) { background: rgba(120, 120, 128, 0.28); }
+
+#bp-mascotas-arcade-modal .bp-pm-btn--danger { background: transparent; color: #d1362b !important; }
+#bp-mascotas-arcade-modal .bp-pm-btn--danger:hover:not(:disabled) { background: rgba(209, 54, 43, 0.12); }
+
+/* ---------- Lista de tarjetas ---------- */
+#bp-mascotas-arcade-modal .bp-pm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    background: var(--pm-row);
+    border-radius: 16px;
+    box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-card-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-avatar {
+    flex: 0 0 auto;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    object-fit: cover;
+    background: var(--pm-fill);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-avatar--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-card-info { min-width: 0; }
+
+#bp-mascotas-arcade-modal .bp-pm-card-title {
+    margin: 0;
+    padding: 0;
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.25;
+    color: var(--pm-text) !important;
+    text-shadow: none !important;
+    font-family: inherit !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-card-sub {
+    margin-top: 1px;
+    font-size: 12px;
+    color: var(--pm-text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--pm-fill);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--pm-text-2);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-chip--ok      { background: rgba(52, 199, 89, 0.18); color: #1a7f37; }
+#bp-mascotas-arcade-modal .bp-pm-chip--pending { background: rgba(10, 122, 255, 0.14); color: var(--pm-accent-press); }
+#bp-mascotas-arcade-modal .bp-pm-chip--warn    { background: rgba(255, 159, 10, 0.2); color: #9a5b00; }
+
+#bp-mascotas-arcade-modal .bp-pm-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    padding-top: 8px;
+    border-top: 1px solid var(--pm-hair);
+    font-size: 12px;
+    color: var(--pm-text-2);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-stats strong { color: var(--pm-text); font-weight: 600; }
+
+#bp-mascotas-arcade-modal .bp-pm-actions {
+    display: flex;
+    margin-top: auto;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-actions .bp-pm-btn { height: 30px; padding: 0 12px; font-size: 13px; }
+
+/* ---------- Estados: vacío, carga y acceso ---------- */
+#bp-mascotas-arcade-modal .bp-pm-empty,
+#bp-mascotas-arcade-modal .bp-pm-gate {
+    margin: auto;
+    padding: 32px 28px;
+    max-width: 380px;
+    text-align: center;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-empty-icon,
+#bp-mascotas-arcade-modal .bp-pm-gate-icon { font-size: 34px; line-height: 1; margin-bottom: 12px; }
+
+#bp-mascotas-arcade-modal .bp-pm-empty h3,
+#bp-mascotas-arcade-modal .bp-pm-gate h3 {
+    margin: 0 0 6px;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--pm-text) !important;
+    font-family: inherit !important;
+    text-shadow: none !important;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-empty p,
+#bp-mascotas-arcade-modal .bp-pm-gate p {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--pm-text-2) !important;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-gate .bp-pm-btn,
+#bp-mascotas-arcade-modal .bp-pm-empty .bp-pm-btn { height: 38px; padding: 0 20px; }
+
+#bp-mascotas-arcade-modal .bp-pm-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: auto;
+    font-size: 14px;
+    color: var(--pm-text-2);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--pm-fill);
+    border-top-color: var(--pm-accent);
+    border-radius: 50%;
+    animation: bp-pm-spin 0.8s linear infinite;
+}
+
+@keyframes bp-pm-spin { to { transform: rotate(360deg); } }
+
+#bp-mascotas-arcade-modal .bp-pm-alert {
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(255, 159, 10, 0.18);
+    color: #7a4a00;
+    font-size: 13.5px;
+    line-height: 1.45;
+}
+
+/* ---------- Formulario agrupado (estilo ajustes iOS) ---------- */
+#bp-mascotas-arcade-modal .bp-pm-cols {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+    align-items: start;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-group--full { grid-column: 1 / -1; }
+
+#bp-mascotas-arcade-modal .bp-pm-group-title {
+    margin: 0 0 6px 14px;
+    padding: 0;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--pm-text-2) !important;
+    font-family: inherit !important;
+    text-shadow: none !important;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-panel {
+    background: var(--pm-row);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 42px;
+    padding: 6px 14px;
+    cursor: text;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-row + .bp-pm-row { border-top: 1px solid var(--pm-hair); }
+
+#bp-mascotas-arcade-modal .bp-pm-row--full {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-label {
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--pm-text);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-input {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    padding: 5px 0;
+    border: 0 !important;
+    border-radius: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 13.5px;
+    color: var(--pm-text) !important;
+    text-align: right;
+    outline: none;
+    resize: none;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-row--full .bp-pm-input { text-align: left; }
+#bp-mascotas-arcade-modal textarea.bp-pm-input { line-height: 1.4; }
+#bp-mascotas-arcade-modal .bp-pm-input::placeholder { color: rgba(60, 60, 67, 0.38); }
+#bp-mascotas-arcade-modal .bp-pm-input:focus { outline: none; }
+#bp-mascotas-arcade-modal .bp-pm-row:focus-within .bp-pm-label { color: var(--pm-accent); }
+
+#bp-mascotas-arcade-modal .bp-pm-row--stat { cursor: default; }
+
+#bp-mascotas-arcade-modal .bp-pm-stat {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    max-width: 200px;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-range {
+    flex: 1;
+    min-width: 0;
+    height: 20px;
+    accent-color: var(--pm-accent);
+    cursor: pointer;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-stat-val {
+    flex: 0 0 18px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--pm-text);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-row--photo { cursor: default; }
+
+#bp-mascotas-arcade-modal .bp-pm-photo { display: flex; align-items: center; gap: 10px; }
+
+#bp-mascotas-arcade-modal .bp-pm-photo-thumb {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    object-fit: cover;
+    background: var(--pm-fill);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-photo-thumb--empty {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-file-btn { position: relative; height: 30px; padding: 0 14px; overflow: hidden; }
+
+#bp-mascotas-arcade-modal .bp-pm-file {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* ---------- Pie con acciones siempre visible ---------- */
+#bp-mascotas-arcade-modal .bp-pm-footer {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--pm-hair);
+    background: rgba(255, 255, 255, 0.45);
+}
+
+#bp-mascotas-arcade-modal .bp-pm-footer .bp-pm-btn { height: 38px; }
+#bp-mascotas-arcade-modal .bp-pm-footer .bp-pm-btn--primary { flex: 1; }
+
+#bp-mascotas-arcade-modal .bp-pm-toast {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: calc(100% + 10px);
+    z-index: 5;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.94);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    font-size: 12.5px;
+    font-weight: 600;
+    animation: bp-pm-pop 0.2s ease;
+}
+
+#bp-mascotas-arcade-modal .bp-pm-toast--ok  { color: #1a7f37; }
+#bp-mascotas-arcade-modal .bp-pm-toast--err { color: #c62828; }
+
+/* ---------- Móvil: hoja a pantalla completa ---------- */
+@media (max-width: 760px) {
+    #bp-mascotas-arcade-modal { padding: 0 !important; }
+
+    #bp-mascotas-arcade-modal .bp-pm-window {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+    }
+
+    #bp-mascotas-arcade-modal .bp-pm-head { padding: 14px 52px 12px 16px; }
+    #bp-mascotas-arcade-modal .bp-pm-scroll { padding: 14px 14px 18px; }
+    #bp-mascotas-arcade-modal .bp-pm-footer { padding: 10px 14px 14px; }
+    #bp-mascotas-arcade-modal .bp-pm-toast { left: 14px; right: 14px; }
+    #bp-mascotas-arcade-modal .bp-pm-cols { grid-template-columns: 1fr; }
+    #bp-mascotas-arcade-modal .bp-pm-grid { grid-template-columns: 1fr; }
+    #bp-mascotas-arcade-modal .bp-pm-head-spacer,
+    #bp-mascotas-arcade-modal .bp-pm-back { width: auto; }
+    #bp-mascotas-arcade-modal .bp-pm-head-spacer { display: none; }
+    #bp-mascotas-arcade-modal .bp-pm-title--center { text-align: left; }
+    #bp-mascotas-arcade-modal .bp-pm-btn--primary[data-pm-add].bp-pm-btn { padding: 0 12px; }
+    /* 16px evita el zoom automático de iOS al enfocar un campo */
+    #bp-mascotas-arcade-modal .bp-pm-input { font-size: 16px; }
+}
