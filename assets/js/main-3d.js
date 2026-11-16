@@ -417,9 +417,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // 3. TERRENO
     // ----------------------------------------------------
-    // La pradera se extiende hasta el horizonte (la niebla la funde con el cielo)
-    const TERRAIN_SIZE = 1400;
-    const groundGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE), TERRAIN_SIZE, TERRAIN_SIZE);
+    // Césped del recinto: llega justo hasta debajo del murete de la verja (fuera hay tierra árida)
+    const GROUND_SIZE = 66.3;
+    const groundGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE), GROUND_SIZE, GROUND_SIZE);
     const ground = new THREE.Mesh(groundGeo, bpEnv.grassMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -3177,39 +3177,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function createMemorialPlazaModel() {
         const group = new THREE.Group();
 
-        const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.7 });
-        const marbleMat = new THREE.MeshStandardMaterial({ color: 0xe0e4e8, roughness: 0.3, metalness: 0.2 });
-        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
-
         // Suelo de la plaza: losas de piedra clara con cenefa de adoquín y bordillo
         group.add(bpEnv.createPlazaFloor({ radius: 5.0, top: 0.145, sides: 8 }));
 
-        const stepGeo = new THREE.CylinderGeometry(2.5, 2.7, 0.2, 16);
-        const step = new THREE.Mesh(stepGeo, darkStoneMat);
-        step.position.y = 0.25;
-        step.castShadow = true;
-        step.receiveShadow = true;
-        group.add(step);
-
-        const pedGeo = new THREE.BoxGeometry(1.4, 0.8, 1.4);
-        const pedestal = new THREE.Mesh(pedGeo, darkStoneMat);
-        pedestal.position.y = 0.75;
-        pedestal.castShadow = true;
-        group.add(pedestal);
-
-        const obeliskGeo = new THREE.CylinderGeometry(0.3, 0.5, 2.6, 4);
-        const obelisk = new THREE.Mesh(obeliskGeo, marbleMat);
-        obelisk.rotation.y = Math.PI / 4;
-        obelisk.position.y = 2.45;
-        obelisk.castShadow = true;
-        group.add(obelisk);
-
-        const pyramidGeo = new THREE.ConeGeometry(0.42, 0.6, 4);
-        const pyramid = new THREE.Mesh(pyramidGeo, goldMat);
-        pyramid.rotation.y = Math.PI / 4;
-        pyramid.position.y = 4.05;
-        pyramid.castShadow = true;
-        group.add(pyramid);
+        // Fuente de piedra de dos tazas en el centro
+        const fountain = bpEnv.createFountain();
+        fountain.position.y = 0.145;
+        group.add(fountain);
 
         const benchPositions = [
             { x: 3.5, z: 0, r: -Math.PI / 2 },
@@ -3655,7 +3629,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Los dos caminos usan la misma geometría (el este-oeste solo va girado),
     // así el adoquinado mantiene su proporción real en ambos.
-    const PATH_WIDTH = 3.6, PATH_LENGTH = 60;
+    const PATH_WIDTH = 3.6, PATH_LENGTH = 66.6; // de puerta a puerta
     const pathMat = bpEnv.pavingMaterial;
     const pathGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(PATH_WIDTH, PATH_LENGTH), PATH_WIDTH, PATH_LENGTH);
 
@@ -3697,8 +3671,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     bpEnv.createForest(forestTreePositions);
-    // Arbolado exterior, al otro lado de la verja
-    bpEnv.createOuterForest({ inner: 38, outer: 115, corridor: 5 });
+    // Exterior: llanura árida con rocas, matorral seco y montañas al fondo
+    bpEnv.createSurroundings({ inner: GROUND_SIZE / 2 });
 
     rebuildLocalPlayerAvatarMesh();
     initPusherMultiplayer();

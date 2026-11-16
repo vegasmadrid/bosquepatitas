@@ -38,10 +38,9 @@ Todas tienen licencia CC0. Están reducidas y convertidas a WebP:
 
 - `paving_*`: [Pavement 05](https://polyhaven.com/a/pavement_05) de Poly Haven, 1024 px, 3,4 m.
 - `bark_*`: [Bark Platanus](https://polyhaven.com/a/bark_platanus) de Poly Haven, 512 px, 1,5 m.
-- `grass_*`: [Grass 004](https://ambientcg.com/view?id=Grass004) de ambientCG, 1024 px
-  (normales y rugosidad a 512 px), 1,4 m. La rugosidad original era muy baja y el césped
-  brillaba; se ha subido al convertirla. El color se lleva hacia un verde más vivo en
-  `bp-environment.js` (busca `uBpLo`).
+
+El césped se genera en el navegador: se probó una textura fotográfica y gustó más el generado.
+Si se añaden archivos `grass_*`, el plugin los usará.
 
 El adoquinado y la corteza no llevan mapa de rugosidad: se usa un valor fijo, que en
 esas dos superficies apenas se distingue.
