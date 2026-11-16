@@ -171,8 +171,8 @@
         const d = img.data;
         for (let i = 0, p = 0; i < n1.length; i++, p += 4) {
             const a = n1[i];
-            const dry = smoothstep(0.56, 0.8, n2[i]) * 0.4;
-            let r = 30 + a * 28, g = 56 + a * 38, b = 22 + a * 16;
+            const dry = smoothstep(0.62, 0.86, n2[i]) * 0.14;
+            let r = 20 + a * 20, g = 52 + a * 40, b = 18 + a * 14;
             r += (104 - r) * dry; g += (112 - g) * dry; b += (48 - b) * dry;
             d[p] = r; d[p + 1] = g; d[p + 2] = b; d[p + 3] = 255;
         }
@@ -181,16 +181,16 @@
         ctx.drawImage(small, 0, 0, size, size);
 
         // Briznas: trazos curvos agrupados por color (de oscuro a claro, las claras quedan encima)
-        const palette = ['#25481f', '#2c5523', '#356428', '#3e722d', '#498033', '#568c3a', '#649541', '#749d4b', '#869c55'];
-        const weights = [0.10, 0.14, 0.17, 0.17, 0.16, 0.12, 0.08, 0.04, 0.02];
-        const total = Math.round(size * size / (34 * k * k));
+        const palette = ['#1c451b', '#22511e', '#285e22', '#2f6b26', '#37782a', '#40852f', '#4b9135', '#589d3c', '#67a845'];
+        const weights = [0.10, 0.13, 0.16, 0.17, 0.16, 0.12, 0.08, 0.05, 0.03];
+        const total = Math.round(size * size / (24 * k * k));
         ctx.lineCap = 'round';
         for (let c = 0; c < palette.length; c++) {
             const path = new Path2D();
             const n = Math.round(total * weights[c]);
             for (let i = 0; i < n; i++) {
                 const x = rng() * size, y = rng() * size;
-                const len = (8 + rng() * 17) * k;
+                const len = (10 + rng() * 20) * k;
                 const ang = rng() * Math.PI * 2;
                 const dx = Math.cos(ang) * len, dy = Math.sin(ang) * len;
                 const bend = (rng() - 0.5) * len * 0.6;
@@ -204,7 +204,7 @@
                 if (ox && oy) { path.moveTo(x + ox, y + oy); path.quadraticCurveTo(cx + ox, cy + oy, x + dx + ox, y + dy + oy); }
             }
             ctx.strokeStyle = palette[c];
-            ctx.lineWidth = Math.max(1, (1.25 + c * 0.11) * k);
+            ctx.lineWidth = Math.max(1, (1.45 + c * 0.12) * k);
             ctx.stroke(path);
         }
 
@@ -221,18 +221,29 @@
     }
 
     // ---- Adoquinado: color + normales + rugosidad ---------------------
-    function buildPavingTextures(size, tileMetres, rng, aniso) {
-        const k = size / 1024;
+    const COBBLE_STYLE = {
+        rows: 16, wMin: 0.22, wMax: 0.46, joint: 0.016, jointColor: '#2f2b25', moss: 0.9, lichen: 0.28, pits: 0.9,
+        colors: [[128, 125, 118], [114, 112, 106], [137, 130, 119], [105, 105, 103], [124, 116, 103], [118, 121, 123]]
+    };
+    // Losas grandes de piedra clara para la plaza central
+    const FLAGSTONE_STYLE = {
+        rows: 8, wMin: 0.5, wMax: 0.95, joint: 0.013, jointColor: '#4d473c', moss: 0.5, lichen: 0.1, pits: 0.5,
+        colors: [[196, 187, 168], [184, 177, 160], [203, 195, 178], [176, 170, 157], [190, 180, 160], [181, 180, 172]]
+    };
+
+    function buildPavingTextures(size, tileMetres, rng, aniso, style) {
+        style = style || COBBLE_STYLE;
         const ppm = size / tileMetres;
-        const rows = 16, rowH = size / rows;
+        const k = ppm / 284;
+        const rows = style.rows, rowH = size / rows;
         const alb = makeCanvas(size, size), msk = makeCanvas(size, size);
         const a = alb.getContext('2d', { willReadFrequently: true });
         const m = msk.getContext('2d', { willReadFrequently: true });
-        a.fillStyle = '#2f2b25'; a.fillRect(0, 0, size, size);
+        a.fillStyle = style.jointColor; a.fillRect(0, 0, size, size);
         m.fillStyle = '#000'; m.fillRect(0, 0, size, size);
 
-        const stoneColors = [[128, 125, 118], [114, 112, 106], [137, 130, 119], [105, 105, 103], [124, 116, 103], [118, 121, 123]];
-        const joint = Math.max(1.5, 0.016 * ppm);
+        const stoneColors = style.colors;
+        const joint = Math.max(1.5, style.joint * ppm);
 
         function stonePath(ctx, x, y, w, h, rad, jit) {
             const x0 = x + jit[0], y0 = y + jit[1], x1 = x + w + jit[2], y1 = y + jit[3];
@@ -250,9 +261,9 @@
             const start = rng() * 0.4 * ppm;
             let x = start;
             while (x < start + size - 1) {
-                let w = (0.22 + rng() * 0.24) * ppm;
+                let w = (style.wMin + rng() * (style.wMax - style.wMin)) * ppm;
                 const remaining = start + size - x;
-                if (remaining - w < 0.2 * ppm) w = remaining;
+                if (remaining - w < style.wMin * 0.9 * ppm) w = remaining;
                 const base = stoneColors[Math.floor(rng() * stoneColors.length)];
                 const br = 0.86 + rng() * 0.26;
                 const fill = 'rgb(' + Math.round(base[0] * br) + ',' + Math.round(base[1] * br) + ',' + Math.round(base[2] * br) + ')';
@@ -292,14 +303,14 @@
             const e = smoothstep(0.22, 0.78, mask[i]);          // 0 = junta, 1 = cara de la piedra
             const f = fine[h2];
             let hh = e * (0.75 + 0.25 * mask[i]) + (f - 0.5) * 0.12 * e;
-            if (f > 0.8) hh -= (f - 0.8) * 0.9 * e;             // picaduras
+            if (f > 0.8) hh -= (f - 0.8) * style.pits * e;       // picaduras
             hgt[i] = hh;
 
             const shade = (0.8 + 0.38 * f) * (0.88 + 0.24 * tone[h2]) * (0.5 + 0.5 * e);
             let r = ap[p] * shade, g = ap[p + 1] * shade, b = ap[p + 2] * shade;
-            const mossy = (1 - e) * smoothstep(0.42, 0.66, moss[h2]) * 0.9;      // musgo en las juntas
+            const mossy = (1 - e) * smoothstep(0.42, 0.66, moss[h2]) * style.moss;   // musgo en las juntas
             r += (58 - r) * mossy; g += (80 - g) * mossy; b += (38 - b) * mossy;
-            const lichen = e * smoothstep(0.7, 0.88, moss[h2]) * 0.28;           // liquen sobre la piedra
+            const lichen = e * smoothstep(0.7, 0.88, moss[h2]) * style.lichen;       // liquen sobre la piedra
             r += (128 - r) * lichen; g += (134 - g) * lichen; b += (104 - b) * lichen;
             color[p] = r; color[p + 1] = g; color[p + 2] = b; color[p + 3] = 255;
 
@@ -914,14 +925,314 @@
     }
 
     // =====================================================================
+    // MOBILIARIO: PIEDRA, MADERA Y HIERRO FORJADO
+    // =====================================================================
+    function buildStoneTexture(size, rng, aniso) {
+        const a = fbmField(size, size, 4, 4, 5, rng, 0.55);
+        const b = fbmField(size, size, 24, 24, 3, rng, 0.6);
+        const color = new Uint8Array(size * size * 4);
+        const hgt = new Float32Array(size * size);
+        for (let i = 0, p = 0; i < a.length; i++, p += 4) {
+            const v = 0.8 + 0.32 * a[i] + 0.16 * (b[i] - 0.5);
+            const stain = smoothstep(0.42, 0.2, a[i]) * 0.18;        // manchas de humedad y verdín
+            let r = 158 * v, g = 152 * v, bl = 139 * v;
+            r += (92 - r) * stain; g += (104 - g) * stain; bl += (84 - bl) * stain;
+            color[p] = r; color[p + 1] = g; color[p + 2] = bl; color[p + 3] = 255;
+            hgt[i] = b[i] * 0.6 + a[i] * 0.4;
+        }
+        return {
+            map: dataTexture(color, size, size, true, aniso),
+            normalMap: dataTexture(normalFromHeight(hgt, size, size, 2.4), size, size, false, aniso)
+        };
+    }
+
+    function buildWoodTexture(rng, aniso) {
+        const w = 256, h = 64;
+        const grain = fbmField(w, h, 2, 16, 3, rng, 0.6);
+        const tone = fbmField(w, h, 2, 2, 2, rng, 0.5);
+        const color = new Uint8Array(w * h * 4);
+        for (let i = 0, p = 0; i < grain.length; i++, p += 4) {
+            const g = grain[i] * 6;
+            const ring = 1 - Math.abs(2 * (g - Math.floor(g)) - 1);
+            const v = 0.7 + 0.22 * tone[i] + 0.2 * ring - (grain[i] > 0.72 ? 0.16 : 0);
+            color[p] = 146 * v; color[p + 1] = 96 * v; color[p + 2] = 54 * v; color[p + 3] = 255;
+        }
+        return dataTexture(color, w, h, true, aniso);
+    }
+
+    // Fusiona geometrías sueltas en una sola malla (una llamada de dibujo).
+    function StaticBuilder() { this.pos = []; this.nor = []; this.uv = []; }
+    const _sv = new THREE.Vector3(), _sn = new THREE.Vector3(), _nm = new THREE.Matrix3();
+    StaticBuilder.prototype.add = function (geometry, matrix) {
+        const g = geometry.index ? geometry.toNonIndexed() : geometry;
+        const p = g.attributes.position, n = g.attributes.normal, u = g.attributes.uv;
+        _nm.getNormalMatrix(matrix);
+        const flip = matrix.determinant() < 0;
+        for (let t = 0; t < p.count; t += 3) {
+            for (let c = 0; c < 3; c++) {
+                const i = t + (flip ? 2 - c : c);
+                _sv.fromBufferAttribute(p, i).applyMatrix4(matrix);
+                _sn.fromBufferAttribute(n, i).applyMatrix3(_nm).normalize();
+                this.pos.push(_sv.x, _sv.y, _sv.z);
+                this.nor.push(_sn.x, _sn.y, _sn.z);
+                this.uv.push(u ? u.getX(i) : 0, u ? u.getY(i) : 0);
+            }
+        }
+        if (g !== geometry) g.dispose();
+        geometry.dispose();
+        return this;
+    };
+    // worldUv: si se indica, las UV se proyectan en metros según la cara (sin estirar la textura)
+    StaticBuilder.prototype.build = function (worldUv) {
+        if (worldUv) {
+            for (let i = 0, j = 0; i < this.pos.length; i += 3, j += 2) {
+                const ax = Math.abs(this.nor[i]), ay = Math.abs(this.nor[i + 1]), az = Math.abs(this.nor[i + 2]);
+                const x = this.pos[i], y = this.pos[i + 1], z = this.pos[i + 2];
+                if (ay >= ax && ay >= az) { this.uv[j] = x * worldUv; this.uv[j + 1] = z * worldUv; }
+                else if (ax >= az) { this.uv[j] = z * worldUv; this.uv[j + 1] = y * worldUv; }
+                else { this.uv[j] = x * worldUv; this.uv[j + 1] = y * worldUv; }
+            }
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
+        g.computeBoundingSphere();
+        g.computeBoundingBox();
+        return g;
+    };
+
+    const _mq = new THREE.Quaternion(), _me = new THREE.Euler(), _mp = new THREE.Vector3(), _ms = new THREE.Vector3();
+    // Matriz parent · T(x,y,z) · R(rx,ry,rz) · S(sx,sy,sz)
+    function xf(parent, x, y, z, rx, ry, rz, sx, sy, sz) {
+        _mq.setFromEuler(_me.set(rx || 0, ry || 0, rz || 0));
+        const m = new THREE.Matrix4().compose(_mp.set(x, y, z), _mq, _ms.set(sx === undefined ? 1 : sx, sy === undefined ? 1 : sy, sz === undefined ? 1 : sz));
+        return parent ? m.premultiply(parent) : m;
+    }
+
+    // Barra recta entre dos puntos
+    function addBar(B, parent, ax, ay, az, bx, by, bz, thick) {
+        const dir = new THREE.Vector3(bx - ax, by - ay, bz - az), len = dir.length();
+        dir.normalize();
+        _mq.setFromUnitVectors(Y, dir);
+        const m = new THREE.Matrix4().compose(_mp.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2), _mq, _ms.set(1, 1, 1));
+        B.add(new THREE.BoxGeometry(thick, len, thick), parent ? m.premultiply(parent) : m);
+    }
+
+    // Perfil torneado alrededor del eje vertical, con las caras hacia fuera
+    function latheGeometry(profile, segments) {
+        let pts = profile.map(p => new THREE.Vector2(p[0], p[1]));
+        let g = new THREE.LatheGeometry(pts, segments);
+        const mid = Math.floor(pts.length / 2);
+        const px = g.attributes.position.getX(mid), nx = g.attributes.normal.getX(mid);
+        const pz = g.attributes.position.getZ(mid), nz = g.attributes.normal.getZ(mid);
+        if (px * nx + pz * nz < 0) {
+            g.dispose();
+            g = new THREE.LatheGeometry(pts.reverse(), segments);
+        }
+        return g;
+    }
+
+    // Pletina curva de fundición (perfil 2D en el plano fondo-altura, con grosor)
+    function ribbonGeometry(points, width, depth) {
+        const curve = new THREE.SplineCurve(points.map(p => new THREE.Vector2(p[0], p[1])));
+        const P = curve.getPoints(Math.max(1, (points.length - 1) * 5));
+        const left = [], right = [];
+        for (let i = 0; i < P.length; i++) {
+            const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
+            let tx = b.x - a.x, ty = b.y - a.y;
+            const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+            left.push(new THREE.Vector2(P[i].x - ty * width / 2, P[i].y + tx * width / 2));
+            right.push(new THREE.Vector2(P[i].x + ty * width / 2, P[i].y - tx * width / 2));
+        }
+        const g = new THREE.ExtrudeGeometry(new THREE.Shape(left.concat(right.reverse())), { depth: depth, bevelEnabled: false, curveSegments: 1 });
+        g.translate(0, 0, -depth / 2);
+        return g;
+    }
+
+    function noRaycast(obj) {
+        obj.traverse(o => { if (o.isMesh) o.raycast = function () {}; });
+        return obj;
+    }
+
+    // ---- Farola victoriana -------------------------------------------
+    function buildLampGeometries(seg) {
+        const iron = new StaticBuilder(), glass = new StaticBuilder(), gold = new StaticBuilder();
+        const S2 = Math.SQRT2, Q = Math.PI / 4;
+        // Columna torneada: zócalo, basa con molduras, fuste ahusado y capitel
+        iron.add(latheGeometry([
+            [0.001, 0], [0.30, 0], [0.30, 0.07], [0.25, 0.10], [0.25, 0.22], [0.21, 0.26], [0.17, 0.52],
+            [0.20, 0.56], [0.20, 0.61], [0.12, 0.67], [0.095, 0.92], [0.12, 0.96], [0.12, 1.01], [0.08, 1.05],
+            [0.058, 2.72], [0.085, 2.75], [0.085, 2.81], [0.058, 2.85], [0.052, 3.00], [0.105, 3.07], [0.105, 3.10], [0.001, 3.12]
+        ], seg), xf(null, 0, 0, 0));
+        // Brazos de escalera con bolas
+        iron.add(new THREE.CylinderGeometry(0.016, 0.016, 0.58, 6), xf(null, 0, 2.78, 0, 0, 0, Math.PI / 2));
+        iron.add(new THREE.SphereGeometry(0.032, 8, 6), xf(null, -0.29, 2.78, 0));
+        iron.add(new THREE.SphereGeometry(0.032, 8, 6), xf(null, 0.29, 2.78, 0));
+        // Farol: base, cristal en tronco de pirámide, montantes, cornisa, tejadillo y chimenea
+        const y0 = 3.15, y1 = 3.61, h0 = 0.10, h1 = 0.19;
+        iron.add(new THREE.CylinderGeometry(h0 * S2 * 1.06, h0 * S2 * 0.7, 0.05, 4), xf(null, 0, y0 - 0.025, 0, 0, Q, 0));
+        glass.add(new THREE.CylinderGeometry(h1 * S2 * 0.97, h0 * S2 * 0.97, y1 - y0, 4, 1, true), xf(null, 0, (y0 + y1) / 2, 0, 0, Q, 0));
+        for (let sx = -1; sx <= 1; sx += 2) {
+            for (let sz = -1; sz <= 1; sz += 2) addBar(iron, null, sx * h0, y0, sz * h0, sx * h1, y1, sz * h1, 0.022);
+            addBar(iron, null, -h1 - 0.012, y1, sx * h1, h1 + 0.012, y1, sx * h1, 0.03);
+            addBar(iron, null, sx * h1, y1, -h1 - 0.012, sx * h1, y1, h1 + 0.012, 0.03);
+        }
+        iron.add(new THREE.CylinderGeometry(0.06 * S2, 0.245 * S2, 0.2, 4), xf(null, 0, y1 + 0.115, 0, 0, Q, 0));
+        iron.add(new THREE.CylinderGeometry(0.055, 0.06, 0.09, 8), xf(null, 0, y1 + 0.26, 0));
+        iron.add(new THREE.ConeGeometry(0.1, 0.07, 8), xf(null, 0, y1 + 0.34, 0));
+        gold.add(new THREE.SphereGeometry(0.03, 8, 6), xf(null, 0, y1 + 0.4, 0));
+        gold.add(new THREE.ConeGeometry(0.015, 0.11, 6), xf(null, 0, y1 + 0.475, 0));
+        return { iron: iron.build(), glass: glass.build(), gold: gold.build() };
+    }
+
+    // ---- Banco de parque: laterales de fundición y listones de madera --
+    function buildBenchGeometries() {
+        const iron = new StaticBuilder(), wood = new StaticBuilder();
+        const SIDE = 0.74, T = 0.04, R = -Math.PI / 2;
+        for (let s = -1; s <= 1; s += 2) {
+            const P = xf(null, s * SIDE, 0, 0, 0, R, 0);   // perfil (fondo, altura) -> plano lateral del banco
+            iron.add(ribbonGeometry([[-0.30, 0.0], [-0.27, 0.18], [-0.225, 0.40], [-0.25, 0.56], [-0.31, 0.78], [-0.365, 0.95]], 0.042, T), P);
+            iron.add(ribbonGeometry([[0.31, 0.0], [0.255, 0.14], [0.235, 0.30], [0.26, 0.43], [0.285, 0.52], [0.27, 0.61]], 0.042, T), P);
+            iron.add(ribbonGeometry([[0.30, 0.60], [0.22, 0.645], [0.0, 0.655], [-0.27, 0.665]], 0.045, T * 1.3), P);
+            iron.add(ribbonGeometry([[0.265, 0.425], [0.05, 0.405], [-0.225, 0.395]], 0.04, T), P);
+            iron.add(ribbonGeometry([[0.245, 0.2], [-0.265, 0.2]], 0.034, T), P);
+            iron.add(new THREE.TorusGeometry(0.083, 0.014, 5, 14), xf(P, -0.01, 0.30, 0));
+            iron.add(new THREE.TorusGeometry(0.04, 0.016, 5, 10), xf(P, 0.315, 0.565, 0));
+            iron.add(new THREE.TorusGeometry(0.034, 0.015, 5, 10), xf(P, -0.395, 0.965, 0));
+            iron.add(new THREE.BoxGeometry(0.09, 0.025, T * 1.6), xf(P, 0.315, 0.0125, 0));
+            iron.add(new THREE.BoxGeometry(0.09, 0.025, T * 1.6), xf(P, -0.305, 0.0125, 0));
+        }
+        iron.add(new THREE.CylinderGeometry(0.012, 0.012, SIDE * 2, 6), xf(null, 0, 0.2, 0, 0, 0, Math.PI / 2));
+        // Asiento: listones con ligera caída hacia atrás y borde delantero redondeado
+        const L = 1.6;
+        wood.add(new THREE.BoxGeometry(L, 0.024, 0.062), xf(null, 0, 0.452, 0.268, 0.4, 0, 0));
+        for (let i = 0; i < 6; i++) {
+            const z = 0.2 - i * 0.078;
+            wood.add(new THREE.BoxGeometry(L, 0.024, 0.064), xf(null, 0, 0.452 + 0.08 * z, z, -0.08, 0, 0));
+        }
+        // Respaldo inclinado, con el listón superior más ancho
+        const lean = -0.27;
+        [0.555, 0.645, 0.735, 0.825].forEach(y => {
+            wood.add(new THREE.BoxGeometry(L, 0.07, 0.022), xf(null, 0, y, -0.19 - (y - 0.44) * 0.2755, lean, 0, 0));
+        });
+        wood.add(new THREE.BoxGeometry(L, 0.09, 0.028), xf(null, 0, 0.918, -0.19 - (0.918 - 0.44) * 0.2755, lean, 0, 0));
+        return { iron: iron.build(), wood: wood.build() };
+    }
+
+    // ---- Verja victoriana ------------------------------------------------
+    // Pilar de sillería con zócalo, cornisa, remate piramidal y bola
+    function addPier(B, parent, x, z, s) {
+        const P = xf(parent, x, 0, z, 0, 0, 0, s, s * (s > 1 ? 1.04 : 1), s);
+        B.add(new THREE.BoxGeometry(0.68, 0.28, 0.68), xf(P, 0, 0.14, 0));
+        B.add(new THREE.BoxGeometry(0.58, 0.07, 0.58), xf(P, 0, 0.315, 0));
+        B.add(new THREE.BoxGeometry(0.5, 2.08, 0.5), xf(P, 0, 1.39, 0));
+        B.add(new THREE.BoxGeometry(0.56, 0.07, 0.56), xf(P, 0, 2.465, 0));
+        B.add(new THREE.BoxGeometry(0.68, 0.1, 0.68), xf(P, 0, 2.55, 0));
+        B.add(new THREE.CylinderGeometry(0.11, 0.47, 0.26, 4), xf(P, 0, 2.73, 0, 0, Math.PI / 4, 0));
+        B.add(new THREE.CylinderGeometry(0.06, 0.075, 0.07, 8), xf(P, 0, 2.895, 0));
+        B.add(new THREE.SphereGeometry(0.125, 10, 8), xf(P, 0, 3.04, 0));
+    }
+
+    function buildFenceSide(o, q) {
+        const limit = o.limit, halfGate = o.gateWidth / 2, step = o.step;
+        const iron = new StaticBuilder(), stone = new StaticBuilder(), gold = new StaticBuilder();
+        const bars = [], dogs = [], rings = [];
+        const SP = 0.18, Q = Math.PI / 4;
+
+        // Tramo de reja entre x = a y x = b, en el marco local "frame" (eje X a lo largo de la reja)
+        function ironPanel(frame, a, b, base) {
+            const len = b - a, mid = (a + b) / 2;
+            [[0.44, 0.04, 0.026], [0.98, 0.03, 0.02], [1.52, 0.03, 0.02], [1.72, 0.045, 0.03]].forEach(r => {
+                iron.add(new THREE.BoxGeometry(len, r[1], r[2]), xf(frame, mid, r[0] + base, 0));
+            });
+            const n = Math.max(1, Math.round(len / SP)), sp = len / n;
+            for (let i = 0; i < n; i++) {
+                bars.push(xf(frame, a + sp * (i + 0.5), base, 0, 0, 0, 0, 1, i % 2 ? 0.965 : 1, 1));
+                if (i > 0) {
+                    dogs.push(xf(frame, a + sp * i, base, 0));
+                    if (q.fenceRings && (q.fenceRings === 1 || i % 2)) rings.push(xf(frame, a + sp * i, 1.62 + base, 0));
+                }
+            }
+        }
+
+        // Paño completo: murete de piedra con albardilla y reja encima
+        function panel(x0, x1, inset0, inset1) {
+            const a = x0 + inset0, b = x1 - inset1, len = b - a, mid = (a + b) / 2;
+            const F = xf(null, 0, 0, limit);
+            stone.add(new THREE.BoxGeometry(len + 0.04, 0.3, 0.3), xf(F, mid, 0.15, 0));
+            stone.add(new THREE.BoxGeometry(len + 0.04, 0.05, 0.38), xf(F, mid, 0.325, 0));
+            ironPanel(F, a, b, 0);
+        }
+
+        const xs = [];
+        for (let x = halfGate; x < limit - 0.5; x += step) xs.push(x);
+        xs.push(limit);
+        for (let i = 0; i < xs.length; i++) {
+            const gate = i === 0, corner = i === xs.length - 1;
+            addPier(stone, null, xs[i], limit, gate ? 1.2 : 1);
+            if (!corner) addPier(stone, null, -xs[i], limit, gate ? 1.2 : 1);   // la esquina opuesta la pone el lado vecino
+            if (i > 0) {
+                const i0 = i === 1 ? 0.31 : 0.26;
+                panel(xs[i - 1], xs[i], i0, 0.26);
+                panel(-xs[i], -xs[i - 1], 0.26, i0);
+            }
+        }
+
+        // Puerta: arco doble con aros, dintel y remate dorado
+        const G = xf(null, 0, 0, limit);
+        const AY = 3.25;
+        iron.add(new THREE.TorusGeometry(halfGate, 0.04, 6, 28, Math.PI), xf(G, 0, AY, 0));
+        iron.add(new THREE.TorusGeometry(halfGate - 0.3, 0.03, 6, 24, Math.PI), xf(G, 0, AY, 0));
+        iron.add(new THREE.BoxGeometry(halfGate * 2, 0.05, 0.04), xf(G, 0, AY, 0));
+        for (let i = 1; i < 12; i++) {
+            const an = i / 12 * Math.PI, rr = halfGate - 0.15;
+            iron.add(new THREE.TorusGeometry(0.105, 0.012, 4, 10), xf(G, Math.cos(an) * rr, AY + Math.sin(an) * rr, 0));
+        }
+        addBar(iron, G, 0, AY, 0, 0, AY + halfGate - 0.3, 0, 0.03);
+        iron.add(new THREE.TorusGeometry(0.32, 0.016, 4, 14), xf(G, 0, AY + 0.62, 0));
+        gold.add(new THREE.OctahedronGeometry(0.13), xf(G, 0, AY + halfGate + 0.24, 0, 0, 0, 0, 0.75, 1.9, 0.75));
+        gold.add(new THREE.SphereGeometry(0.075, 8, 6), xf(G, 0, AY + halfGate + 0.04, 0));
+        // Hojas abiertas hacia dentro
+        for (let s = -1; s <= 1; s += 2) {
+            const W = halfGate - 0.36;
+            const Lf = xf(G, s * (halfGate - 0.32), 0, 0, 0, s > 0 ? Math.PI - Math.PI / 3.5 : Math.PI / 3.5, 0);
+            addBar(iron, Lf, 0.03, 0.08, 0, 0.03, 2.02, 0, 0.045);
+            addBar(iron, Lf, W, 0.08, 0, W, 2.02, 0, 0.045);
+            ironPanel(Lf, 0.05, W - 0.02, -0.2);
+            gold.add(new THREE.SphereGeometry(0.045, 8, 6), xf(Lf, 0.03, 2.06, 0));
+            gold.add(new THREE.SphereGeometry(0.045, 8, 6), xf(Lf, W, 2.06, 0));
+        }
+
+        // Piezas repetidas (se dibujan instanciadas): barrote con lanza, barrote corto y aro
+        const bar = new StaticBuilder();
+        bar.add(new THREE.CylinderGeometry(0.0145, 0.0145, 1.66, 4, 1, true), xf(null, 0, 1.155, 0, 0, Q, 0));
+        if (!q.fenceSimple) bar.add(new THREE.OctahedronGeometry(0.03), xf(null, 0, 1.995, 0, 0, Q, 0, 1, 0.7, 1));
+        bar.add(new THREE.CylinderGeometry(0.032, 0.012, 0.06, 4, 1, true), xf(null, 0, 2.04, 0, 0, Q, 0));
+        bar.add(new THREE.ConeGeometry(0.032, 0.2, 4, 1, true), xf(null, 0, 2.17, 0, 0, Q, 0));
+        const dog = new StaticBuilder();
+        dog.add(new THREE.CylinderGeometry(0.011, 0.011, 0.66, 4, 1, true), xf(null, 0, 0.655, 0, 0, Q, 0));
+        dog.add(new THREE.ConeGeometry(0.02, 0.1, 4, 1, true), xf(null, 0, 1.04, 0, 0, Q, 0));
+        const ring = new THREE.TorusGeometry(0.07, 0.008, 3, 8);
+
+        return {
+            iron: iron.build(), stone: stone.build(0.8), gold: gold.build(),
+            bar: bar.build(), dog: dog.build(), ring: ring,
+            bars: bars, dogs: q.fenceSimple ? [] : dogs, rings: rings
+        };
+    }
+
+    // =====================================================================
     // ENTORNO
     // =====================================================================
     function create(opts) {
         const scene = opts.scene, renderer = opts.renderer, isMobile = !!opts.isMobile;
+        const photoSets = opts.photoTextures && Object.keys(opts.photoTextures).length ? opts.photoTextures : null;
+        const hasPhoto = name => !!(photoSets && photoSets[name] && photoSets[name].color);
         const rng = makeRng(20240517);
         const q = isMobile
-            ? { tex: 512, grass: [256, 2.4], bark: [128, 256], leaf: 256, aniso: 4, skyOct: 3, env: false, trunkSegs: 7, oakCards: 170, pineTiers: 7, willowTop: 46, willowCurtain: 34 }
-            : { tex: 1024, grass: [512, 3.0], bark: [256, 512], leaf: 256, aniso: 8, skyOct: 4, env: true, trunkSegs: 9, oakCards: 300, pineTiers: 9, willowTop: 80, willowCurtain: 56 };
+            ? { tex: 512, grass: [256, 2.4], bark: [128, 256], leaf: 256, aniso: 4, skyOct: 3, env: false, flag: 256, stone: 128, lampSegs: 8, fenceRings: 0, fenceSimple: true, trunkSegs: 7, oakCards: 170, pineTiers: 7, willowTop: 46, willowCurtain: 34 }
+            : { tex: 1024, grass: [512, 3.0], bark: [256, 512], leaf: 256, aniso: 8, skyOct: 4, env: true, flag: 512, stone: 256, lampSegs: 12, fenceRings: 1, fenceSimple: false, trunkSegs: 9, oakCards: 300, pineTiers: 9, willowTop: 80, willowCurtain: 56 };
         const aniso = Math.min(q.aniso, renderer.capabilities.getMaxAnisotropy());
 
         // ---- Color y exposición ---------------------------------------
@@ -957,6 +1268,7 @@
         sky.scale.setScalar(500);
         sky.frustumCulled = false;
         sky.renderOrder = 1000;
+        sky.raycast = function () {};
         sky.matrixAutoUpdate = true;
         scene.add(sky);
         scene.background = SKY.horizon.clone();
@@ -970,17 +1282,23 @@
         const GRASS_TILE = q.grass[1], PAVING_TILE = 3.6;
         const t0 = performance.now();
         const macro = buildMacroTexture(rng);
-        const grassTex = buildGrassTextures(q.grass[0], GRASS_TILE, rng, aniso);
+        // Si hay textura fotográfica en camino, la procedural solo hace de marcador y se genera pequeña
+        const grassTex = buildGrassTextures(hasPhoto('grass') ? 256 : q.grass[0], GRASS_TILE, rng, aniso);
         const t1 = performance.now();
-        const pavingTex = buildPavingTextures(q.tex, PAVING_TILE, rng, aniso);
+        const pavingTex = buildPavingTextures(hasPhoto('paving') ? 256 : q.tex, PAVING_TILE, rng, aniso);
         const t2 = performance.now();
-        const barkTex = buildBarkTextures(q.bark[0], q.bark[1], rng, aniso);
+        const barkTex = hasPhoto('bark') ? buildBarkTextures(64, 128, rng, aniso) : buildBarkTextures(q.bark[0], q.bark[1], rng, aniso);
+        const FLAG_TILE = 3.0;
+        const flagTex = buildPavingTextures(q.flag, FLAG_TILE, rng, aniso, FLAGSTONE_STYLE);
+        flagTex.map.repeat.set(1 / FLAG_TILE, 1 / FLAG_TILE);
+        const stoneTex = buildStoneTexture(q.stone, rng, aniso);
+        const woodTex = buildWoodTexture(rng, aniso);
         grassTex.map.repeat.set(1 / GRASS_TILE, 1 / GRASS_TILE);
         pavingTex.map.repeat.set(1 / PAVING_TILE, 1 / PAVING_TILE);
 
         const grassMaterial = makeGroundMaterial(grassTex, macro, {
             roughness: 0.92, normalScale: 0.9, envMapIntensity: 0.35, macroMetres: 34, blend: 0.6,
-            lo: [0.72, 0.84, 0.66], hi: [1.2, 1.1, 0.98]
+            lo: [0.7, 0.82, 0.68], hi: [1.0, 1.06, 0.9]
         });
         const pavingMaterial = makeGroundMaterial(pavingTex, macro, {
             roughness: 1.0, normalScale: 1.0, envMapIntensity: 0.5, macroMetres: 19, blend: 0,
@@ -992,10 +1310,27 @@
         barkMaterial.normalScale.set(1.2, 1.2);
         barkMaterial.envMapIntensity = 0.3;
 
+        const flagMaterial = makeGroundMaterial(flagTex, macro, {
+            roughness: 1.0, normalScale: 0.9, envMapIntensity: 0.45, macroMetres: 11, blend: 0,
+            lo: [0.9, 0.9, 0.88], hi: [1.06, 1.05, 1.02]
+        });
+        const stoneMaterial = new THREE.MeshStandardMaterial({ map: stoneTex.map, normalMap: stoneTex.normalMap, roughness: 0.92, metalness: 0 });
+        stoneMaterial.envMapIntensity = 0.4;
+        const woodMaterial = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.62, metalness: 0 });
+        woodMaterial.envMapIntensity = 0.5;
+        // Hierro pintado de negro: poco metálico, con el brillo satinado de la pintura
+        const ironMaterial = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x202427).convertSRGBToLinear(), roughness: 0.5, metalness: 0.15 });
+        ironMaterial.envMapIntensity = 0.55;
+        const goldMaterial = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xd2aa3a).convertSRGBToLinear(), roughness: 0.32, metalness: 0.75 });
+        const lampGlassMaterial = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(0xfff0cf).convertSRGBToLinear(), emissive: new THREE.Color(0xffc56e).convertSRGBToLinear(),
+            emissiveIntensity: 0.7, roughness: 0.25, metalness: 0
+        });
+
         const env = {
             timings: { textures: Math.round(performance.now() - t0), grass: Math.round(t1 - t0), paving: Math.round(t2 - t1) },
             sunLight, hemiLight, ambientLight, sky,
-            grassMaterial, pavingMaterial, barkMaterial,
+            grassMaterial, pavingMaterial, barkMaterial, flagMaterial, stoneMaterial,
             uvToMetres, cylinderUVToMetres,
             quality: q
         };
@@ -1041,14 +1376,107 @@
                 mesh.name = 'bpLeaves_' + sp.key;
                 group.add(mesh);
             });
+            noRaycast(group);
             scene.add(group);
             env.timings.forest = Math.round(performance.now() - tf);
             return group;
         };
 
+        // ---- Mobiliario ----------------------------------------------------
+        function part(geometry, material, cast) {
+            const m = new THREE.Mesh(geometry, material);
+            m.castShadow = cast !== false;
+            m.receiveShadow = true;
+            return m;
+        }
+
+        let lampGeo = null;
+        env.createStreetLamp = function () {
+            if (!lampGeo) lampGeo = buildLampGeometries(q.lampSegs);
+            const group = new THREE.Group();
+            group.add(part(lampGeo.iron, ironMaterial), part(lampGeo.glass, lampGlassMaterial, false), part(lampGeo.gold, goldMaterial, false));
+            const light = new THREE.PointLight(0xffaa44, 1.1, 11, 1.8);
+            light.position.set(0, 3.4, 0);
+            group.add(light);
+            return noRaycast(group);
+        };
+
+        let benchGeo = null;
+        env.createBench = function () {
+            if (!benchGeo) benchGeo = buildBenchGeometries();
+            const group = new THREE.Group();
+            group.add(part(benchGeo.iron, ironMaterial), part(benchGeo.wood, woodMaterial));
+            return noRaycast(group);
+        };
+
+        // Verja perimetral: los cuatro lados son iguales y comparten geometría
+        env.createFence = function (o) {
+            const tf = performance.now();
+            const side = buildFenceSide(o, q);
+            const bound = new THREE.Sphere(new THREE.Vector3(0, 2, o.limit), o.limit + 4);
+            [side.bar, side.dog, side.ring].forEach(g => { g.boundingSphere = bound; });
+            const root = new THREE.Group();
+            root.name = 'bpFence';
+            function instanced(geometry, matrices, cast) {
+                if (!matrices.length) return null;
+                const m = new THREE.InstancedMesh(geometry, ironMaterial, matrices.length);
+                matrices.forEach((mat, i) => m.setMatrixAt(i, mat));
+                m.instanceMatrix.needsUpdate = true;
+                m.castShadow = cast;
+                return m;
+            }
+            for (let i = 0; i < 4; i++) {
+                const g = new THREE.Group();
+                g.rotation.y = i * Math.PI / 2;
+                g.add(part(side.stone, stoneMaterial), part(side.iron, ironMaterial), part(side.gold, goldMaterial, false));
+                [instanced(side.bar, side.bars, true), instanced(side.dog, side.dogs, false), instanced(side.ring, side.rings, false)]
+                    .forEach(m => { if (m) g.add(m); });
+                root.add(g);
+            }
+            env.timings.fence = Math.round(performance.now() - tf);
+            return noRaycast(root);
+        };
+
+        // Suelo de la plaza: losas de piedra clara en hiladas paralelas a cada lado del
+        // octógono (se encuentran a inglete en las diagonales), cenefa de adoquín y bordillo.
+        env.createPlazaFloor = function (o) {
+            const R = o.radius, top = o.top, sides = o.sides || 8, f = o.border || 0.86;
+            const flag = { pos: [], uv: [] }, edge = { pos: [], uv: [] };
+            const kerb = new StaticBuilder();
+            const A = new THREE.Vector3(), B = new THREE.Vector3(), e = new THREE.Vector3(), n = new THREE.Vector3();
+            function put(t, x, z) { t.pos.push(x, top, z); t.uv.push(x * e.x + z * e.z, x * n.x + z * n.z); }
+            for (let i = 0; i < sides; i++) {
+                const a0 = i / sides * Math.PI * 2, a1 = (i + 1) / sides * Math.PI * 2;
+                A.set(Math.sin(a0) * R, top, Math.cos(a0) * R); B.set(Math.sin(a1) * R, top, Math.cos(a1) * R);
+                e.subVectors(B, A).normalize();
+                n.addVectors(A, B).normalize();
+                put(flag, 0, 0); put(flag, A.x * f, A.z * f); put(flag, B.x * f, B.z * f);
+                put(edge, A.x * f, A.z * f); put(edge, A.x, A.z); put(edge, B.x, B.z);
+                put(edge, A.x * f, A.z * f); put(edge, B.x, B.z); put(edge, B.x * f, B.z * f);
+                // Bordillo
+                const len = A.distanceTo(B), ang = Math.atan2(n.x, n.z);
+                kerb.add(new THREE.BoxGeometry(len + 0.02, top + 0.02, 0.14), xf(null, (A.x + B.x) / 2 + n.x * 0.05, top / 2 - 0.012, (A.z + B.z) / 2 + n.z * 0.05, 0, ang, 0));
+            }
+            function flat(t, material) {
+                const g = new THREE.BufferGeometry();
+                g.setAttribute('position', new THREE.Float32BufferAttribute(t.pos, 3));
+                g.setAttribute('uv', new THREE.Float32BufferAttribute(t.uv, 2));
+                const nor = new Float32Array(t.pos.length);
+                for (let i = 1; i < nor.length; i += 3) nor[i] = 1;
+                g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+                g.computeBoundingSphere();
+                const m = new THREE.Mesh(g, material);
+                m.receiveShadow = true;
+                return m;
+            }
+            const group = new THREE.Group();
+            group.name = 'bpPlazaFloor';
+            group.add(flat(flag, flagMaterial), flat(edge, pavingMaterial), part(kerb.build(0.8), stoneMaterial, false));
+            return group;
+        };
+
         // ---- Texturas fotográficas opcionales (carga diferida) --------
-        let photoSets = null, photoStarted = false, frames = 0;
-        env.setPhotoTextures = function (sets) { photoSets = sets && Object.keys(sets).length ? sets : null; };
+        let photoStarted = false, frames = 0;
 
         function loadPhotoSet(name, cfg) {
             const target = { grass: grassMaterial, paving: pavingMaterial, bark: barkMaterial }[name];

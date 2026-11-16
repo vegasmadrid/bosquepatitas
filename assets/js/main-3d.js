@@ -405,8 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. ENTORNO NATURAL: CIELO, LUZ Y MATERIALES DEL SUELO
     // (assets/js/bp-environment.js: todo procedural, sin descargas)
     // ----------------------------------------------------
-    const bpEnv = BPEnv.create({ scene, renderer, isMobile });
-    bpEnv.setPhotoTextures(settings.photoTextures);
+    const bpEnv = BPEnv.create({ scene, renderer, isMobile, photoTextures: settings.photoTextures });
 
     // ----------------------------------------------------
     // 3. TERRENO
@@ -3158,102 +3157,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         group.add(tributesContainer);
     }
+    // Farolas y bancos victorianos: la geometría se construye una vez en bp-environment.js y se comparte
     function createStreetLampModel() {
-        const group = new THREE.Group();
-
-        const metalMat = new THREE.MeshStandardMaterial({ color: 0x222629, roughness: 0.4, metalness: 0.8 });
-        const glassMat = new THREE.MeshStandardMaterial({
-            color: 0xffe6a7,
-            emissive: 0xffb84d,
-            emissiveIntensity: 0.8,
-            roughness: 0.2,
-            metalness: 0.1
-        });
-
-        const baseGeo = new THREE.CylinderGeometry(0.22, 0.32, 0.4, 8);
-        const base = new THREE.Mesh(baseGeo, metalMat);
-        base.position.y = 0.2;
-        base.castShadow = true;
-        group.add(base);
-
-        const postGeo = new THREE.CylinderGeometry(0.08, 0.12, 2.8, 8);
-        const post = new THREE.Mesh(postGeo, metalMat);
-        post.position.y = 1.8;
-        post.castShadow = true;
-        group.add(post);
-
-        const ringGeo = new THREE.TorusGeometry(0.14, 0.03, 8, 12);
-        const ring = new THREE.Mesh(ringGeo, metalMat);
-        ring.rotation.x = Math.PI / 2;
-        ring.position.y = 3.1;
-        group.add(ring);
-
-        const lanternGeo = new THREE.CylinderGeometry(0.25, 0.15, 0.5, 6);
-        const lantern = new THREE.Mesh(lanternGeo, glassMat);
-        lantern.position.y = 3.4;
-        group.add(lantern);
-
-        const capGeo = new THREE.ConeGeometry(0.3, 0.25, 6);
-        const cap = new THREE.Mesh(capGeo, metalMat);
-        cap.position.y = 3.75;
-        group.add(cap);
-
-        const lampLight = new THREE.PointLight(0xffaa44, 1.1, 11, 1.8);
-        lampLight.position.set(0, 3.4, 0);
-        group.add(lampLight);
-
-        return group;
+        return bpEnv.createStreetLamp();
     }
 
     function createBenchModel() {
-        const group = new THREE.Group();
-
-        const metalMat = new THREE.MeshStandardMaterial({ color: 0x1a1d20, roughness: 0.5, metalness: 0.7 });
-        const woodMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.7, metalness: 0.1 });
-
-        const legGeo = new THREE.BoxGeometry(0.1, 0.5, 0.6);
-        const leg1 = new THREE.Mesh(legGeo, metalMat);
-        leg1.position.set(-0.7, 0.25, 0);
-        leg1.castShadow = true;
-        group.add(leg1);
-
-        const leg2 = new THREE.Mesh(legGeo, metalMat);
-        leg2.position.set(0.7, 0.25, 0);
-        leg2.castShadow = true;
-        group.add(leg2);
-
-        for (let i = 0; i < 3; i++) {
-            const slatGeo = new THREE.BoxGeometry(1.6, 0.04, 0.12);
-            const slat = new THREE.Mesh(slatGeo, woodMat);
-            slat.position.set(0, 0.5, -0.18 + i * 0.16);
-            slat.castShadow = true;
-            group.add(slat);
-        }
-
-        for (let j = 0; j < 2; j++) {
-            const backSlatGeo = new THREE.BoxGeometry(1.6, 0.12, 0.04);
-            const backSlat = new THREE.Mesh(backSlatGeo, woodMat);
-            backSlat.position.set(0, 0.7 + j * 0.16, -0.28);
-            backSlat.castShadow = true;
-            group.add(backSlat);
-        }
-
-        return group;
+        return bpEnv.createBench();
     }
 
     function createMemorialPlazaModel() {
         const group = new THREE.Group();
 
-        const stoneMat = bpEnv.pavingMaterial;
         const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.7 });
         const marbleMat = new THREE.MeshStandardMaterial({ color: 0xe0e4e8, roughness: 0.3, metalness: 0.2 });
         const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
 
-        const platformGeo = bpEnv.cylinderUVToMetres(new THREE.CylinderGeometry(5.0, 5.2, 0.15, 8), 5.0, 0.15);
-        const platform = new THREE.Mesh(platformGeo, stoneMat);
-        platform.position.y = 0.07;
-        platform.receiveShadow = true;
-        group.add(platform);
+        // Suelo de la plaza: losas de piedra clara con cenefa de adoquín y bordillo
+        group.add(bpEnv.createPlazaFloor({ radius: 5.0, top: 0.145, sides: 8 }));
 
         const stepGeo = new THREE.CylinderGeometry(2.5, 2.7, 0.2, 16);
         const step = new THREE.Mesh(stepGeo, darkStoneMat);
@@ -3709,248 +3630,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // GENERADOR DE VERJA VICTORIANA Y PORTÓN PÈRE LACHAISE
     // ----------------------------------------------------
+    // Verja perimetral victoriana con cuatro puertas (ver bp-environment.js)
     function createVictorianFencePerimeter() {
-        const fenceGroup = new THREE.Group();
-
-        const ironMat = new THREE.MeshStandardMaterial({ color: 0x111315, roughness: 0.35, metalness: 0.85 });
-        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
-        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.8, metalness: 0.1 });
-        const capMat = new THREE.MeshStandardMaterial({ color: 0x2d3033, roughness: 0.7, metalness: 0.2 });
-
-        function createPillar() {
-            const pillar = new THREE.Group();
-
-            const baseGeo = new THREE.BoxGeometry(0.65, 0.3, 0.65);
-            const base = new THREE.Mesh(baseGeo, stoneMat);
-            base.position.y = 0.15;
-            base.castShadow = true;
-            base.receiveShadow = true;
-            pillar.add(base);
-
-            const bodyGeo = new THREE.BoxGeometry(0.52, 2.3, 0.52);
-            const body = new THREE.Mesh(bodyGeo, stoneMat);
-            body.position.y = 1.45;
-            body.castShadow = true;
-            body.receiveShadow = true;
-            pillar.add(body);
-
-            const trimGeo = new THREE.BoxGeometry(0.6, 0.1, 0.6);
-            const trim = new THREE.Mesh(trimGeo, capMat);
-            trim.position.y = 2.65;
-            trim.castShadow = true;
-            pillar.add(trim);
-
-            const capGeo = new THREE.ConeGeometry(0.42, 0.35, 4);
-            const cap = new THREE.Mesh(capGeo, capMat);
-            cap.rotation.y = Math.PI / 4;
-            cap.position.y = 2.875;
-            cap.castShadow = true;
-            pillar.add(cap);
-
-            const finialGeo = new THREE.SphereGeometry(0.1, 8, 8);
-            const finial = new THREE.Mesh(finialGeo, goldMat);
-            finial.position.y = 3.12;
-            finial.castShadow = true;
-            pillar.add(finial);
-
-            return pillar;
-        }
-
-        function createFencePanel(length) {
-            const panel = new THREE.Group();
-            const barSpacing = 0.22;
-            const barCount = Math.floor(length / barSpacing);
-            const startX = -length / 2 + (length - (barCount - 1) * barSpacing) / 2;
-
-            const railTopGeo = new THREE.BoxGeometry(length, 0.05, 0.05);
-            const railTop = new THREE.Mesh(railTopGeo, ironMat);
-            railTop.position.set(0, 2.1, 0);
-            railTop.castShadow = true;
-            panel.add(railTop);
-
-            const railMidGeo = new THREE.BoxGeometry(length, 0.04, 0.04);
-            const railMid = new THREE.Mesh(railMidGeo, ironMat);
-            railMid.position.set(0, 1.15, 0);
-            railMid.castShadow = true;
-            panel.add(railMid);
-
-            const railBotGeo = new THREE.BoxGeometry(length, 0.05, 0.05);
-            const railBot = new THREE.Mesh(railBotGeo, ironMat);
-            railBot.position.set(0, 0.25, 0);
-            railBot.castShadow = true;
-            panel.add(railBot);
-
-            const barGeo = new THREE.CylinderGeometry(0.018, 0.018, 2.2, 6);
-            const spearGeo = new THREE.ConeGeometry(0.038, 0.2, 6);
-
-            for (let i = 0; i < barCount; i++) {
-                const x = startX + i * barSpacing;
-
-                const bar = new THREE.Mesh(barGeo, ironMat);
-                bar.position.set(x, 1.15, 0);
-                bar.castShadow = true;
-                panel.add(bar);
-
-                const spear = new THREE.Mesh(spearGeo, (i % 2 === 0) ? goldMat : ironMat);
-                spear.position.set(x, 2.35, 0);
-                spear.castShadow = true;
-                panel.add(spear);
-            }
-
-            return panel;
-        }
-
-        function createVictorianGate() {
-            const gateGroup = new THREE.Group();
-
-            const leftPillar = createPillar();
-            leftPillar.position.set(-2.2, 0, 0);
-            leftPillar.scale.set(1.2, 1.25, 1.2);
-            gateGroup.add(leftPillar);
-
-            const rightPillar = createPillar();
-            rightPillar.position.set(2.2, 0, 0);
-            rightPillar.scale.set(1.2, 1.25, 1.2);
-            gateGroup.add(rightPillar);
-
-            const archRadius = 2.2;
-            const archTube = 0.06;
-            const archGeo = new THREE.TorusGeometry(archRadius, archTube, 8, 24, Math.PI);
-            const arch = new THREE.Mesh(archGeo, ironMat);
-            arch.position.set(0, 3.2, 0);
-            arch.castShadow = true;
-            gateGroup.add(arch);
-
-            const crestGeo = new THREE.OctahedronGeometry(0.22);
-            const crest = new THREE.Mesh(crestGeo, goldMat);
-            crest.position.set(0, 5.5, 0);
-            crest.castShadow = true;
-            gateGroup.add(crest);
-
-            function createGateLeaf(isOpenLeft) {
-                const leaf = new THREE.Group();
-                const width = 1.95;
-
-                const frameT = new THREE.Mesh(new THREE.BoxGeometry(width, 0.06, 0.06), ironMat);
-                frameT.position.set(width / 2, 2.2, 0);
-                leaf.add(frameT);
-
-                const frameB = new THREE.Mesh(new THREE.BoxGeometry(width, 0.06, 0.06), ironMat);
-                frameB.position.set(width / 2, 0.2, 0);
-                leaf.add(frameB);
-
-                const frameSide1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 8), ironMat);
-                frameSide1.position.set(0.05, 1.2, 0);
-                leaf.add(frameSide1);
-
-                const frameSide2 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 8), ironMat);
-                frameSide2.position.set(width - 0.05, 1.2, 0);
-                leaf.add(frameSide2);
-
-                const barSpacing = 0.22;
-                const bars = Math.floor(width / barSpacing);
-                const barG = new THREE.CylinderGeometry(0.018, 0.018, 2.0, 6);
-                const spearG = new THREE.ConeGeometry(0.04, 0.22, 6);
-
-                for (let i = 1; i < bars; i++) {
-                    const bx = i * barSpacing;
-                    const bar = new THREE.Mesh(barG, ironMat);
-                    bar.position.set(bx, 1.2, 0);
-                    leaf.add(bar);
-
-                    const spear = new THREE.Mesh(spearG, goldMat);
-                    spear.position.set(bx, 2.31, 0);
-                    leaf.add(spear);
-                }
-
-                leaf.rotation.y = isOpenLeft ? Math.PI / 3.5 : -Math.PI / 3.5;
-                return leaf;
-            }
-
-            const leftLeaf = createGateLeaf(true);
-            leftLeaf.position.set(-2.0, 0, 0);
-            gateGroup.add(leftLeaf);
-
-            const rightLeaf = createGateLeaf(false);
-            rightLeaf.position.set(2.0, 0, 0);
-            rightLeaf.rotation.y = -Math.PI / 3.5;
-            gateGroup.add(rightLeaf);
-
-            return gateGroup;
-        }
-
-        const limit = 33.0;
-        const gateWidth = 4.4;
-        const step = 5.2;
-
-        function buildSide(rotationY, hasMainGate = false) {
-            const sideGroup = new THREE.Group();
-            sideGroup.rotation.y = rotationY;
-
-            if (hasMainGate) {
-                const gate = createVictorianGate();
-                gate.position.set(0, 0, limit);
-                sideGroup.add(gate);
-
-                const halfGate = gateWidth / 2;
-                for (let x = halfGate; x <= limit; x += step) {
-                    const nextX = Math.min(x + step, limit);
-                    const length = nextX - x;
-                    if (length < 0.5) continue;
-
-                    const pillarRight = createPillar();
-                    pillarRight.position.set(nextX, 0, limit);
-                    sideGroup.add(pillarRight);
-
-                    const panelRight = createFencePanel(length);
-                    panelRight.position.set(x + length / 2, 0, limit);
-                    sideGroup.add(panelRight);
-
-                    const pillarLeft = createPillar();
-                    pillarLeft.position.set(-nextX, 0, limit);
-                    sideGroup.add(pillarLeft);
-
-                    const panelLeft = createFencePanel(length);
-                    panelLeft.position.set(-(x + length / 2), 0, limit);
-                    sideGroup.add(panelLeft);
-                }
-            } else {
-                const centerPillar = createPillar();
-                centerPillar.position.set(0, 0, limit);
-                sideGroup.add(centerPillar);
-
-                for (let x = 0; x <= limit; x += step) {
-                    const nextX = Math.min(x + step, limit);
-                    const length = nextX - x;
-                    if (length < 0.5) continue;
-
-                    const pillarRight = createPillar();
-                    pillarRight.position.set(nextX, 0, limit);
-                    sideGroup.add(pillarRight);
-
-                    const panelRight = createFencePanel(length);
-                    panelRight.position.set(x + length / 2, 0, limit);
-                    sideGroup.add(panelRight);
-
-                    const pillarLeft = createPillar();
-                    pillarLeft.position.set(-nextX, 0, limit);
-                    sideGroup.add(pillarLeft);
-
-                    const panelLeft = createFencePanel(length);
-                    panelLeft.position.set(-(x + length / 2), 0, limit);
-                    sideGroup.add(panelLeft);
-                }
-            }
-
-            return sideGroup;
-        }
-
-        fenceGroup.add(buildSide(0, true));          // Sur (Entrada Principal)
-        fenceGroup.add(buildSide(Math.PI / 2, true));  // Este (Entrada Secundaria)
-        fenceGroup.add(buildSide(Math.PI, true));     // Norte (Entrada Secundaria)
-        fenceGroup.add(buildSide(-Math.PI / 2, true));// Oeste (Entrada Secundaria)
-
-        return fenceGroup;
+        return bpEnv.createFence({ limit: 33.0, gateWidth: 4.4, step: 5.2 });
     }
 
     // ----------------------------------------------------
@@ -4074,6 +3756,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 maxPuffRadius = Math.max(maxPuffRadius, m.getMaxScaleOnAxis());
             });
             puffs.instanceMatrix.needsUpdate = true;
+            puffs.raycast = function () {}; // decorativo: no participa en la detección de clics
             // Esfera envolvente de la zona, para que el descarte por cámara funcione con instancias
             geo.boundingSphere = new THREE.Sphere();
             box.getBoundingSphere(geo.boundingSphere);
