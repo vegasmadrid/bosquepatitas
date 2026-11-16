@@ -332,9 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. ESCENA, CÁMARA Y RENDERER
     // ----------------------------------------------------
     const scene = new THREE.Scene();
-    const skyColor = new THREE.Color(0x7ec0ee); // Cielo azul claro y radiante
-    scene.background = skyColor;
-    scene.fog = new THREE.FogExp2(0x9bd0f9, 0.0045); // Niebla atmosférica suave que se funde con el cielo azul
+    scene.background = new THREE.Color(0xcce3f5); // Color de respaldo; el cielo real lo crea BPEnv más abajo
 
     const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
 
@@ -404,39 +402,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // 2. LUCES CELESTIALES
+    // 2. ENTORNO NATURAL: CIELO, LUZ Y MATERIALES DEL SUELO
+    // (assets/js/bp-environment.js: todo procedural, sin descargas)
     // ----------------------------------------------------
-    const ambientLight = new THREE.AmbientLight(0xfff5ea, 0.75);
-    scene.add(ambientLight);
-
-    const sunLight = new THREE.DirectionalLight(0xffe8c2, 1.1);
-    sunLight.position.set(25, 35, -20);
-    sunLight.castShadow = true;
-    const shadowMapRes = isMobile ? 1024 : 2048;
-    sunLight.shadow.mapSize.width = shadowMapRes;
-    sunLight.shadow.mapSize.height = shadowMapRes;
-    sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 90;
-    const d = 35;
-    sunLight.shadow.camera.left = -d;
-    sunLight.shadow.camera.right = d;
-    sunLight.shadow.camera.top = d;
-    sunLight.shadow.camera.bottom = -d;
-    scene.add(sunLight);
+    const bpEnv = BPEnv.create({ scene, renderer, isMobile });
+    bpEnv.setPhotoTextures(settings.photoTextures);
 
     // ----------------------------------------------------
-    // 3. TERRENO Y TEXTURAS PROCEDURALES
+    // 3. TERRENO
     // ----------------------------------------------------
-    const grassTexture = createGrassTexture();
-    const cobblestoneTexture = createCobblestoneTexture();
-
-    const groundGeo = new THREE.PlaneGeometry(70, 70);
-    const groundMat = new THREE.MeshStandardMaterial({
-        map: grassTexture,
-        roughness: 0.9,
-        metalness: 0.1
-    });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
+    const GROUND_SIZE = 70;
+    const groundGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE), GROUND_SIZE, GROUND_SIZE);
+    const ground = new THREE.Mesh(groundGeo, bpEnv.grassMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
@@ -3181,79 +3158,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         group.add(tributesContainer);
     }
-    function createTreeModel(type = 'oak') {
-        const group = new THREE.Group();
-        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9, metalness: 0.1 });
-
-        if (type === 'pine') {
-            const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.5, 8);
-            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-            trunk.position.y = 1.25;
-            trunk.castShadow = true;
-            trunk.receiveShadow = true;
-            group.add(trunk);
-
-            const pineMat = new THREE.MeshStandardMaterial({ color: 0x2e5a3c, roughness: 0.8, flatShading: true });
-            const layers = [
-                { r: 1.6, h: 2.2, y: 2.8 },
-                { r: 1.2, h: 2.0, y: 4.0 },
-                { r: 0.8, h: 1.8, y: 5.1 }
-            ];
-            layers.forEach(l => {
-                const coneGeo = new THREE.ConeGeometry(l.r, l.h, 7);
-                const cone = new THREE.Mesh(coneGeo, pineMat);
-                cone.position.y = l.y;
-                cone.castShadow = true;
-                cone.receiveShadow = true;
-                group.add(cone);
-            });
-        } else if (type === 'willow') {
-            const trunkGeo = new THREE.CylinderGeometry(0.25, 0.4, 2.8, 8);
-            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-            trunk.position.y = 1.4;
-            trunk.castShadow = true;
-            group.add(trunk);
-
-            const willowMat = new THREE.MeshStandardMaterial({ color: 0x4a7c59, roughness: 0.85, flatShading: true });
-            const mainCanopyGeo = new THREE.CylinderGeometry(1.8, 2.2, 2.2, 9);
-            const mainCanopy = new THREE.Mesh(mainCanopyGeo, willowMat);
-            mainCanopy.position.y = 3.6;
-            mainCanopy.castShadow = true;
-            group.add(mainCanopy);
-
-            const topGeo = new THREE.SphereGeometry(1.4, 8, 8);
-            const top = new THREE.Mesh(topGeo, willowMat);
-            top.position.y = 4.5;
-            top.castShadow = true;
-            group.add(top);
-        } else {
-            const trunkGeo = new THREE.CylinderGeometry(0.28, 0.45, 3.0, 8);
-            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-            trunk.position.y = 1.5;
-            trunk.castShadow = true;
-            trunk.receiveShadow = true;
-            group.add(trunk);
-
-            const oakMat = new THREE.MeshStandardMaterial({ color: 0x3b6e47, roughness: 0.8, flatShading: true });
-            const foliageClusters = [
-                { r: 1.5, x: 0, y: 3.8, z: 0 },
-                { r: 1.1, x: 0.8, y: 3.5, z: 0.6 },
-                { r: 1.0, x: -0.8, y: 3.6, z: -0.5 },
-                { r: 1.2, x: 0, y: 4.6, z: 0 }
-            ];
-            foliageClusters.forEach(c => {
-                const geo = new THREE.IcosahedronGeometry(c.r, 1);
-                const mesh = new THREE.Mesh(geo, oakMat);
-                mesh.position.set(c.x, c.y, c.z);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                group.add(mesh);
-            });
-        }
-
-        return group;
-    }
-
     function createStreetLampModel() {
         const group = new THREE.Group();
 
@@ -3340,12 +3244,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function createMemorialPlazaModel() {
         const group = new THREE.Group();
 
-        const stoneMat = new THREE.MeshStandardMaterial({ map: cobblestoneTexture, roughness: 0.8, metalness: 0.15 });
+        const stoneMat = bpEnv.pavingMaterial;
         const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.7 });
         const marbleMat = new THREE.MeshStandardMaterial({ color: 0xe0e4e8, roughness: 0.3, metalness: 0.2 });
         const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
 
-        const platformGeo = new THREE.CylinderGeometry(5.0, 5.2, 0.15, 8);
+        const platformGeo = bpEnv.cylinderUVToMetres(new THREE.CylinderGeometry(5.0, 5.2, 0.15, 8), 5.0, 0.15);
         const platform = new THREE.Mesh(platformGeo, stoneMat);
         platform.position.y = 0.07;
         platform.receiveShadow = true;
@@ -3675,79 +3579,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return group;
-    }
-
-    function createGrassTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#448a52';
-        ctx.fillRect(0, 0, 256, 256);
-
-        for (let i = 0; i < 4500; i++) {
-            const x = Math.random() * 256;
-            const y = Math.random() * 256;
-            const r = Math.random() * 1.6 + 0.4;
-            const rand = Math.random();
-
-            if (rand > 0.6) {
-                ctx.fillStyle = '#55a365';
-            } else if (rand > 0.3) {
-                ctx.fillStyle = '#357041';
-            } else {
-                ctx.fillStyle = '#61b572';
-            }
-
-            ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(14, 14);
-        return texture;
-    }
-
-    function createCobblestoneTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#3a3d40';
-        ctx.fillRect(0, 0, 256, 256);
-
-        const rows = 16;
-        const cols = 16;
-        const w = 256 / cols;
-        const h = 256 / rows;
-
-        for (let r = 0; r < rows; r++) {
-            const offset = (r % 2 === 0) ? 0 : w / 2;
-            for (let c = -1; c < cols + 1; c++) {
-                const x = c * w + offset + 1;
-                const y = r * h + 1;
-                const bw = w - 2;
-                const bh = h - 2;
-
-                const shade = Math.floor(100 + Math.random() * 60);
-                ctx.fillStyle = `rgb(${shade}, ${shade + 4}, ${shade + 8})`;
-                ctx.fillRect(x, y, bw, bh);
-
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-                ctx.fillRect(x, y, bw, 2);
-            }
-        }
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(2, 20);
-        return texture;
     }
 
     // ----------------------------------------------------
@@ -4134,17 +3965,20 @@ document.addEventListener('DOMContentLoaded', () => {
             emissiveIntensity: 0.35, // Blanco brillante celestialmente radiante
             roughness: 0.9,
             metalness: 0.0,
-            flatShading: false,
-            transparent: true,
-            opacity: 0.98
+            flatShading: false
         });
 
-        // Geometrías esféricas suaves para nubes redondas y mulliditas
-        const cloudPuffGeos = [
-            new THREE.SphereGeometry(2.5, 24, 18),
-            new THREE.SphereGeometry(3.2, 24, 18),
-            new THREE.SphereGeometry(2.8, 24, 18)
-        ];
+        // Una esfera compartida dibujada con InstancedMesh (pocas llamadas en vez de una por copo).
+        // Se omite el casquete inferior: queda siempre por debajo de la cámara y nunca se ve.
+        const cloudPuffGeo = new THREE.SphereGeometry(1, isMobile ? 12 : 16, isMobile ? 7 : 9, 0, Math.PI * 2, 0, Math.PI * 0.72);
+        const cloudPuffRadii = [2.5, 3.2, 2.8];
+        const CLOUD_CHUNK = 60; // los copos se agrupan por zonas para descartar las que quedan fuera de cámara
+        const puffChunks = new Map();
+        const puffMatrix = new THREE.Matrix4();
+        const puffPos = new THREE.Vector3();
+        const puffQuat = new THREE.Quaternion();
+        const puffEuler = new THREE.Euler();
+        const puffScale = new THREE.Vector3();
 
         // Función matemática exacta para verificar que NINGUNA esfera/copo penetre en el área del cementerio
         const CEMETERY_SAFE_BOX = 35.5; // El terreno del cementerio mide 35x35 desde el centro, la verja en 33.0
@@ -4196,17 +4030,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Posición Y baja para formar el suelo de nubes bajo el cementerio
             const cy = -6.2 + (Math.random() - 0.5) * 1.0;
 
-            const cluster = new THREE.Group();
-            cluster.position.set(cx, cy, cz);
-
             const puffCount = Math.floor(5 + Math.random() * 5);
-            let validCluster = false;
 
             for (let p = 0; p < puffCount; p++) {
                 const baseRadius = 2.8;
-                const geoIndex = Math.floor(Math.random() * cloudPuffGeos.length);
-                const geo = cloudPuffGeos[geoIndex];
-                const puff = new THREE.Mesh(geo, cloudMat);
+                const geoRadius = cloudPuffRadii[Math.floor(Math.random() * cloudPuffRadii.length)];
 
                 const px = (Math.random() - 0.5) * 6.5 * scale;
                 const py = (Math.random() - 0.5) * 1.2 * scale;
@@ -4223,19 +4051,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     continue;
                 }
 
-                puff.position.set(px, py, pz);
                 // Proporciones redondas y mulliditas (curvas esponjosas)
-                puff.scale.set(pScale * 1.15, pScale * 0.85, pScale * 1.15);
-                puff.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-
-                cluster.add(puff);
-                validCluster = true;
-            }
-
-            if (validCluster) {
-                cloudGroup.add(cluster);
+                puffPos.set(cx + px, cy + py, cz + pz);
+                puffEuler.set((Math.random() - 0.5) * 0.5, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.5);
+                puffQuat.setFromEuler(puffEuler);
+                puffScale.set(pScale * 1.15 * geoRadius, pScale * 0.85 * geoRadius, pScale * 1.15 * geoRadius);
+                const chunkKey = Math.floor(puffPos.x / CLOUD_CHUNK) + ',' + Math.floor(puffPos.z / CLOUD_CHUNK);
+                if (!puffChunks.has(chunkKey)) puffChunks.set(chunkKey, []);
+                puffChunks.get(chunkKey).push(puffMatrix.compose(puffPos, puffQuat, puffScale).clone());
             }
         }
+
+        puffChunks.forEach(list => {
+            const geo = cloudPuffGeo.clone();
+            const puffs = new THREE.InstancedMesh(geo, cloudMat, list.length);
+            const box = new THREE.Box3();
+            let maxPuffRadius = 0;
+            list.forEach((m, i) => {
+                puffs.setMatrixAt(i, m);
+                puffPos.setFromMatrixPosition(m);
+                box.expandByPoint(puffPos);
+                maxPuffRadius = Math.max(maxPuffRadius, m.getMaxScaleOnAxis());
+            });
+            puffs.instanceMatrix.needsUpdate = true;
+            // Esfera envolvente de la zona, para que el descarte por cámara funcione con instancias
+            geo.boundingSphere = new THREE.Sphere();
+            box.getBoundingSphere(geo.boundingSphere);
+            geo.boundingSphere.radius += maxPuffRadius;
+            cloudGroup.add(puffs);
+        });
 
         return cloudGroup;
     }
@@ -4252,23 +4096,21 @@ document.addEventListener('DOMContentLoaded', () => {
     memorialPlaza.position.set(0, 0, 0);
     scene.add(memorialPlaza);
 
-    const pathMat = new THREE.MeshStandardMaterial({
-        map: cobblestoneTexture,
-        roughness: 0.8,
-        metalness: 0.2
-    });
+    // Los dos caminos usan la misma geometría (el este-oeste solo va girado),
+    // así el adoquinado mantiene su proporción real en ambos.
+    const PATH_WIDTH = 3.6, PATH_LENGTH = 60;
+    const pathMat = bpEnv.pavingMaterial;
+    const pathGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(PATH_WIDTH, PATH_LENGTH), PATH_WIDTH, PATH_LENGTH);
 
-    const nsPathGeo = new THREE.PlaneGeometry(3.6, 60);
-    const nsPath = new THREE.Mesh(nsPathGeo, pathMat);
+    const nsPath = new THREE.Mesh(pathGeo, pathMat);
     nsPath.rotation.x = -Math.PI / 2;
     nsPath.position.set(0, 0.02, 0);
     nsPath.receiveShadow = true;
     scene.add(nsPath);
 
-    const eoPathGeo = new THREE.PlaneGeometry(60, 3.6);
-    const eoPath = new THREE.Mesh(eoPathGeo, pathMat);
-    eoPath.rotation.x = -Math.PI / 2;
-    eoPath.position.set(0, 0.02, 0);
+    const eoPath = new THREE.Mesh(pathGeo, pathMat);
+    eoPath.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+    eoPath.position.set(0, 0.021, 0);
     eoPath.receiveShadow = true;
     scene.add(eoPath);
 
@@ -4297,11 +4139,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { x: 11, z: -21, type: 'oak' }, { x: 19, z: -18, type: 'willow' }, { x: 25, z: -24, type: 'oak' }
     ];
 
-    forestTreePositions.forEach(t => {
-        const tree = createTreeModel(t.type);
-        tree.position.set(t.x, 0, t.z);
-        scene.add(tree);
-    });
+    bpEnv.createForest(forestTreePositions);
 
     rebuildLocalPlayerAvatarMesh();
     initPusherMultiplayer();
@@ -7050,6 +6888,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateRadarCanvas();
 
+        bpEnv.update(elapsedTime, camera);
         renderer.render(scene, camera);
     }
 

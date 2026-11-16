@@ -50,12 +50,22 @@ class BosquePatitas {
         // Cargar Pusher JS SDK desde CDN
         wp_register_script('pusher-js', 'https://js.pusher.com/8.2.0/pusher.min.js', array(), '8.2.0', true);
 
+        // Entorno natural (cielo, césped, baldosas y árboles procedurales). La versión es la
+        // fecha del archivo para que el navegador no sirva una copia antigua tras actualizar.
+        wp_register_script(
+            'bp-environment',
+            BP_PLUGIN_URL . 'assets/js/bp-environment.js',
+            array('threejs'),
+            (string) @filemtime(BP_PLUGIN_DIR . 'assets/js/bp-environment.js'),
+            true
+        );
+
         // Cargar nuestro script 3D principal
         wp_register_script(
             'bp-main-3d',
             BP_PLUGIN_URL . 'assets/js/main-3d.js',
-            array('threejs', 'three-orbitcontrols', 'three-skeletonutils', 'three-gltfloader', 'three-fbxloader', 'pusher-js'),
-            '1.0.0',
+            array('threejs', 'three-orbitcontrols', 'three-skeletonutils', 'three-gltfloader', 'three-fbxloader', 'pusher-js', 'bp-environment'),
+            (string) @filemtime(BP_PLUGIN_DIR . 'assets/js/main-3d.js'),
             true
         );
 
@@ -77,6 +87,50 @@ class BosquePatitas {
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('bp_auth_nonce')
         ));
+    }
+
+    /**
+     * Texturas fotográficas opcionales (assets/textures/).
+     *
+     * Solo se anuncian al navegador las que existen en disco, así que si la carpeta está
+     * vacía no se hace ninguna petición. Se cargan después del primer render y sustituyen
+     * a las texturas procedurales. Ver assets/textures/LEEME.md.
+     */
+    private function get_photo_textures() {
+        $dir = BP_PLUGIN_DIR . 'assets/textures/';
+        $url = BP_PLUGIN_URL . 'assets/textures/';
+
+        // Tamaño real (en metros) que cubre cada textura. Se puede ajustar en config.json.
+        $sizes = array('grass' => 2.0, 'paving' => 2.0, 'bark' => 1.0);
+        $config_file = $dir . 'config.json';
+        if (is_readable($config_file)) {
+            $config = json_decode((string) file_get_contents($config_file), true);
+            if (is_array($config)) {
+                foreach ($sizes as $name => $default) {
+                    if (isset($config[$name]) && is_numeric($config[$name]) && $config[$name] > 0) {
+                        $sizes[$name] = (float) $config[$name];
+                    }
+                }
+            }
+        }
+
+        $sets = array();
+        foreach ($sizes as $name => $size) {
+            $entry = array('size' => $size);
+            foreach (array('color', 'normal', 'rough') as $slot) {
+                foreach (array('webp', 'jpg', 'png') as $ext) {
+                    $file = $name . '_' . $slot . '.' . $ext;
+                    if (file_exists($dir . $file)) {
+                        $entry[$slot] = esc_url_raw($url . $file . '?v=' . filemtime($dir . $file));
+                        break;
+                    }
+                }
+            }
+            if (!empty($entry['color'])) {
+                $sets[$name] = $entry;
+            }
+        }
+        return $sets;
     }
 
     public function render_shortcode() {
@@ -199,6 +253,7 @@ class BosquePatitas {
             'avatar'           => $avatar_config,
             'glbAvatars'       => $active_glb,
             'globalAnimations' => $global_anims,
+            'photoTextures'    => (object) $this->get_photo_textures(),
             'pusherKey'        => esc_attr($pusher_key),
             'pusherCluster'    => esc_attr($pusher_cluster),
             'showVersionBadge' => $show_version_badge,
