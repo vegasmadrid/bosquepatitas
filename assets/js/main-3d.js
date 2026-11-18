@@ -2,6 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('bp-canvas-container');
     if (!container) return;
 
+    // Pantalla de carga con porcentaje (la crea el shortcode; ver bosque-patitas.php)
+    const bpLoader = window.BPLoader || {
+        set() {},
+        finish() { const l = document.getElementById('bp-loading'); if (l) l.remove(); }
+    };
+    bpLoader.set(22, 'Preparando el bosque…');
+
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
     const settings = (typeof BP_Settings !== 'undefined') ? BP_Settings : {
@@ -332,9 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. ESCENA, CÁMARA Y RENDERER
     // ----------------------------------------------------
     const scene = new THREE.Scene();
-    const skyColor = new THREE.Color(0x7ec0ee); // Cielo azul claro y radiante
-    scene.background = skyColor;
-    scene.fog = new THREE.FogExp2(0x9bd0f9, 0.0045); // Niebla atmosférica suave que se funde con el cielo azul
+    scene.background = new THREE.Color(0xcce3f5); // Color de respaldo; el cielo real lo crea BPEnv más abajo
 
     const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
 
@@ -404,39 +409,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------
-    // 2. LUCES CELESTIALES
+    // 2. ENTORNO NATURAL: CIELO, LUZ Y MATERIALES DEL SUELO
+    // (assets/js/bp-environment.js: todo procedural, sin descargas)
     // ----------------------------------------------------
-    const ambientLight = new THREE.AmbientLight(0xfff5ea, 0.75);
-    scene.add(ambientLight);
-
-    const sunLight = new THREE.DirectionalLight(0xffe8c2, 1.1);
-    sunLight.position.set(25, 35, -20);
-    sunLight.castShadow = true;
-    const shadowMapRes = isMobile ? 1024 : 2048;
-    sunLight.shadow.mapSize.width = shadowMapRes;
-    sunLight.shadow.mapSize.height = shadowMapRes;
-    sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 90;
-    const d = 35;
-    sunLight.shadow.camera.left = -d;
-    sunLight.shadow.camera.right = d;
-    sunLight.shadow.camera.top = d;
-    sunLight.shadow.camera.bottom = -d;
-    scene.add(sunLight);
+    const bpEnv = BPEnv.create({ scene, renderer, isMobile, photoTextures: settings.photoTextures });
 
     // ----------------------------------------------------
-    // 3. TERRENO Y TEXTURAS PROCEDURALES
+    // 3. TERRENO
     // ----------------------------------------------------
-    const grassTexture = createGrassTexture();
-    const cobblestoneTexture = createCobblestoneTexture();
-
-    const groundGeo = new THREE.PlaneGeometry(70, 70);
-    const groundMat = new THREE.MeshStandardMaterial({
-        map: grassTexture,
-        roughness: 0.9,
-        metalness: 0.1
-    });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
+    // Césped del recinto: llega justo hasta debajo del murete de la verja (fuera hay tierra árida)
+    const GROUND_SIZE = 66.3;
+    const groundGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE), GROUND_SIZE, GROUND_SIZE);
+    const ground = new THREE.Mesh(groundGeo, bpEnv.grassMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
@@ -3181,202 +3165,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         group.add(tributesContainer);
     }
-    function createTreeModel(type = 'oak') {
-        const group = new THREE.Group();
-        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9, metalness: 0.1 });
-
-        if (type === 'pine') {
-            const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.5, 8);
-            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-            trunk.position.y = 1.25;
-            trunk.castShadow = true;
-            trunk.receiveShadow = true;
-            group.add(trunk);
-
-            const pineMat = new THREE.MeshStandardMaterial({ color: 0x2e5a3c, roughness: 0.8, flatShading: true });
-            const layers = [
-                { r: 1.6, h: 2.2, y: 2.8 },
-                { r: 1.2, h: 2.0, y: 4.0 },
-                { r: 0.8, h: 1.8, y: 5.1 }
-            ];
-            layers.forEach(l => {
-                const coneGeo = new THREE.ConeGeometry(l.r, l.h, 7);
-                const cone = new THREE.Mesh(coneGeo, pineMat);
-                cone.position.y = l.y;
-                cone.castShadow = true;
-                cone.receiveShadow = true;
-                group.add(cone);
-            });
-        } else if (type === 'willow') {
-            const trunkGeo = new THREE.CylinderGeometry(0.25, 0.4, 2.8, 8);
-            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-            trunk.position.y = 1.4;
-            trunk.castShadow = true;
-            group.add(trunk);
-
-            const willowMat = new THREE.MeshStandardMaterial({ color: 0x4a7c59, roughness: 0.85, flatShading: true });
-            const mainCanopyGeo = new THREE.CylinderGeometry(1.8, 2.2, 2.2, 9);
-            const mainCanopy = new THREE.Mesh(mainCanopyGeo, willowMat);
-            mainCanopy.position.y = 3.6;
-            mainCanopy.castShadow = true;
-            group.add(mainCanopy);
-
-            const topGeo = new THREE.SphereGeometry(1.4, 8, 8);
-            const top = new THREE.Mesh(topGeo, willowMat);
-            top.position.y = 4.5;
-            top.castShadow = true;
-            group.add(top);
-        } else {
-            const trunkGeo = new THREE.CylinderGeometry(0.28, 0.45, 3.0, 8);
-            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-            trunk.position.y = 1.5;
-            trunk.castShadow = true;
-            trunk.receiveShadow = true;
-            group.add(trunk);
-
-            const oakMat = new THREE.MeshStandardMaterial({ color: 0x3b6e47, roughness: 0.8, flatShading: true });
-            const foliageClusters = [
-                { r: 1.5, x: 0, y: 3.8, z: 0 },
-                { r: 1.1, x: 0.8, y: 3.5, z: 0.6 },
-                { r: 1.0, x: -0.8, y: 3.6, z: -0.5 },
-                { r: 1.2, x: 0, y: 4.6, z: 0 }
-            ];
-            foliageClusters.forEach(c => {
-                const geo = new THREE.IcosahedronGeometry(c.r, 1);
-                const mesh = new THREE.Mesh(geo, oakMat);
-                mesh.position.set(c.x, c.y, c.z);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                group.add(mesh);
-            });
-        }
-
-        return group;
-    }
-
+    // Farolas y bancos victorianos: la geometría se construye una vez en bp-environment.js y se comparte
     function createStreetLampModel() {
-        const group = new THREE.Group();
-
-        const metalMat = new THREE.MeshStandardMaterial({ color: 0x222629, roughness: 0.4, metalness: 0.8 });
-        const glassMat = new THREE.MeshStandardMaterial({
-            color: 0xffe6a7,
-            emissive: 0xffb84d,
-            emissiveIntensity: 0.8,
-            roughness: 0.2,
-            metalness: 0.1
-        });
-
-        const baseGeo = new THREE.CylinderGeometry(0.22, 0.32, 0.4, 8);
-        const base = new THREE.Mesh(baseGeo, metalMat);
-        base.position.y = 0.2;
-        base.castShadow = true;
-        group.add(base);
-
-        const postGeo = new THREE.CylinderGeometry(0.08, 0.12, 2.8, 8);
-        const post = new THREE.Mesh(postGeo, metalMat);
-        post.position.y = 1.8;
-        post.castShadow = true;
-        group.add(post);
-
-        const ringGeo = new THREE.TorusGeometry(0.14, 0.03, 8, 12);
-        const ring = new THREE.Mesh(ringGeo, metalMat);
-        ring.rotation.x = Math.PI / 2;
-        ring.position.y = 3.1;
-        group.add(ring);
-
-        const lanternGeo = new THREE.CylinderGeometry(0.25, 0.15, 0.5, 6);
-        const lantern = new THREE.Mesh(lanternGeo, glassMat);
-        lantern.position.y = 3.4;
-        group.add(lantern);
-
-        const capGeo = new THREE.ConeGeometry(0.3, 0.25, 6);
-        const cap = new THREE.Mesh(capGeo, metalMat);
-        cap.position.y = 3.75;
-        group.add(cap);
-
-        const lampLight = new THREE.PointLight(0xffaa44, 1.1, 11, 1.8);
-        lampLight.position.set(0, 3.4, 0);
-        group.add(lampLight);
-
-        return group;
+        return bpEnv.createStreetLamp();
     }
 
     function createBenchModel() {
-        const group = new THREE.Group();
-
-        const metalMat = new THREE.MeshStandardMaterial({ color: 0x1a1d20, roughness: 0.5, metalness: 0.7 });
-        const woodMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.7, metalness: 0.1 });
-
-        const legGeo = new THREE.BoxGeometry(0.1, 0.5, 0.6);
-        const leg1 = new THREE.Mesh(legGeo, metalMat);
-        leg1.position.set(-0.7, 0.25, 0);
-        leg1.castShadow = true;
-        group.add(leg1);
-
-        const leg2 = new THREE.Mesh(legGeo, metalMat);
-        leg2.position.set(0.7, 0.25, 0);
-        leg2.castShadow = true;
-        group.add(leg2);
-
-        for (let i = 0; i < 3; i++) {
-            const slatGeo = new THREE.BoxGeometry(1.6, 0.04, 0.12);
-            const slat = new THREE.Mesh(slatGeo, woodMat);
-            slat.position.set(0, 0.5, -0.18 + i * 0.16);
-            slat.castShadow = true;
-            group.add(slat);
-        }
-
-        for (let j = 0; j < 2; j++) {
-            const backSlatGeo = new THREE.BoxGeometry(1.6, 0.12, 0.04);
-            const backSlat = new THREE.Mesh(backSlatGeo, woodMat);
-            backSlat.position.set(0, 0.7 + j * 0.16, -0.28);
-            backSlat.castShadow = true;
-            group.add(backSlat);
-        }
-
-        return group;
+        return bpEnv.createBench();
     }
 
     function createMemorialPlazaModel() {
         const group = new THREE.Group();
 
-        const stoneMat = new THREE.MeshStandardMaterial({ map: cobblestoneTexture, roughness: 0.8, metalness: 0.15 });
-        const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.7 });
-        const marbleMat = new THREE.MeshStandardMaterial({ color: 0xe0e4e8, roughness: 0.3, metalness: 0.2 });
-        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
+        // Suelo de la plaza: losas de piedra clara con cenefa de adoquín y bordillo
+        group.add(bpEnv.createPlazaFloor({ radius: 5.0, top: 0.145, sides: 8 }));
 
-        const platformGeo = new THREE.CylinderGeometry(5.0, 5.2, 0.15, 8);
-        const platform = new THREE.Mesh(platformGeo, stoneMat);
-        platform.position.y = 0.07;
-        platform.receiveShadow = true;
-        group.add(platform);
-
-        const stepGeo = new THREE.CylinderGeometry(2.5, 2.7, 0.2, 16);
-        const step = new THREE.Mesh(stepGeo, darkStoneMat);
-        step.position.y = 0.25;
-        step.castShadow = true;
-        step.receiveShadow = true;
-        group.add(step);
-
-        const pedGeo = new THREE.BoxGeometry(1.4, 0.8, 1.4);
-        const pedestal = new THREE.Mesh(pedGeo, darkStoneMat);
-        pedestal.position.y = 0.75;
-        pedestal.castShadow = true;
-        group.add(pedestal);
-
-        const obeliskGeo = new THREE.CylinderGeometry(0.3, 0.5, 2.6, 4);
-        const obelisk = new THREE.Mesh(obeliskGeo, marbleMat);
-        obelisk.rotation.y = Math.PI / 4;
-        obelisk.position.y = 2.45;
-        obelisk.castShadow = true;
-        group.add(obelisk);
-
-        const pyramidGeo = new THREE.ConeGeometry(0.42, 0.6, 4);
-        const pyramid = new THREE.Mesh(pyramidGeo, goldMat);
-        pyramid.rotation.y = Math.PI / 4;
-        pyramid.position.y = 4.05;
-        pyramid.castShadow = true;
-        group.add(pyramid);
+        // Fuente de piedra de dos tazas en el centro
+        const fountain = bpEnv.createFountain();
+        fountain.position.y = 0.145;
+        group.add(fountain);
 
         const benchPositions = [
             { x: 3.5, z: 0, r: -Math.PI / 2 },
@@ -3407,347 +3214,41 @@ document.addEventListener('DOMContentLoaded', () => {
         return group;
     }
 
-    function createEngravedStoneTexture(mData) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1418;
-        canvas.height = 2048;
-        const ctx = canvas.getContext('2d');
-
-        // Dark grey granite stone background
-        ctx.fillStyle = '#4c525a';
-        ctx.fillRect(0, 0, 1418, 2048);
-
-        // Stone texture grain & noise
-        for (let i = 0; i < 40000; i++) {
-            const x = Math.random() * 1418;
-            const y = Math.random() * 2048;
-            const shade = Math.floor(60 + Math.random() * 85);
-            ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.18)`;
-            ctx.fillRect(x, y, 4, 4);
-        }
-
-        // Helper path for arched contour
-        function traceArchedPath(padding) {
-            const cx = 709;
-            const cy = 709;
-            const r = 709 - padding;
-            const bottomY = 2048 - padding;
-
-            ctx.beginPath();
-            ctx.moveTo(cx - r, bottomY);
-            ctx.lineTo(cx - r, cy);
-            ctx.arc(cx, cy, r, Math.PI, 0, false);
-            ctx.lineTo(cx + r, bottomY);
-            ctx.closePath();
-        }
-
-        // Outer Gold Frame (thick)
-        traceArchedPath(50);
-        ctx.strokeStyle = '#ffd600';
-        ctx.lineWidth = 20;
-        ctx.stroke();
-
-        // Inner Gold Frame (fine)
-        traceArchedPath(82);
-        ctx.strokeStyle = '#eab308';
-        ctx.lineWidth = 7;
-        ctx.stroke();
-
-        // Subtle Frame Shadow
-        traceArchedPath(88);
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.lineWidth = 4;
-        ctx.stroke();
-
-        function formatDate(dateStr) {
-            if (!dateStr) return '';
-            const parts = dateStr.split('-');
-            if (parts.length === 3) {
-                return `${parts[2]}/${parts[1]}/${parts[0]}`;
-            }
-            return dateStr;
-        }
-
-        const nombre = (mData.nombre || 'Mascota').toUpperCase();
-        const apodo = mData.apodos ? `"${mData.apodos}"` : '';
-        const fLlegada = formatDate(mData.fecha_llegada || '');
-        const fDespedida = formatDate(mData.fecha_despedida || '');
-        const fechas = (fLlegada || fDespedida) ? `${fLlegada}  -  ${fDespedida}` : '';
-        const epitafio = mData.epitafio ? `"${mData.epitafio}"` : '';
-        const honor = mData.titulo_honor ? mData.titulo_honor.toUpperCase() : '';
-
-        ctx.textAlign = 'center';
-
-        // Engraved text styling with dark outer outline, deep shadow & high contrast fill
-        function drawEngravedText(text, x, y, font, highlight = '#ffffff', shadowOffset = 8) {
-            ctx.font = font;
-
-            // Outer black stroke for crisp definition against granite background
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = Math.max(6, shadowOffset);
-            ctx.strokeText(text, x, y);
-
-            // Heavy Deep Shadow for 3D Engraved Effect
-            ctx.fillStyle = '#000000';
-            ctx.fillText(text, x + shadowOffset, y + shadowOffset);
-            ctx.fillText(text, x + shadowOffset / 2, y + shadowOffset / 2);
-
-            // Crisp Highlight
-            ctx.fillStyle = highlight;
-            ctx.fillText(text, x, y);
-        }
-
-        // 1. Top Arch Emblem & Stars (Crown & Paw)
-        drawEngravedText('👑', 709, 230, '115px sans-serif', '#ffd600', 8);
-        drawEngravedText('🐾', 709, 360, '85px sans-serif', '#ffd600', 6);
-        drawEngravedText('✦   ✦   ✦', 709, 430, '36px serif', '#eab308', 4);
-
-        // 2. Title of Honor (if present)
-        let currentY = 510;
-        if (honor) {
-            drawEngravedText(`👑 ${honor}`, 709, currentY, 'bold 48px serif', '#fef08a', 6);
-            currentY += 80;
-        }
-
-        // 3. Main Pet Name with auto-scaling to prevent overflowing canvas width
-        let nameFontSize = 125;
-        ctx.font = `bold ${nameFontSize}px serif`;
-        while (ctx.measureText(nombre).width > 1100 && nameFontSize > 50) {
-            nameFontSize -= 5;
-            ctx.font = `bold ${nameFontSize}px serif`;
-        }
-        drawEngravedText(nombre, 709, currentY + 70, `bold ${nameFontSize}px serif`, '#ffffff', 10);
-        currentY += 190;
-
-        // 4. Nickname
-        if (apodo) {
-            drawEngravedText(apodo, 709, currentY, 'bold italic 72px serif', '#ffd600', 8);
-            currentY += 110;
-        }
-
-        // 5. Dates (Large, ultra-crisp 80px bold sans-serif with high contrast)
-        if (fechas) {
-            let dateFontSize = 80;
-            ctx.font = `bold ${dateFontSize}px sans-serif`;
-            while (ctx.measureText(fechas).width > 1150 && dateFontSize > 40) {
-                dateFontSize -= 4;
-                ctx.font = `bold ${dateFontSize}px sans-serif`;
-            }
-            drawEngravedText(fechas, 709, currentY + 30, `bold ${dateFontSize}px sans-serif`, '#ffeb3b', 8);
-            currentY += 150;
-        }
-
-        // 6. Epitaph (Ultra-large, highly legible 80px multiline italic text)
-        if (epitafio) {
-            const epitaphFont = 'bold italic 80px serif';
-            ctx.font = epitaphFont;
-            const words = epitafio.split(' ');
-            let line = '';
-            let lineY = currentY + 20;
-
-            for (let i = 0; i < words.length; i++) {
-                const testLine = line + words[i] + ' ';
-                if (ctx.measureText(testLine).width > 1150 && i > 0) {
-                    drawEngravedText(line.trim(), 709, lineY, epitaphFont, '#ffffff', 8);
-                    line = words[i] + ' ';
-                    lineY += 110;
-                } else {
-                    line = testLine;
-                }
-            }
-            if (line) {
-                drawEngravedText(line.trim(), 709, lineY, epitaphFont, '#ffffff', 8);
-            }
-        }
-
-        // 9. Bottom Corner Filigree
-        drawEngravedText('✦', 160, 1950, 'bold 44px serif', '#ffd600', 4);
-        drawEngravedText('✦', 1258, 1950, 'bold 44px serif', '#ffd600', 4);
-        drawEngravedText('❖ BOSQUEPATITAS ❖', 709, 1950, 'bold 30px sans-serif', 'rgba(255,214,0,0.65)', 2);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        return texture;
-    }
-
+    // Lápida de granito pulido con el grabado de la mascota (ver bp-environment.js)
     function createTombstoneModel(tombData = null) {
-        const group = new THREE.Group();
-
-        const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x3d4248, roughness: 0.85, metalness: 0.1 });
-        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x6b727a, roughness: 0.75, metalness: 0.15 });
-        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.7 });
-
-        // Base pedestal (Layer 1)
-        const baseGeo = new THREE.BoxGeometry(1.3, 0.18, 0.75);
-        const baseMesh = new THREE.Mesh(baseGeo, darkStoneMat);
-        baseMesh.position.y = 0.09;
-        baseMesh.castShadow = true;
-        baseMesh.receiveShadow = true;
-        group.add(baseMesh);
-
-        // Sub-base step (Layer 2)
-        const subBaseGeo = new THREE.BoxGeometry(1.1, 0.18, 0.6);
-        const subBaseMesh = new THREE.Mesh(subBaseGeo, stoneMat);
-        subBaseMesh.position.y = 0.27;
-        subBaseMesh.castShadow = true;
-        subBaseMesh.receiveShadow = true;
-        group.add(subBaseMesh);
-
-        // Monolithic Arched Headstone Body
-        const width = 0.90;
-        const straightH = 0.85;
-        const radius = width / 2; // 0.45
-        const totalH = straightH + radius; // 1.30
-        const depth = 0.22;
-
-        const shape = new THREE.Shape();
-        shape.moveTo(-radius, 0);
-        shape.lineTo(radius, 0);
-        shape.lineTo(radius, straightH);
-        shape.absarc(0, straightH, radius, 0, Math.PI, false);
-        shape.lineTo(-radius, 0);
-
-        const extrudeSettings = {
-            depth: depth,
-            bevelEnabled: true,
-            bevelSegments: 3,
-            steps: 1,
-            bevelSize: 0.02,
-            bevelThickness: 0.02
-        };
-
-        const bodyGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        bodyGeo.center();
-
-        const bodyMesh = new THREE.Mesh(bodyGeo, stoneMat);
-        bodyMesh.position.set(0, 0.36 + totalH / 2, 0);
-        bodyMesh.castShadow = true;
-        bodyMesh.receiveShadow = true;
-        group.add(bodyMesh);
-
         const mData = tombData ? (tombData.mascota_data || {}) : null;
-
+        let info = null;
         if (mData && (mData.nombre || mData.apodos || mData.epitafio || (tombData && tombData.title))) {
-            const texture = createEngravedStoneTexture(mData);
-            const frontMat = new THREE.MeshStandardMaterial({
-                map: texture,
-                roughness: 0.5,
-                metalness: 0.1,
-                polygonOffset: true,
-                polygonOffsetFactor: -1,
-                polygonOffsetUnits: -1
-            });
-
-            const frontGeo = new THREE.ShapeGeometry(shape);
-
-            // Normalize UV coordinates so canvas texture spans [0, 1] horizontally and vertically
-            const posAttr = frontGeo.attributes.position;
-            const uvAttr = frontGeo.attributes.uv;
-            const minX = -radius;
-            const maxX = radius;
-            const minY = 0;
-            const maxY = totalH;
-
-            for (let i = 0; i < posAttr.count; i++) {
-                const x = posAttr.getX(i);
-                const y = posAttr.getY(i);
-                const u = (x - minX) / (maxX - minX);
-                const v = (y - minY) / (maxY - minY);
-                uvAttr.setXY(i, u, v);
-            }
-            uvAttr.needsUpdate = true;
-
-            const frontMesh = new THREE.Mesh(frontGeo, frontMat);
-            frontMesh.position.set(0, 0.36, depth / 2 + 0.021);
-            frontMesh.receiveShadow = true;
-            group.add(frontMesh);
+            const fmt = d => {
+                if (!d) return '';
+                const p = String(d).split('-');
+                return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : String(d);
+            };
+            const llegada = fmt(mData.fecha_llegada), despedida = fmt(mData.fecha_despedida);
+            const titleName = tombData && tombData.title && tombData.title.rendered
+                ? tombData.title.rendered.replace(/<[^>]*>/g, '').replace(/^Tumba de\s+/i, '') : '';
+            // Tipo de granito según la mascota: la misma tumba sale siempre igual
+            const key = String(mData.id || mData.nombre || titleName || '');
+            let h = 0;
+            for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+            const pick = h % 10;
+            info = {
+                name: mData.nombre || titleName || 'Mascota',
+                nickname: mData.apodos || '',
+                honor: mData.titulo_honor || '',
+                dates: llegada && despedida ? `${llegada}  —  ${despedida}` : (llegada || despedida),
+                epitaph: mData.epitafio || '',
+                variant: pick < 5 ? 'black' : (pick < 8 ? 'grey' : 'red')
+            };
         }
+        const group = bpEnv.createHeadstone(info);
 
-        // Top Crown Ornament
-        const ornamentGeo = new THREE.OctahedronGeometry(0.08);
-        const ornamentMesh = new THREE.Mesh(ornamentGeo, goldMat);
-        ornamentMesh.position.set(0, 0.36 + totalH + 0.06, 0);
-        ornamentMesh.castShadow = true;
-        group.add(ornamentMesh);
-
-        // Attach 3D Tributes (candles, flowers, treats)
+        // Ofrendas 3D (velas, flores, premios)
         if (mData) {
             attachTributesToTombstoneGroup(group, mData);
         }
 
         return group;
-    }
-
-    function createGrassTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#448a52';
-        ctx.fillRect(0, 0, 256, 256);
-
-        for (let i = 0; i < 4500; i++) {
-            const x = Math.random() * 256;
-            const y = Math.random() * 256;
-            const r = Math.random() * 1.6 + 0.4;
-            const rand = Math.random();
-
-            if (rand > 0.6) {
-                ctx.fillStyle = '#55a365';
-            } else if (rand > 0.3) {
-                ctx.fillStyle = '#357041';
-            } else {
-                ctx.fillStyle = '#61b572';
-            }
-
-            ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(14, 14);
-        return texture;
-    }
-
-    function createCobblestoneTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#3a3d40';
-        ctx.fillRect(0, 0, 256, 256);
-
-        const rows = 16;
-        const cols = 16;
-        const w = 256 / cols;
-        const h = 256 / rows;
-
-        for (let r = 0; r < rows; r++) {
-            const offset = (r % 2 === 0) ? 0 : w / 2;
-            for (let c = -1; c < cols + 1; c++) {
-                const x = c * w + offset + 1;
-                const y = r * h + 1;
-                const bw = w - 2;
-                const bh = h - 2;
-
-                const shade = Math.floor(100 + Math.random() * 60);
-                ctx.fillStyle = `rgb(${shade}, ${shade + 4}, ${shade + 8})`;
-                ctx.fillRect(x, y, bw, bh);
-
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-                ctx.fillRect(x, y, bw, 2);
-            }
-        }
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(2, 20);
-        return texture;
     }
 
     // ----------------------------------------------------
@@ -3768,10 +3269,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 transparent: true,
                 opacity: 0.65
             });
-            const borderMat = new THREE.MeshStandardMaterial({
-                color: 0x727d74,
-                roughness: 0.6
-            });
+            // Losa de granito claro (la misma piedra que las bases de las lápidas)
+            const borderMat = bpEnv.plotStoneMaterial();
+            const borderGeoShared = bpEnv.worldUV(new THREE.BoxGeometry(1.6, 0.04, 1.2));
 
             const addPlot = (id, x, z, rotationY) => {
                 const plotGroup = new THREE.Group();
@@ -3784,8 +3284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 slab.receiveShadow = true;
                 plotGroup.add(slab);
 
-                const borderGeo = new THREE.BoxGeometry(1.6, 0.04, 1.2);
-                const border = new THREE.Mesh(borderGeo, borderMat.clone());
+                const border = new THREE.Mesh(borderGeoShared, borderMat);
                 border.position.y = 0.02;
                 border.receiveShadow = true;
                 plotGroup.add(border);
@@ -3878,373 +3377,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // GENERADOR DE VERJA VICTORIANA Y PORTÓN PÈRE LACHAISE
     // ----------------------------------------------------
+    // Verja perimetral victoriana con cuatro puertas (ver bp-environment.js)
     function createVictorianFencePerimeter() {
-        const fenceGroup = new THREE.Group();
-
-        const ironMat = new THREE.MeshStandardMaterial({ color: 0x111315, roughness: 0.35, metalness: 0.85 });
-        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
-        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.8, metalness: 0.1 });
-        const capMat = new THREE.MeshStandardMaterial({ color: 0x2d3033, roughness: 0.7, metalness: 0.2 });
-
-        function createPillar() {
-            const pillar = new THREE.Group();
-
-            const baseGeo = new THREE.BoxGeometry(0.65, 0.3, 0.65);
-            const base = new THREE.Mesh(baseGeo, stoneMat);
-            base.position.y = 0.15;
-            base.castShadow = true;
-            base.receiveShadow = true;
-            pillar.add(base);
-
-            const bodyGeo = new THREE.BoxGeometry(0.52, 2.3, 0.52);
-            const body = new THREE.Mesh(bodyGeo, stoneMat);
-            body.position.y = 1.45;
-            body.castShadow = true;
-            body.receiveShadow = true;
-            pillar.add(body);
-
-            const trimGeo = new THREE.BoxGeometry(0.6, 0.1, 0.6);
-            const trim = new THREE.Mesh(trimGeo, capMat);
-            trim.position.y = 2.65;
-            trim.castShadow = true;
-            pillar.add(trim);
-
-            const capGeo = new THREE.ConeGeometry(0.42, 0.35, 4);
-            const cap = new THREE.Mesh(capGeo, capMat);
-            cap.rotation.y = Math.PI / 4;
-            cap.position.y = 2.875;
-            cap.castShadow = true;
-            pillar.add(cap);
-
-            const finialGeo = new THREE.SphereGeometry(0.1, 8, 8);
-            const finial = new THREE.Mesh(finialGeo, goldMat);
-            finial.position.y = 3.12;
-            finial.castShadow = true;
-            pillar.add(finial);
-
-            return pillar;
-        }
-
-        function createFencePanel(length) {
-            const panel = new THREE.Group();
-            const barSpacing = 0.22;
-            const barCount = Math.floor(length / barSpacing);
-            const startX = -length / 2 + (length - (barCount - 1) * barSpacing) / 2;
-
-            const railTopGeo = new THREE.BoxGeometry(length, 0.05, 0.05);
-            const railTop = new THREE.Mesh(railTopGeo, ironMat);
-            railTop.position.set(0, 2.1, 0);
-            railTop.castShadow = true;
-            panel.add(railTop);
-
-            const railMidGeo = new THREE.BoxGeometry(length, 0.04, 0.04);
-            const railMid = new THREE.Mesh(railMidGeo, ironMat);
-            railMid.position.set(0, 1.15, 0);
-            railMid.castShadow = true;
-            panel.add(railMid);
-
-            const railBotGeo = new THREE.BoxGeometry(length, 0.05, 0.05);
-            const railBot = new THREE.Mesh(railBotGeo, ironMat);
-            railBot.position.set(0, 0.25, 0);
-            railBot.castShadow = true;
-            panel.add(railBot);
-
-            const barGeo = new THREE.CylinderGeometry(0.018, 0.018, 2.2, 6);
-            const spearGeo = new THREE.ConeGeometry(0.038, 0.2, 6);
-
-            for (let i = 0; i < barCount; i++) {
-                const x = startX + i * barSpacing;
-
-                const bar = new THREE.Mesh(barGeo, ironMat);
-                bar.position.set(x, 1.15, 0);
-                bar.castShadow = true;
-                panel.add(bar);
-
-                const spear = new THREE.Mesh(spearGeo, (i % 2 === 0) ? goldMat : ironMat);
-                spear.position.set(x, 2.35, 0);
-                spear.castShadow = true;
-                panel.add(spear);
-            }
-
-            return panel;
-        }
-
-        function createVictorianGate() {
-            const gateGroup = new THREE.Group();
-
-            const leftPillar = createPillar();
-            leftPillar.position.set(-2.2, 0, 0);
-            leftPillar.scale.set(1.2, 1.25, 1.2);
-            gateGroup.add(leftPillar);
-
-            const rightPillar = createPillar();
-            rightPillar.position.set(2.2, 0, 0);
-            rightPillar.scale.set(1.2, 1.25, 1.2);
-            gateGroup.add(rightPillar);
-
-            const archRadius = 2.2;
-            const archTube = 0.06;
-            const archGeo = new THREE.TorusGeometry(archRadius, archTube, 8, 24, Math.PI);
-            const arch = new THREE.Mesh(archGeo, ironMat);
-            arch.position.set(0, 3.2, 0);
-            arch.castShadow = true;
-            gateGroup.add(arch);
-
-            const crestGeo = new THREE.OctahedronGeometry(0.22);
-            const crest = new THREE.Mesh(crestGeo, goldMat);
-            crest.position.set(0, 5.5, 0);
-            crest.castShadow = true;
-            gateGroup.add(crest);
-
-            function createGateLeaf(isOpenLeft) {
-                const leaf = new THREE.Group();
-                const width = 1.95;
-
-                const frameT = new THREE.Mesh(new THREE.BoxGeometry(width, 0.06, 0.06), ironMat);
-                frameT.position.set(width / 2, 2.2, 0);
-                leaf.add(frameT);
-
-                const frameB = new THREE.Mesh(new THREE.BoxGeometry(width, 0.06, 0.06), ironMat);
-                frameB.position.set(width / 2, 0.2, 0);
-                leaf.add(frameB);
-
-                const frameSide1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 8), ironMat);
-                frameSide1.position.set(0.05, 1.2, 0);
-                leaf.add(frameSide1);
-
-                const frameSide2 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 8), ironMat);
-                frameSide2.position.set(width - 0.05, 1.2, 0);
-                leaf.add(frameSide2);
-
-                const barSpacing = 0.22;
-                const bars = Math.floor(width / barSpacing);
-                const barG = new THREE.CylinderGeometry(0.018, 0.018, 2.0, 6);
-                const spearG = new THREE.ConeGeometry(0.04, 0.22, 6);
-
-                for (let i = 1; i < bars; i++) {
-                    const bx = i * barSpacing;
-                    const bar = new THREE.Mesh(barG, ironMat);
-                    bar.position.set(bx, 1.2, 0);
-                    leaf.add(bar);
-
-                    const spear = new THREE.Mesh(spearG, goldMat);
-                    spear.position.set(bx, 2.31, 0);
-                    leaf.add(spear);
-                }
-
-                leaf.rotation.y = isOpenLeft ? Math.PI / 3.5 : -Math.PI / 3.5;
-                return leaf;
-            }
-
-            const leftLeaf = createGateLeaf(true);
-            leftLeaf.position.set(-2.0, 0, 0);
-            gateGroup.add(leftLeaf);
-
-            const rightLeaf = createGateLeaf(false);
-            rightLeaf.position.set(2.0, 0, 0);
-            rightLeaf.rotation.y = -Math.PI / 3.5;
-            gateGroup.add(rightLeaf);
-
-            return gateGroup;
-        }
-
-        const limit = 33.0;
-        const gateWidth = 4.4;
-        const step = 5.2;
-
-        function buildSide(rotationY, hasMainGate = false) {
-            const sideGroup = new THREE.Group();
-            sideGroup.rotation.y = rotationY;
-
-            if (hasMainGate) {
-                const gate = createVictorianGate();
-                gate.position.set(0, 0, limit);
-                sideGroup.add(gate);
-
-                const halfGate = gateWidth / 2;
-                for (let x = halfGate; x <= limit; x += step) {
-                    const nextX = Math.min(x + step, limit);
-                    const length = nextX - x;
-                    if (length < 0.5) continue;
-
-                    const pillarRight = createPillar();
-                    pillarRight.position.set(nextX, 0, limit);
-                    sideGroup.add(pillarRight);
-
-                    const panelRight = createFencePanel(length);
-                    panelRight.position.set(x + length / 2, 0, limit);
-                    sideGroup.add(panelRight);
-
-                    const pillarLeft = createPillar();
-                    pillarLeft.position.set(-nextX, 0, limit);
-                    sideGroup.add(pillarLeft);
-
-                    const panelLeft = createFencePanel(length);
-                    panelLeft.position.set(-(x + length / 2), 0, limit);
-                    sideGroup.add(panelLeft);
-                }
-            } else {
-                const centerPillar = createPillar();
-                centerPillar.position.set(0, 0, limit);
-                sideGroup.add(centerPillar);
-
-                for (let x = 0; x <= limit; x += step) {
-                    const nextX = Math.min(x + step, limit);
-                    const length = nextX - x;
-                    if (length < 0.5) continue;
-
-                    const pillarRight = createPillar();
-                    pillarRight.position.set(nextX, 0, limit);
-                    sideGroup.add(pillarRight);
-
-                    const panelRight = createFencePanel(length);
-                    panelRight.position.set(x + length / 2, 0, limit);
-                    sideGroup.add(panelRight);
-
-                    const pillarLeft = createPillar();
-                    pillarLeft.position.set(-nextX, 0, limit);
-                    sideGroup.add(pillarLeft);
-
-                    const panelLeft = createFencePanel(length);
-                    panelLeft.position.set(-(x + length / 2), 0, limit);
-                    sideGroup.add(panelLeft);
-                }
-            }
-
-            return sideGroup;
-        }
-
-        fenceGroup.add(buildSide(0, true));          // Sur (Entrada Principal)
-        fenceGroup.add(buildSide(Math.PI / 2, true));  // Este (Entrada Secundaria)
-        fenceGroup.add(buildSide(Math.PI, true));     // Norte (Entrada Secundaria)
-        fenceGroup.add(buildSide(-Math.PI / 2, true));// Oeste (Entrada Secundaria)
-
-        return fenceGroup;
-    }
-
-    // ----------------------------------------------------
-    // GENERADOR DE MAR DE NUBES ESPONJOSAS 3D (CELESTIAL CLOUD BED)
-    // ----------------------------------------------------
-    function createCloudBed() {
-        const cloudGroup = new THREE.Group();
-
-        const cloudMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            emissive: 0xffffff,
-            emissiveIntensity: 0.35, // Blanco brillante celestialmente radiante
-            roughness: 0.9,
-            metalness: 0.0,
-            flatShading: false,
-            transparent: true,
-            opacity: 0.98
-        });
-
-        // Geometrías esféricas suaves para nubes redondas y mulliditas
-        const cloudPuffGeos = [
-            new THREE.SphereGeometry(2.5, 24, 18),
-            new THREE.SphereGeometry(3.2, 24, 18),
-            new THREE.SphereGeometry(2.8, 24, 18)
-        ];
-
-        // Función matemática exacta para verificar que NINGUNA esfera/copo penetre en el área del cementerio
-        const CEMETERY_SAFE_BOX = 35.5; // El terreno del cementerio mide 35x35 desde el centro, la verja en 33.0
-
-        function isOverlappingCemetery(x, z, radius) {
-            const absX = Math.abs(x);
-            const absZ = Math.abs(z);
-
-            let dx = 0;
-            if (absX > CEMETERY_SAFE_BOX) {
-                dx = absX - CEMETERY_SAFE_BOX;
-            }
-
-            let dz = 0;
-            if (absZ > CEMETERY_SAFE_BOX) {
-                dz = absZ - CEMETERY_SAFE_BOX;
-            }
-
-            if (absX <= CEMETERY_SAFE_BOX && absZ <= CEMETERY_SAFE_BOX) return true;
-            if (absX <= CEMETERY_SAFE_BOX) return dz < radius;
-            if (absZ <= CEMETERY_SAFE_BOX) return dx < radius;
-            return (dx * dx + dz * dz) < (radius * radius);
-        }
-
-        const totalClouds = isMobile ? 180 : 320;
-        const MIN_CLUSTER_DIST = 38.0;
-
-        for (let i = 0; i < totalClouds; i++) {
-            const sector = Math.floor(Math.random() * 4);
-            let cx, cz;
-
-            const distFromEdge = Math.random() * 110.0;
-            const u = MIN_CLUSTER_DIST + distFromEdge;
-            const v = (Math.random() - 0.5) * 300.0;
-
-            if (sector === 0) {       // Sur
-                cx = v; cz = u;
-            } else if (sector === 1) { // Norte
-                cx = v; cz = -u;
-            } else if (sector === 2) { // Este
-                cx = u; cz = v;
-            } else {                  // Oeste
-                cx = -u; cz = v;
-            }
-
-            const dist = Math.hypot(cx, cz);
-            const scale = 0.9 + Math.random() * 1.4 + Math.min(2.5, dist / 45.0);
-
-            // Posición Y baja para formar el suelo de nubes bajo el cementerio
-            const cy = -6.2 + (Math.random() - 0.5) * 1.0;
-
-            const cluster = new THREE.Group();
-            cluster.position.set(cx, cy, cz);
-
-            const puffCount = Math.floor(5 + Math.random() * 5);
-            let validCluster = false;
-
-            for (let p = 0; p < puffCount; p++) {
-                const baseRadius = 2.8;
-                const geoIndex = Math.floor(Math.random() * cloudPuffGeos.length);
-                const geo = cloudPuffGeos[geoIndex];
-                const puff = new THREE.Mesh(geo, cloudMat);
-
-                const px = (Math.random() - 0.5) * 6.5 * scale;
-                const py = (Math.random() - 0.5) * 1.2 * scale;
-                const pz = (Math.random() - 0.5) * 6.5 * scale;
-
-                const pScale = (0.85 + Math.random() * 0.75) * scale;
-                const puffRadius = baseRadius * pScale * 1.15;
-
-                const worldX = cx + px;
-                const worldZ = cz + pz;
-
-                // Verificación matemática estricta contra el cuadro del cementerio
-                if (isOverlappingCemetery(worldX, worldZ, puffRadius)) {
-                    continue;
-                }
-
-                puff.position.set(px, py, pz);
-                // Proporciones redondas y mulliditas (curvas esponjosas)
-                puff.scale.set(pScale * 1.15, pScale * 0.85, pScale * 1.15);
-                puff.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-
-                cluster.add(puff);
-                validCluster = true;
-            }
-
-            if (validCluster) {
-                cloudGroup.add(cluster);
-            }
-        }
-
-        return cloudGroup;
+        return bpEnv.createFence({ limit: 33.0, gateWidth: 4.4, step: 5.2 });
     }
 
     // ----------------------------------------------------
     // CONSTRUCCIÓN DEL BOSQUE
     // ----------------------------------------------------
-    const cloudBed = createCloudBed();
-    scene.add(cloudBed);
     const victorianFence = createVictorianFencePerimeter();
     scene.add(victorianFence);
 
@@ -4252,23 +3392,21 @@ document.addEventListener('DOMContentLoaded', () => {
     memorialPlaza.position.set(0, 0, 0);
     scene.add(memorialPlaza);
 
-    const pathMat = new THREE.MeshStandardMaterial({
-        map: cobblestoneTexture,
-        roughness: 0.8,
-        metalness: 0.2
-    });
+    // Los dos caminos usan la misma geometría (el este-oeste solo va girado),
+    // así el adoquinado mantiene su proporción real en ambos.
+    const PATH_WIDTH = 3.6, PATH_LENGTH = 66.6; // de puerta a puerta
+    const pathMat = bpEnv.pavingMaterial;
+    const pathGeo = bpEnv.uvToMetres(new THREE.PlaneGeometry(PATH_WIDTH, PATH_LENGTH), PATH_WIDTH, PATH_LENGTH);
 
-    const nsPathGeo = new THREE.PlaneGeometry(3.6, 60);
-    const nsPath = new THREE.Mesh(nsPathGeo, pathMat);
+    const nsPath = new THREE.Mesh(pathGeo, pathMat);
     nsPath.rotation.x = -Math.PI / 2;
     nsPath.position.set(0, 0.02, 0);
     nsPath.receiveShadow = true;
     scene.add(nsPath);
 
-    const eoPathGeo = new THREE.PlaneGeometry(60, 3.6);
-    const eoPath = new THREE.Mesh(eoPathGeo, pathMat);
-    eoPath.rotation.x = -Math.PI / 2;
-    eoPath.position.set(0, 0.02, 0);
+    const eoPath = new THREE.Mesh(pathGeo, pathMat);
+    eoPath.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+    eoPath.position.set(0, 0.021, 0);
     eoPath.receiveShadow = true;
     scene.add(eoPath);
 
@@ -4297,11 +3435,9 @@ document.addEventListener('DOMContentLoaded', () => {
         { x: 11, z: -21, type: 'oak' }, { x: 19, z: -18, type: 'willow' }, { x: 25, z: -24, type: 'oak' }
     ];
 
-    forestTreePositions.forEach(t => {
-        const tree = createTreeModel(t.type);
-        tree.position.set(t.x, 0, t.z);
-        scene.add(tree);
-    });
+    bpEnv.createForest(forestTreePositions);
+    // Exterior: llanura árida con rocas, matorral seco y montañas al fondo
+    bpEnv.createSurroundings({ inner: GROUND_SIZE / 2 });
 
     rebuildLocalPlayerAvatarMesh();
     initPusherMultiplayer();
@@ -4309,8 +3445,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------
     // CONSUMO REST API DE WORDPRESS
     // ----------------------------------------------------
+    let tombsReady = Promise.resolve();
     if (settings.apiUrl) {
-        fetch(settings.apiUrl)
+        tombsReady = fetch(settings.apiUrl)
             .then(res => res.json())
             .then(tumbas => {
                 if (Array.isArray(tumbas)) {
@@ -6853,9 +5990,22 @@ document.addEventListener('DOMContentLoaded', () => {
     renderer.domElement.addEventListener('touchmove', onPointerMove, { passive: true });
     renderer.domElement.addEventListener('touchend', onPointerUp, { passive: true });
 
-    // Quitar loader
-    const loader = document.getElementById('bp-loading');
-    if (loader) loader.remove();
+    // La pantalla de carga no se retira hasta que están puestas las texturas y las
+    // tumbas, y los shaders compilados: así el bosque aparece ya completo.
+    (function revealWhenReady() {
+        let texFraction = settings.photoTextures && Object.keys(settings.photoTextures).length ? 0 : 1;
+        let tombsDone = 0;
+        const report = () => bpLoader.set(55 + 32 * texFraction + 9 * tombsDone, texFraction < 1 ? 'Cargando texturas…' : 'Colocando recuerdos…');
+        bpEnv.onProgress((done, total) => { if (total) texFraction = done / total; report(); });
+        const tombs = tombsReady.then(() => { tombsDone = 1; report(); });
+        const timeout = new Promise(resolve => setTimeout(resolve, 15000)); // red muy lenta: se abre igualmente
+        report();
+        Promise.race([Promise.all([bpEnv.ready, tombs]), timeout]).then(() => {
+            bpLoader.set(97, 'Abriendo las puertas…');
+            try { renderer.compile(scene, camera); } catch (e) { /* se compilará al dibujar */ }
+            requestAnimationFrame(() => requestAnimationFrame(() => bpLoader.finish()));
+        });
+    })();
 
     // Redimensionado
     window.addEventListener('resize', () => {
@@ -7050,6 +6200,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateRadarCanvas();
 
+        bpEnv.update(elapsedTime, camera);
         renderer.render(scene, camera);
     }
 
