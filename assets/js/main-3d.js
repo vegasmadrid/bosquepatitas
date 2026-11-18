@@ -3214,269 +3214,36 @@ document.addEventListener('DOMContentLoaded', () => {
         return group;
     }
 
-    function createEngravedStoneTexture(mData) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1418;
-        canvas.height = 2048;
-        const ctx = canvas.getContext('2d');
-
-        // Dark grey granite stone background
-        ctx.fillStyle = '#4c525a';
-        ctx.fillRect(0, 0, 1418, 2048);
-
-        // Stone texture grain & noise
-        for (let i = 0; i < 40000; i++) {
-            const x = Math.random() * 1418;
-            const y = Math.random() * 2048;
-            const shade = Math.floor(60 + Math.random() * 85);
-            ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, 0.18)`;
-            ctx.fillRect(x, y, 4, 4);
-        }
-
-        // Helper path for arched contour
-        function traceArchedPath(padding) {
-            const cx = 709;
-            const cy = 709;
-            const r = 709 - padding;
-            const bottomY = 2048 - padding;
-
-            ctx.beginPath();
-            ctx.moveTo(cx - r, bottomY);
-            ctx.lineTo(cx - r, cy);
-            ctx.arc(cx, cy, r, Math.PI, 0, false);
-            ctx.lineTo(cx + r, bottomY);
-            ctx.closePath();
-        }
-
-        // Outer Gold Frame (thick)
-        traceArchedPath(50);
-        ctx.strokeStyle = '#ffd600';
-        ctx.lineWidth = 20;
-        ctx.stroke();
-
-        // Inner Gold Frame (fine)
-        traceArchedPath(82);
-        ctx.strokeStyle = '#eab308';
-        ctx.lineWidth = 7;
-        ctx.stroke();
-
-        // Subtle Frame Shadow
-        traceArchedPath(88);
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.lineWidth = 4;
-        ctx.stroke();
-
-        function formatDate(dateStr) {
-            if (!dateStr) return '';
-            const parts = dateStr.split('-');
-            if (parts.length === 3) {
-                return `${parts[2]}/${parts[1]}/${parts[0]}`;
-            }
-            return dateStr;
-        }
-
-        const nombre = (mData.nombre || 'Mascota').toUpperCase();
-        const apodo = mData.apodos ? `"${mData.apodos}"` : '';
-        const fLlegada = formatDate(mData.fecha_llegada || '');
-        const fDespedida = formatDate(mData.fecha_despedida || '');
-        const fechas = (fLlegada || fDespedida) ? `${fLlegada}  -  ${fDespedida}` : '';
-        const epitafio = mData.epitafio ? `"${mData.epitafio}"` : '';
-        const honor = mData.titulo_honor ? mData.titulo_honor.toUpperCase() : '';
-
-        ctx.textAlign = 'center';
-
-        // Engraved text styling with dark outer outline, deep shadow & high contrast fill
-        function drawEngravedText(text, x, y, font, highlight = '#ffffff', shadowOffset = 8) {
-            ctx.font = font;
-
-            // Outer black stroke for crisp definition against granite background
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = Math.max(6, shadowOffset);
-            ctx.strokeText(text, x, y);
-
-            // Heavy Deep Shadow for 3D Engraved Effect
-            ctx.fillStyle = '#000000';
-            ctx.fillText(text, x + shadowOffset, y + shadowOffset);
-            ctx.fillText(text, x + shadowOffset / 2, y + shadowOffset / 2);
-
-            // Crisp Highlight
-            ctx.fillStyle = highlight;
-            ctx.fillText(text, x, y);
-        }
-
-        // 1. Top Arch Emblem & Stars (Crown & Paw)
-        drawEngravedText('👑', 709, 230, '115px sans-serif', '#ffd600', 8);
-        drawEngravedText('🐾', 709, 360, '85px sans-serif', '#ffd600', 6);
-        drawEngravedText('✦   ✦   ✦', 709, 430, '36px serif', '#eab308', 4);
-
-        // 2. Title of Honor (if present)
-        let currentY = 510;
-        if (honor) {
-            drawEngravedText(`👑 ${honor}`, 709, currentY, 'bold 48px serif', '#fef08a', 6);
-            currentY += 80;
-        }
-
-        // 3. Main Pet Name with auto-scaling to prevent overflowing canvas width
-        let nameFontSize = 125;
-        ctx.font = `bold ${nameFontSize}px serif`;
-        while (ctx.measureText(nombre).width > 1100 && nameFontSize > 50) {
-            nameFontSize -= 5;
-            ctx.font = `bold ${nameFontSize}px serif`;
-        }
-        drawEngravedText(nombre, 709, currentY + 70, `bold ${nameFontSize}px serif`, '#ffffff', 10);
-        currentY += 190;
-
-        // 4. Nickname
-        if (apodo) {
-            drawEngravedText(apodo, 709, currentY, 'bold italic 72px serif', '#ffd600', 8);
-            currentY += 110;
-        }
-
-        // 5. Dates (Large, ultra-crisp 80px bold sans-serif with high contrast)
-        if (fechas) {
-            let dateFontSize = 80;
-            ctx.font = `bold ${dateFontSize}px sans-serif`;
-            while (ctx.measureText(fechas).width > 1150 && dateFontSize > 40) {
-                dateFontSize -= 4;
-                ctx.font = `bold ${dateFontSize}px sans-serif`;
-            }
-            drawEngravedText(fechas, 709, currentY + 30, `bold ${dateFontSize}px sans-serif`, '#ffeb3b', 8);
-            currentY += 150;
-        }
-
-        // 6. Epitaph (Ultra-large, highly legible 80px multiline italic text)
-        if (epitafio) {
-            const epitaphFont = 'bold italic 80px serif';
-            ctx.font = epitaphFont;
-            const words = epitafio.split(' ');
-            let line = '';
-            let lineY = currentY + 20;
-
-            for (let i = 0; i < words.length; i++) {
-                const testLine = line + words[i] + ' ';
-                if (ctx.measureText(testLine).width > 1150 && i > 0) {
-                    drawEngravedText(line.trim(), 709, lineY, epitaphFont, '#ffffff', 8);
-                    line = words[i] + ' ';
-                    lineY += 110;
-                } else {
-                    line = testLine;
-                }
-            }
-            if (line) {
-                drawEngravedText(line.trim(), 709, lineY, epitaphFont, '#ffffff', 8);
-            }
-        }
-
-        // 9. Bottom Corner Filigree
-        drawEngravedText('✦', 160, 1950, 'bold 44px serif', '#ffd600', 4);
-        drawEngravedText('✦', 1258, 1950, 'bold 44px serif', '#ffd600', 4);
-        drawEngravedText('❖ BOSQUEPATITAS ❖', 709, 1950, 'bold 30px sans-serif', 'rgba(255,214,0,0.65)', 2);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        return texture;
-    }
-
+    // Lápida de granito pulido con el grabado de la mascota (ver bp-environment.js)
     function createTombstoneModel(tombData = null) {
-        const group = new THREE.Group();
-
-        const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x3d4248, roughness: 0.85, metalness: 0.1 });
-        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x6b727a, roughness: 0.75, metalness: 0.15 });
-        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.7 });
-
-        // Base pedestal (Layer 1)
-        const baseGeo = new THREE.BoxGeometry(1.3, 0.18, 0.75);
-        const baseMesh = new THREE.Mesh(baseGeo, darkStoneMat);
-        baseMesh.position.y = 0.09;
-        baseMesh.castShadow = true;
-        baseMesh.receiveShadow = true;
-        group.add(baseMesh);
-
-        // Sub-base step (Layer 2)
-        const subBaseGeo = new THREE.BoxGeometry(1.1, 0.18, 0.6);
-        const subBaseMesh = new THREE.Mesh(subBaseGeo, stoneMat);
-        subBaseMesh.position.y = 0.27;
-        subBaseMesh.castShadow = true;
-        subBaseMesh.receiveShadow = true;
-        group.add(subBaseMesh);
-
-        // Monolithic Arched Headstone Body
-        const width = 0.90;
-        const straightH = 0.85;
-        const radius = width / 2; // 0.45
-        const totalH = straightH + radius; // 1.30
-        const depth = 0.22;
-
-        const shape = new THREE.Shape();
-        shape.moveTo(-radius, 0);
-        shape.lineTo(radius, 0);
-        shape.lineTo(radius, straightH);
-        shape.absarc(0, straightH, radius, 0, Math.PI, false);
-        shape.lineTo(-radius, 0);
-
-        const extrudeSettings = {
-            depth: depth,
-            bevelEnabled: true,
-            bevelSegments: 3,
-            steps: 1,
-            bevelSize: 0.02,
-            bevelThickness: 0.02
-        };
-
-        const bodyGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        bodyGeo.center();
-
-        const bodyMesh = new THREE.Mesh(bodyGeo, stoneMat);
-        bodyMesh.position.set(0, 0.36 + totalH / 2, 0);
-        bodyMesh.castShadow = true;
-        bodyMesh.receiveShadow = true;
-        group.add(bodyMesh);
-
         const mData = tombData ? (tombData.mascota_data || {}) : null;
-
+        let info = null;
         if (mData && (mData.nombre || mData.apodos || mData.epitafio || (tombData && tombData.title))) {
-            const texture = createEngravedStoneTexture(mData);
-            const frontMat = new THREE.MeshStandardMaterial({
-                map: texture,
-                roughness: 0.5,
-                metalness: 0.1,
-                polygonOffset: true,
-                polygonOffsetFactor: -1,
-                polygonOffsetUnits: -1
-            });
-
-            const frontGeo = new THREE.ShapeGeometry(shape);
-
-            // Normalize UV coordinates so canvas texture spans [0, 1] horizontally and vertically
-            const posAttr = frontGeo.attributes.position;
-            const uvAttr = frontGeo.attributes.uv;
-            const minX = -radius;
-            const maxX = radius;
-            const minY = 0;
-            const maxY = totalH;
-
-            for (let i = 0; i < posAttr.count; i++) {
-                const x = posAttr.getX(i);
-                const y = posAttr.getY(i);
-                const u = (x - minX) / (maxX - minX);
-                const v = (y - minY) / (maxY - minY);
-                uvAttr.setXY(i, u, v);
-            }
-            uvAttr.needsUpdate = true;
-
-            const frontMesh = new THREE.Mesh(frontGeo, frontMat);
-            frontMesh.position.set(0, 0.36, depth / 2 + 0.021);
-            frontMesh.receiveShadow = true;
-            group.add(frontMesh);
+            const fmt = d => {
+                if (!d) return '';
+                const p = String(d).split('-');
+                return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : String(d);
+            };
+            const llegada = fmt(mData.fecha_llegada), despedida = fmt(mData.fecha_despedida);
+            const titleName = tombData && tombData.title && tombData.title.rendered
+                ? tombData.title.rendered.replace(/<[^>]*>/g, '').replace(/^Tumba de\s+/i, '') : '';
+            // Tipo de granito según la mascota: la misma tumba sale siempre igual
+            const key = String(mData.id || mData.nombre || titleName || '');
+            let h = 0;
+            for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+            const pick = h % 10;
+            info = {
+                name: mData.nombre || titleName || 'Mascota',
+                nickname: mData.apodos || '',
+                honor: mData.titulo_honor || '',
+                dates: llegada && despedida ? `${llegada}  —  ${despedida}` : (llegada || despedida),
+                epitaph: mData.epitafio || '',
+                variant: pick < 5 ? 'black' : (pick < 8 ? 'grey' : 'red')
+            };
         }
+        const group = bpEnv.createHeadstone(info);
 
-        // Top Crown Ornament
-        const ornamentGeo = new THREE.OctahedronGeometry(0.08);
-        const ornamentMesh = new THREE.Mesh(ornamentGeo, goldMat);
-        ornamentMesh.position.set(0, 0.36 + totalH + 0.06, 0);
-        ornamentMesh.castShadow = true;
-        group.add(ornamentMesh);
-
-        // Attach 3D Tributes (candles, flowers, treats)
+        // Ofrendas 3D (velas, flores, premios)
         if (mData) {
             attachTributesToTombstoneGroup(group, mData);
         }
@@ -3502,10 +3269,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 transparent: true,
                 opacity: 0.65
             });
-            const borderMat = new THREE.MeshStandardMaterial({
-                color: 0x727d74,
-                roughness: 0.6
-            });
+            // Losa de granito claro (la misma piedra que las bases de las lápidas)
+            const borderMat = bpEnv.plotStoneMaterial();
+            const borderGeoShared = bpEnv.worldUV(new THREE.BoxGeometry(1.6, 0.04, 1.2));
 
             const addPlot = (id, x, z, rotationY) => {
                 const plotGroup = new THREE.Group();
@@ -3518,8 +3284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 slab.receiveShadow = true;
                 plotGroup.add(slab);
 
-                const borderGeo = new THREE.BoxGeometry(1.6, 0.04, 1.2);
-                const border = new THREE.Mesh(borderGeo, borderMat.clone());
+                const border = new THREE.Mesh(borderGeoShared, borderMat);
                 border.position.y = 0.02;
                 border.receiveShadow = true;
                 plotGroup.add(border);

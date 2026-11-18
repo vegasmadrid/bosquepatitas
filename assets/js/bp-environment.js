@@ -1019,6 +1019,206 @@
         return new THREE.CanvasTexture(c);
     }
 
+    // =====================================================================
+    // LÁPIDAS: GRANITO Y GRABADO
+    // =====================================================================
+    // Paletas de granito: fondo (dos tonos) y granos minerales [r, g, b, proporción]
+    const GRANITE = {
+        black: { contrast: 0.55, base: [[50, 52, 56], [38, 40, 44]], grains: [[18, 18, 20, 0.34], [96, 99, 104, 0.3], [150, 152, 156, 0.12], [70, 74, 80, 0.24]] },
+        grey: { contrast: 0.45, base: [[108, 110, 115], [92, 94, 99]], grains: [[34, 36, 40, 0.3], [186, 186, 190, 0.26], [128, 134, 146, 0.24], [70, 72, 78, 0.2]] },
+        red: { contrast: 0.42, base: [[120, 62, 52], [100, 50, 42]], grains: [[34, 28, 28, 0.32], [176, 118, 104, 0.26], [140, 128, 126, 0.18], [82, 40, 34, 0.24]] },
+        plinth: { contrast: 0.38, base: [[150, 150, 148], [134, 135, 134]], grains: [[62, 62, 64, 0.3], [204, 204, 202, 0.24], [112, 114, 118, 0.26], [90, 90, 92, 0.2]] }
+    };
+
+    function buildGraniteTexture(size, pal, rng, aniso) {
+        const cloud = fbmField(size, size, 4, 4, 4, rng, 0.55);
+        const data = new Uint8Array(size * size * 4);
+        const b0 = pal.base[0], b1 = pal.base[1];
+        for (let i = 0, p = 0; i < cloud.length; i++, p += 4) {
+            const t = smoothstep(0.3, 0.7, cloud[i]);
+            data[p] = b1[0] + (b0[0] - b1[0]) * t; data[p + 1] = b1[1] + (b0[1] - b1[1]) * t; data[p + 2] = b1[2] + (b0[2] - b1[2]) * t; data[p + 3] = 255;
+        }
+        // Granos minerales de 1 a 4 px, con bordes irregulares y envoltura (enlosable)
+        const n = Math.round(size * size / 5);
+        const k = size / 512;
+        for (let g = 0; g < n; g++) {
+            let pick = rng(), c = pal.grains[0];
+            for (let j = 0; j < pal.grains.length; j++) { if (pick < pal.grains[j][3]) { c = pal.grains[j]; break; } pick -= pal.grains[j][3]; }
+            const cx = Math.floor(rng() * size), cy = Math.floor(rng() * size);
+            const rad = Math.max(1, Math.round((0.45 + rng() * rng() * 1.6) * k));
+            const v = 0.9 + rng() * 0.2, al = pal.contrast * (0.7 + rng() * 0.3);
+            for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+                if (dx * dx + dy * dy > rad * rad + rng() * rad) continue;
+                const o = ((((cy + dy) % size + size) % size) * size + (((cx + dx) % size + size) % size)) * 4;
+                data[o] += (c[0] * v - data[o]) * al; data[o + 1] += (c[1] * v - data[o + 1]) * al; data[o + 2] += (c[2] * v - data[o + 2]) * al;
+            }
+        }
+        return dataTexture(data, size, size, true, aniso);
+    }
+
+    // Forma de la lápida (vista de frente, en metros): costados rectos, hombros y arco
+    const HEADSTONE = { halfW: 0.45, height: 1.32, depth: 0.2, bevel: 0.012 };
+    function headstoneShape() {
+        const a = HEADSTONE.halfW, sh = 1.02, ledge = 0.33, top = HEADSTONE.height;
+        const u = (ledge * ledge - (top - sh) * (top - sh)) / (2 * (top - sh));   // el centro del arco queda u por debajo de los hombros
+        const cy = sh - u, R = top - cy, a0 = Math.atan2(u, ledge);
+        const s = new THREE.Shape();
+        s.moveTo(-a, 0);
+        s.lineTo(a, 0);
+        s.lineTo(a, sh - 0.06);
+        s.quadraticCurveTo(a, sh, a - 0.06, sh);
+        s.lineTo(ledge, sh);
+        s.absarc(0, cy, R, a0, Math.PI - a0, false);
+        s.lineTo(-a + 0.06, sh);
+        s.quadraticCurveTo(-a, sh, -a, sh - 0.06);
+        s.lineTo(-a, 0);
+        return { shape: s, cy: cy, R: R, sh: sh, ledge: ledge };
+    }
+
+    // Grabado: texto en V sobre piedra pulida. El nombre y la huella van dorados (pan de
+    // oro); el resto, piedra mate al descubierto. Devuelve color+alfa, normales y un mapa
+    // con rugosidad (G) y metalicidad (B).
+    function buildEngraving(info, W, metalScale) {
+        const H = Math.round(W * HEADSTONE.height / (HEADSTONE.halfW * 2));
+        const ppm = W / (HEADSTONE.halfW * 2), k = W / 720;
+        const gilt = makeCanvas(W, H), frost = makeCanvas(W, H);
+        const gc = gilt.getContext('2d', { willReadFrequently: true }), fc = frost.getContext('2d', { willReadFrequently: true });
+        [gc, fc].forEach(c => { c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.fillStyle = '#fff'; c.strokeStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; });
+        const SERIF = "Georgia, 'Times New Roman', 'Noto Serif', serif";
+        const X = x => (x + HEADSTONE.halfW) * ppm, Yc = y => (HEADSTONE.height - y) * ppm;
+
+        // Línea de marco grabada, siguiendo el contorno a 4 cm del borde
+        const sh = headstoneShape(), inset = 0.042;
+        fc.lineWidth = 3.2 * k;
+        fc.beginPath();
+        fc.moveTo(X(-HEADSTONE.halfW + inset), Yc(0.08));
+        fc.lineTo(X(-HEADSTONE.halfW + inset), Yc(sh.sh - inset));
+        fc.lineTo(X(-sh.ledge + inset * 0.2), Yc(sh.sh - inset));
+        const ri = sh.R - inset, ang = Math.asin(Math.min(1, (sh.sh - inset - sh.cy) / ri));
+        fc.arc(X(0), Yc(sh.cy), ri * ppm, Math.PI + ang, -ang, false);
+        fc.lineTo(X(HEADSTONE.halfW - inset), Yc(sh.sh - inset));
+        fc.lineTo(X(HEADSTONE.halfW - inset), Yc(0.08));
+        fc.stroke();
+
+        // Texto con espaciado entre letras (centrado)
+        function spaced(c, text, x, y, font, spacing, maxW) {
+            c.font = font;
+            const widths = Array.from(text).map(ch => c.measureText(ch).width);
+            let total = widths.reduce((a, b) => a + b, 0) + spacing * (widths.length - 1);
+            let scale = 1;
+            if (maxW && total > maxW) { scale = maxW / total; }
+            c.save();
+            c.translate(x, y); c.scale(scale, 1);
+            c.textAlign = 'left';
+            let cx = -total / 2;
+            Array.from(text).forEach((ch, i) => { c.fillText(ch, cx, 0); cx += widths[i] + spacing; });
+            c.restore();
+        }
+        function fitFont(c, text, weight, size, family, spacing, maxW, min) {
+            let s = size;
+            for (; s > min; s -= 2) {
+                c.font = weight + ' ' + s + 'px ' + family;
+                const w = c.measureText(text).width + spacing * (text.length - 1) * s / size;
+                if (w <= maxW) break;
+            }
+            return s;
+        }
+
+        // Huella en el arco
+        (function paw() {
+            const s = 1.3 * k, ox = W / 2 - 32 * s, oy = Yc(1.17) - 34 * s;
+            gc.save(); gc.translate(ox, oy); gc.scale(s, s);
+            [[13.5, 27, 5.6, 7.6, -22], [25.5, 15.5, 6, 8.4, -7], [38.5, 15.5, 6, 8.4, 7], [50.5, 27, 5.6, 7.6, 22]].forEach(e => {
+                gc.beginPath(); gc.ellipse(e[0], e[1], e[2], e[3], e[4] * Math.PI / 180, 0, Math.PI * 2); gc.fill();
+            });
+            gc.fill(new Path2D('M32 31c-9.5 0-17.5 9-16.8 16.6.6 6.6 7.3 8.3 16.8 5.4 9.5 2.9 16.2 1.2 16.8-5.4C49.5 40 41.5 31 32 31z'));
+            gc.restore();
+        })();
+
+        // Título de honor dentro del arco, sobre la línea de hombros
+        if (info.honor) spaced(fc, info.honor.toUpperCase(), W / 2, Yc(sh.sh) + 14 * k, (29 * k).toFixed(1) + 'px ' + SERIF, 5 * k, 440 * k);
+        const name = (info.name || 'Mascota').toUpperCase();
+        const ns = fitFont(gc, name, 'bold', Math.round(108 * k), SERIF, 8 * k, 580 * k, Math.round(48 * k));
+        // Epitafio partido en líneas (se calcula antes para centrar el bloque de texto)
+        const efont = 'italic ' + (42 * k).toFixed(1) + 'px ' + SERIF;
+        const lines = [];
+        if (info.epitaph) {
+            fc.font = efont;
+            let line = '';
+            ('“' + info.epitaph + '”').split(/\s+/).forEach(w => {
+                const t = line ? line + ' ' + w : w;
+                if (fc.measureText(t).width > 580 * k && line) { lines.push(line); line = w; } else line = t;
+            });
+            if (line) lines.push(line);
+            if (lines.length > 5) { lines.length = 5; lines[4] = lines[4].replace(/\s*\S*$/, '') + '…”'; }
+        }
+        const top0 = Yc(sh.sh - inset) + 34 * k + 0.72 * ns;
+        const blockEnd = top0 + 70 * k + (info.nickname ? 52 * k : 0) + 68 * k + (info.dates ? 86 * k : 0) + Math.max(0, lines.length - 1) * 56 * k;
+        const room = Yc(0.36) - blockEnd;      // espacio libre hasta la parte baja de la piedra
+        let y = top0 + Math.max(0, Math.min(150 * k, room * 0.45));
+        spaced(gc, name, W / 2, y, 'bold ' + ns + 'px ' + SERIF, 8 * k * ns / (108 * k), 580 * k);
+        y += 70 * k;
+        if (info.nickname) {
+            fc.font = 'italic ' + (44 * k).toFixed(1) + 'px ' + SERIF;
+            fc.fillText('«' + info.nickname + '»', W / 2, y, 560 * k);
+            y += 52 * k;
+        }
+        // Filete con rombo central
+        fc.fillRect(W / 2 - 112 * k, y - 6 * k, 94 * k, 3 * k);
+        fc.fillRect(W / 2 + 18 * k, y - 6 * k, 94 * k, 3 * k);
+        fc.save(); fc.translate(W / 2, y - 4.8 * k); fc.rotate(Math.PI / 4); fc.fillRect(-6.5 * k, -6.5 * k, 13 * k, 13 * k); fc.restore();
+        y += 68 * k;
+        if (info.dates) {
+            spaced(fc, info.dates, W / 2, y, (40 * k).toFixed(1) + 'px ' + SERIF, 3 * k, 590 * k);
+            y += 86 * k;
+        }
+        fc.font = efont;
+        lines.forEach(l => { fc.fillText(l, W / 2, y); y += 56 * k; });
+
+        // Máscaras -> texturas (filas invertidas: la fila 0 del canvas es la parte de arriba)
+        const gp = gc.getImageData(0, 0, W, H).data, fp = fc.getImageData(0, 0, W, H).data;
+        const color = new Uint8Array(W * H * 4);
+        const h2 = W >> 1, v2 = H >> 1;
+        const depth = new Float32Array(h2 * v2), gm = new Float32Array(h2 * v2);
+        for (let yy = 0; yy < H; yy++) {
+            const ty = H - 1 - yy;
+            for (let x = 0; x < W; x++) {
+                const s = (yy * W + x) * 4, o = (ty * W + x) * 4;
+                const g = gp[s] / 255, f = fp[s] / 255, a = Math.max(g, f);
+                const wg = a > 0 ? g / (g + f + 1e-6) : 0;
+                color[o] = 226 + (226 - 226) * wg; color[o + 1] = 226 + (178 - 226) * wg; color[o + 2] = 220 + (86 - 220) * wg;
+                color[o + 3] = a * 255;
+                if (!(x & 1) && !(ty & 1) && (x >> 1) < h2 && (ty >> 1) < v2) {
+                    const i = (ty >> 1) * h2 + (x >> 1);
+                    depth[i] = a; gm[i] = wg;
+                }
+            }
+        }
+        const groove = blurWrap(depth, h2, v2, Math.max(1, Math.round(1.6 * k)));
+        for (let i = 0; i < groove.length; i++) groove[i] = -groove[i];
+        const normal = normalFromHeight(groove, h2, v2, 2.6);
+        const orm = new Uint8Array(h2 * v2 * 4);
+        for (let i = 0, p = 0; i < gm.length; i++, p += 4) {
+            orm[p] = 255; orm[p + 1] = (0.88 - 0.56 * gm[i]) * 255; orm[p + 2] = gm[i] * metalScale * 255; orm[p + 3] = 255;
+        }
+        const tex = [
+            dataTexture(color, W, H, true, 4, true),
+            dataTexture(normal, h2, v2, false, 4, true),
+            dataTexture(orm, h2, v2, false, 4, true)
+        ];
+        return { map: tex[0], normalMap: tex[1], ormMap: tex[2] };
+    }
+
+    // Caja con aristas achaflanadas, apoyada en y = 0 (UV en metros)
+    function bevelBox(w, h, d, b) {
+        const s = new THREE.Shape();
+        s.moveTo(-w / 2 + b, -d / 2 + b); s.lineTo(w / 2 - b, -d / 2 + b); s.lineTo(w / 2 - b, d / 2 - b); s.lineTo(-w / 2 + b, d / 2 - b); s.lineTo(-w / 2 + b, -d / 2 + b);
+        const g = new THREE.ExtrudeGeometry(s, { depth: h - 2 * b, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 2, curveSegments: 1 });
+        g.rotateX(-Math.PI / 2);
+        g.translate(0, b, 0);
+        return g;
+    }
+
     // Fusiona geometrías sueltas en una sola malla (una llamada de dibujo).
     function StaticBuilder() { this.pos = []; this.nor = []; this.uv = []; }
     const _sv = new THREE.Vector3(), _sn = new THREE.Vector3(), _nm = new THREE.Matrix3();
@@ -1291,8 +1491,8 @@
         const hasPhoto = name => !!(photoSets && photoSets[name] && photoSets[name].color);
         const rng = makeRng(20240517);
         const q = isMobile
-            ? { tex: 512, grass: [256, 2.4], bark: [128, 256], leaf: 256, aniso: 4, skyOct: 3, env: false, flag: 256, stone: 128, lampSegs: 8, fenceRings: 0, fenceSimple: true, trunkSegs: 7, oakCards: 170, pineTiers: 7, willowTop: 46, willowCurtain: 34 }
-            : { tex: 1024, grass: [512, 3.0], bark: [256, 512], leaf: 256, aniso: 8, skyOct: 4, env: true, flag: 512, stone: 256, lampSegs: 12, fenceRings: 1, fenceSimple: false, trunkSegs: 9, oakCards: 300, pineTiers: 9, willowTop: 80, willowCurtain: 56 };
+            ? { tex: 512, grass: [256, 2.4], bark: [128, 256], leaf: 256, aniso: 4, skyOct: 3, env: false, granite: 256, engrave: 480, flag: 256, stone: 128, lampSegs: 8, fenceRings: 0, fenceSimple: true, trunkSegs: 7, oakCards: 170, pineTiers: 7, willowTop: 46, willowCurtain: 34 }
+            : { tex: 1024, grass: [512, 3.0], bark: [256, 512], leaf: 256, aniso: 8, skyOct: 4, env: true, granite: 512, engrave: 720, flag: 512, stone: 256, lampSegs: 12, fenceRings: 1, fenceSimple: false, trunkSegs: 9, oakCards: 300, pineTiers: 9, willowTop: 80, willowCurtain: 56 };
         const aniso = Math.min(q.aniso, renderer.capabilities.getMaxAnisotropy());
 
         // ---- Color y exposición ---------------------------------------
@@ -1612,12 +1812,85 @@
                 group.add(m);
             }
             const segs = isMobile ? 120 : 220;
-            range(330, 560, 50, 125, 0.8, 0.26, new THREE.Color(0xb48e6c).convertSRGBToLinear(), segs);
-            range(215, 340, 7, 26, 0.74, 0.3, new THREE.Color(0xc9a67a).convertSRGBToLinear(), segs);
+            range(330, 560, 34, 82, 0.8, 0.28, new THREE.Color(0xb48e6c).convertSRGBToLinear(), segs);
+            range(215, 340, 5, 17, 0.74, 0.32, new THREE.Color(0xc9a67a).convertSRGBToLinear(), segs);
 
             noRaycast(group);
             scene.add(group);
             env.timings.surroundings = Math.round(performance.now() - tf);
+            return group;
+        };
+
+        // ---- Lápidas ---------------------------------------------------------
+        const GRANITE_TILE = 0.6;
+        const graniteMats = {};
+        function graniteMaterial(name) {
+            if (graniteMats[name]) return graniteMats[name];
+            const tex = buildGraniteTexture(q.granite, GRANITE[name], makeRng(9001 + name.length * 77), aniso);
+            tex.repeat.set(1 / GRANITE_TILE, 1 / GRANITE_TILE);
+            const polished = name !== 'plinth';
+            const m = new THREE.MeshStandardMaterial({ map: tex, roughness: polished ? 0.16 : 0.62, metalness: 0 });
+            m.envMapIntensity = polished ? 1.0 : 0.45;
+            graniteMats[name] = m;
+            return m;
+        }
+        env.plotStoneMaterial = function () { return graniteMaterial('plinth'); };
+
+        // Proyecta UV en metros según la orientación de cada cara (para cajas con UV 0..1)
+        env.worldUV = function (geometry, scale) {
+            const b = new StaticBuilder();
+            b.add(geometry, new THREE.Matrix4());
+            return b.build(scale || 1);
+        };
+
+        let headGeo = null;
+        function headstoneGeometries() {
+            if (headGeo) return headGeo;
+            const hs = headstoneShape();
+            const body = new THREE.ExtrudeGeometry(hs.shape, {
+                depth: HEADSTONE.depth, bevelEnabled: true, bevelThickness: HEADSTONE.bevel, bevelSize: HEADSTONE.bevel,
+                bevelSegments: 2, curveSegments: isMobile ? 16 : 28
+            });
+            body.translate(0, 0, -HEADSTONE.depth / 2);
+            const face = new THREE.ShapeGeometry(hs.shape, isMobile ? 16 : 28);
+            const uv = face.attributes.uv, pos = face.attributes.position;
+            for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + HEADSTONE.halfW) / (HEADSTONE.halfW * 2), pos.getY(i) / HEADSTONE.height);
+            headGeo = {
+                body: body,
+                face: face,
+                plinth: bevelBox(1.06, 0.18, 0.58, 0.02),
+                base: bevelBox(1.3, 0.18, 0.78, 0.025)
+            };
+            return headGeo;
+        }
+
+        // info: { name, nickname, honor, dates, epitaph, variant: 'black' | 'grey' | 'red' }
+        env.createHeadstone = function (info) {
+            const g = headstoneGeometries();
+            const group = new THREE.Group();
+            const plinthMat = graniteMaterial('plinth');
+            const base = part(g.base, plinthMat);
+            const plinth = part(g.plinth, plinthMat);
+            plinth.position.y = 0.18;
+            const ZB = -0.04;
+            const body = part(g.body, graniteMaterial(info && GRANITE[info.variant] ? info.variant : 'black'));
+            body.position.set(0, 0.36, ZB);
+            group.add(base, plinth, body);
+            if (info) {
+                const e = buildEngraving(info, q.engrave, q.env ? 1 : 0.4);
+                const mat = new THREE.MeshStandardMaterial({
+                    map: e.map, normalMap: e.normalMap, roughnessMap: e.ormMap, metalnessMap: e.ormMap,
+                    roughness: 1, metalness: 1, transparent: true, depthWrite: false,
+                    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+                });
+                mat.normalScale.set(1, 1);
+                mat.envMapIntensity = 1.1;
+                const face = new THREE.Mesh(g.face, mat);
+                face.position.set(0, 0.36, ZB + HEADSTONE.depth / 2 + HEADSTONE.bevel + 0.0008);
+                face.receiveShadow = true;
+                face.name = 'bpEngraving';
+                group.add(face);
+            }
             return group;
         };
 
